@@ -31,8 +31,50 @@ function App() {
     localStorage.setItem('darkMode', JSON.stringify(isDarkMode));
   }, [isDarkMode]);
 
+  // URL'den route'u oku
+  useEffect(() => {
+    const path = window.location.pathname;
+    if (path === '/admin') {
+      // Admin paneli için token kontrolü yap
+      const savedToken = localStorage.getItem('token');
+      const savedUserId = localStorage.getItem('userId');
+      
+      if (savedToken && savedUserId) {
+        setToken(savedToken);
+        setUserId(savedUserId);
+        axios.get(`${API_URL}/api/profile`, {
+          headers: {
+            'Authorization': `Bearer ${savedToken}`
+          }
+        })
+        .then(res => {
+          if (res.data.profile && res.data.profile.email === 'admin@admin.com') {
+            setProfile(res.data.profile);
+            setScreen('admin');
+          } else {
+            // Admin değilse ana sayfaya yönlendir
+            window.history.pushState({}, '', '/');
+            setScreen('main');
+          }
+        })
+        .catch(() => {
+          localStorage.removeItem('token');
+          localStorage.removeItem('userId');
+          window.history.pushState({}, '', '/');
+          setScreen('auth');
+        });
+      } else {
+        window.history.pushState({}, '', '/');
+        setScreen('auth');
+      }
+    }
+  }, []);
+
   // Token kontrolü
   useEffect(() => {
+    const path = window.location.pathname;
+    if (path === '/admin') return; // Admin route'u için yukarıdaki useEffect hallediyor
+    
     const savedToken = localStorage.getItem('token');
     const savedUserId = localStorage.getItem('userId');
     

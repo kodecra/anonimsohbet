@@ -288,7 +288,12 @@ function MainScreen({ userId, profile, token, onMatchFound, onMatchContinued, on
                 <Button
                   block
                   icon={<SettingOutlined />}
-                  onClick={() => onGoToAdmin && onGoToAdmin()}
+                  onClick={() => {
+                    if (onGoToAdmin) {
+                      window.history.pushState({}, '', '/admin');
+                      onGoToAdmin();
+                    }
+                  }}
                   style={{ 
                     backgroundColor: '#ffc107', 
                     color: '#333',
