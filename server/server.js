@@ -456,7 +456,7 @@ app.post('/api/profile/verify-selfie', authenticateToken, upload.single('selfie'
 });
 
 // Profil fotoğrafı silme
-app.delete('/api/profile/photos/:photoId', authenticateToken, (req, res) => {
+app.delete('/api/profile/photos/:photoId', authenticateToken, async (req, res) => {
   const userId = req.user.userId;
   const profile = users.get(userId);
   
@@ -493,7 +493,7 @@ app.delete('/api/profile/photos/:photoId', authenticateToken, (req, res) => {
 });
 
 // Profil oluşturma/güncelleme (artık authenticated)
-app.post('/api/profile', authenticateToken, (req, res) => {
+app.post('/api/profile', authenticateToken, async (req, res) => {
   const { username, age, bio, interests } = req.body;
   const userId = req.user.userId;
   
@@ -573,7 +573,7 @@ app.get('/api/admin/pending-verifications', authenticateToken, (req, res) => {
 });
 
 // Superadmin - Doğrulama onayla/reddet
-app.post('/api/admin/verify-user', authenticateToken, (req, res) => {
+app.post('/api/admin/verify-user', authenticateToken, async (req, res) => {
   const userId = req.user.userId;
   const profile = users.get(userId);
   const { targetUserId, action } = req.body; // action: 'approve' or 'reject'
@@ -645,7 +645,7 @@ app.post('/api/messages/upload-media', authenticateToken, upload.single('media')
 });
 
 // Kullanıcı engelleme
-app.post('/api/users/block', authenticateToken, (req, res) => {
+app.post('/api/users/block', authenticateToken, async (req, res) => {
   const userId = req.user.userId;
   const { targetUserId } = req.body;
   
@@ -658,14 +658,14 @@ app.post('/api/users/block', authenticateToken, (req, res) => {
   if (!profile.blockedUsers.includes(targetUserId)) {
     profile.blockedUsers.push(targetUserId);
     users.set(userId, profile);
-    saveUsers(users);
+    await saveUsers(users);
   }
   
   res.json({ message: 'Kullanıcı engellendi', blockedUsers: profile.blockedUsers });
 });
 
 // Kullanıcı engelini kaldırma
-app.post('/api/users/unblock', authenticateToken, (req, res) => {
+app.post('/api/users/unblock', authenticateToken, async (req, res) => {
   const userId = req.user.userId;
   const { targetUserId } = req.body;
   
@@ -677,7 +677,7 @@ app.post('/api/users/unblock', authenticateToken, (req, res) => {
   if (profile.blockedUsers) {
     profile.blockedUsers = profile.blockedUsers.filter(id => id !== targetUserId);
     users.set(userId, profile);
-    saveUsers(users);
+    await saveUsers(users);
   }
   
   res.json({ message: 'Kullanıcı engeli kaldırıldı', blockedUsers: profile.blockedUsers });
@@ -737,7 +737,7 @@ app.get('/api/statistics', authenticateToken, (req, res) => {
 });
 
 // Profil görüntülenme sayısını artır
-app.post('/api/profile/view', authenticateToken, (req, res) => {
+app.post('/api/profile/view', authenticateToken, async (req, res) => {
   const { targetUserId } = req.body;
   const profile = users.get(targetUserId);
   
@@ -745,7 +745,7 @@ app.post('/api/profile/view', authenticateToken, (req, res) => {
     if (!profile.profileViews) profile.profileViews = 0;
     profile.profileViews++;
     users.set(targetUserId, profile);
-    saveUsers(users);
+    await saveUsers(users);
   }
   
   res.json({ success: true });
@@ -763,7 +763,7 @@ app.get('/api/notifications/settings', authenticateToken, (req, res) => {
   });
 });
 
-app.post('/api/notifications/settings', authenticateToken, (req, res) => {
+app.post('/api/notifications/settings', authenticateToken, async (req, res) => {
   const userId = req.user.userId;
   const profile = users.get(userId);
   
