@@ -1086,7 +1086,7 @@ io.on('connection', (socket) => {
   });
 
   // Devam/Çıkış kararı
-  socket.on('match-decision', (data) => {
+  socket.on('match-decision', async (data) => {
     const { matchId, decision } = data; // decision: 'continue' veya 'leave'
     const userInfo = activeUsers.get(socket.id);
     
