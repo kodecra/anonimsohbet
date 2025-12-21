@@ -1,0 +1,19 @@
+{
+  "name": "anonimsohbet",
+  "version": "1.0.0",
+  "description": "Anonim sohbet uygulaması - Web ve Mobil",
+  "main": "index.js",
+  "scripts": {
+    "dev": "concurrently \"npm run server\" \"npm run client\"",
+    "server": "cd server && npm run dev",
+    "client": "cd client && npm start",
+    "mobile": "cd mobile && npm start",
+    "install-all": "npm install && cd server && npm install && cd ../client && npm install && cd ../mobile && npm install"
+  },
+  "keywords": ["chat", "anonymous", "real-time"],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  }
+}

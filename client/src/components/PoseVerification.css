@@ -1,0 +1,266 @@
+.pose-verification-container {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 2000;
+  padding: 20px;
+}
+
+.pose-verification-content {
+  background: white;
+  border-radius: 20px;
+  padding: 30px;
+  max-width: 500px;
+  width: 100%;
+  text-align: center;
+}
+
+.pose-header {
+  margin-bottom: 30px;
+}
+
+.pose-header h2 {
+  margin: 0 0 10px 0;
+  color: #667eea;
+}
+
+.pose-counter {
+  color: #666;
+  font-size: 0.9rem;
+}
+
+.pose-instruction {
+  margin-bottom: 30px;
+}
+
+.pose-icon {
+  font-size: 80px;
+  margin-bottom: 20px;
+  animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.1);
+  }
+}
+
+.pose-icon.point-nose {
+  animation: pointNose 2s infinite;
+}
+
+@keyframes pointNose {
+  0%, 100% {
+    transform: translateY(0) rotate(0deg);
+  }
+  50% {
+    transform: translateY(-10px) rotate(-5deg);
+  }
+}
+
+.pose-icon.point-ear {
+  animation: pointEar 2s infinite;
+}
+
+@keyframes pointEar {
+  0%, 100% {
+    transform: translateX(0) rotate(0deg);
+  }
+  50% {
+    transform: translateX(10px) rotate(5deg);
+  }
+}
+
+.pose-icon.fist-up {
+  animation: fistUp 2s infinite;
+}
+
+@keyframes fistUp {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-15px);
+  }
+}
+
+.pose-icon.hands-out {
+  animation: handsOut 2s infinite;
+}
+
+@keyframes handsOut {
+  0%, 100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.2);
+  }
+}
+
+.pose-icon.hand-chin {
+  animation: handChin 2s infinite;
+}
+
+@keyframes handChin {
+  0%, 100% {
+    transform: translateY(0) rotate(0deg);
+  }
+  50% {
+    transform: translateY(5px) rotate(-5deg);
+  }
+}
+
+.pose-instruction h3 {
+  margin: 0 0 10px 0;
+  color: #333;
+  font-size: 1.5rem;
+}
+
+.pose-instruction p {
+  color: #666;
+  font-size: 1.1rem;
+}
+
+.camera-container {
+  margin-bottom: 30px;
+  border-radius: 15px;
+  overflow: hidden;
+  background: #000;
+  position: relative;
+}
+
+.camera-video {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+.capture-button {
+  width: 100%;
+  padding: 15px 30px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  border: none;
+  border-radius: 15px;
+  font-size: 1.2rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform 0.2s;
+}
+
+.capture-button:hover:not(:disabled) {
+  transform: translateY(-2px);
+}
+
+.capture-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.pose-progress {
+  display: flex;
+  justify-content: center;
+  gap: 15px;
+  margin-top: 30px;
+}
+
+.progress-dot {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: #e0e0e0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 600;
+  color: #666;
+  transition: all 0.3s;
+}
+
+.progress-dot.completed {
+  background: #28a745;
+  color: white;
+}
+
+/* Preview Styles */
+.pose-preview {
+  background: white;
+  border-radius: 20px;
+  padding: 30px;
+  max-width: 700px;
+  width: 100%;
+}
+
+.pose-preview h2 {
+  margin: 0 0 30px 0;
+  color: #667eea;
+}
+
+.preview-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 20px;
+  margin-bottom: 30px;
+}
+
+.preview-item {
+  text-align: center;
+}
+
+.preview-item img {
+  width: 100%;
+  border-radius: 10px;
+  margin-bottom: 10px;
+  border: 2px solid #e0e0e0;
+}
+
+.preview-item p {
+  margin: 0;
+  color: #666;
+  font-weight: 600;
+}
+
+.preview-actions {
+  display: flex;
+  gap: 15px;
+}
+
+.retake-button,
+.submit-button {
+  flex: 1;
+  padding: 15px 30px;
+  border: none;
+  border-radius: 10px;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform 0.2s;
+}
+
+.retake-button {
+  background: #f5f5f5;
+  color: #333;
+}
+
+.retake-button:hover {
+  background: #e0e0e0;
+  transform: translateY(-2px);
+}
+
+.submit-button {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+}
+
+.submit-button:hover {
+  transform: translateY(-2px);
+}
