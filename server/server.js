@@ -14,6 +14,7 @@ const {
   saveMatches, loadMatches,
   saveVerifications, loadVerifications 
 } = require('./dataStorage');
+const { uploadToFTP } = require('./ftpUpload');
 
 const app = express();
 const server = http.createServer(app);
@@ -211,7 +212,7 @@ const authenticateToken = (req, res, next) => {
 };
 
 // Profil fotoğrafı yükleme (en fazla 5 fotoğraf)
-app.post('/api/profile/photos', authenticateToken, upload.array('photos', 5), (req, res) => {
+app.post('/api/profile/photos', authenticateToken, upload.array('photos', 5), async (req, res) => {
   const userId = req.user.userId;
   const profile = users.get(userId);
   
@@ -225,11 +226,35 @@ app.post('/api/profile/photos', authenticateToken, upload.array('photos', 5), (r
 
   // Mevcut fotoğrafları kontrol et (max 5)
   const currentPhotos = profile.photos || [];
-  const newPhotos = req.files.map(file => ({
-    id: uuidv4(),
-    url: `/uploads/${file.filename}`,
-    filename: file.filename,
-    uploadedAt: new Date()
+  
+  // Dosyaları FTP ile hosting'e yükle
+  const newPhotos = await Promise.all(req.files.map(async (file) => {
+    const localFilePath = path.join(uploadsDir, file.filename);
+    const remoteFilePath = `/uploads/${file.filename}`;
+    
+    try {
+      // FTP ile yükle
+      const fileUrl = await uploadToFTP(localFilePath, remoteFilePath);
+      
+      // Local dosyayı sil (artık hosting'de var)
+      fs.unlinkSync(localFilePath);
+      
+      return {
+        id: uuidv4(),
+        url: fileUrl, // Hosting URL'i
+        filename: file.filename,
+        uploadedAt: new Date()
+      };
+    } catch (error) {
+      console.error('FTP upload error:', error);
+      // FTP hatası olursa local URL kullan (fallback)
+      return {
+        id: uuidv4(),
+        url: `/uploads/${file.filename}`, // Local URL (fallback)
+        filename: file.filename,
+        uploadedAt: new Date()
+      };
+    }
   }));
 
   const allPhotos = [...currentPhotos, ...newPhotos].slice(0, 5); // En fazla 5 fotoğraf
@@ -252,7 +277,7 @@ app.post('/api/profile/verify-poses', authenticateToken, upload.fields([
   { name: 'pose_3', maxCount: 1 },
   { name: 'pose_4', maxCount: 1 },
   { name: 'pose_5', maxCount: 1 }
-]), (req, res) => {
+]), async (req, res) => {
   const userId = req.user.userId;
   const profile = users.get(userId);
   
@@ -264,23 +289,41 @@ app.post('/api/profile/verify-poses', authenticateToken, upload.fields([
     return res.status(400).json({ error: 'Profil zaten onaylanmış' });
   }
 
-  // Tüm poz dosyalarını topla
+  // Tüm poz dosyalarını topla ve FTP ile yükle
   const poseImages = [];
   const poseIds = [];
   
   // pose_1, pose_2, etc. dosyalarını işle
-  Object.keys(req.files).forEach(key => {
+  for (const key of Object.keys(req.files)) {
     if (req.files[key] && req.files[key][0]) {
       const file = req.files[key][0];
       const poseId = parseInt(key.replace('pose_', ''));
-      poseImages.push({
-        url: `/uploads/${file.filename}`,
-        filename: file.filename,
-        poseId: poseId
-      });
+      const localFilePath = path.join(uploadsDir, file.filename);
+      const remoteFilePath = `/uploads/${file.filename}`;
+      
+      try {
+        // FTP ile yükle
+        const fileUrl = await uploadToFTP(localFilePath, remoteFilePath);
+        // Local dosyayı sil
+        fs.unlinkSync(localFilePath);
+        
+        poseImages.push({
+          url: fileUrl, // Hosting URL'i
+          filename: file.filename,
+          poseId: poseId
+        });
+      } catch (error) {
+        console.error('FTP upload error:', error);
+        // FTP hatası olursa local URL kullan (fallback)
+        poseImages.push({
+          url: `/uploads/${file.filename}`, // Local URL (fallback)
+          filename: file.filename,
+          poseId: poseId
+        });
+      }
       poseIds.push(poseId);
     }
-  });
+  }
 
   if (poseImages.length === 0) {
     return res.status(400).json({ error: 'Fotoğraflar yüklenemedi' });
@@ -306,7 +349,7 @@ app.post('/api/profile/verify-poses', authenticateToken, upload.fields([
 });
 
 // Selfie doğrulama yükleme (eski sistem - geriye dönük uyumluluk için)
-app.post('/api/profile/verify-selfie', authenticateToken, upload.single('selfie'), (req, res) => {
+app.post('/api/profile/verify-selfie', authenticateToken, upload.single('selfie'), async (req, res) => {
   const userId = req.user.userId;
   const profile = users.get(userId);
   
@@ -323,10 +366,26 @@ app.post('/api/profile/verify-selfie', authenticateToken, upload.single('selfie'
     return res.status(400).json({ error: 'Profil zaten onaylanmış' });
   }
 
+  // FTP ile hosting'e yükle
+  const localFilePath = path.join(uploadsDir, req.file.filename);
+  const remoteFilePath = `/uploads/${req.file.filename}`;
+  
+  let selfieUrl;
+  try {
+    // FTP ile yükle
+    selfieUrl = await uploadToFTP(localFilePath, remoteFilePath);
+    // Local dosyayı sil
+    fs.unlinkSync(localFilePath);
+  } catch (error) {
+    console.error('FTP upload error:', error);
+    // FTP hatası olursa local URL kullan (fallback)
+    selfieUrl = `/uploads/${req.file.filename}`;
+  }
+
   // Bekleyen doğrulama varsa onu güncelle, yoksa yeni oluştur
   pendingVerifications.set(userId, {
     userId,
-    selfieUrl: `/uploads/${req.file.filename}`,
+    selfieUrl: selfieUrl,
     filename: req.file.filename,
     submittedAt: new Date(),
     status: 'pending'
@@ -501,12 +560,29 @@ app.post('/api/admin/verify-user', authenticateToken, (req, res) => {
 });
 
 // Mesaj için resim yükleme
-app.post('/api/messages/upload-media', authenticateToken, upload.single('media'), (req, res) => {
+app.post('/api/messages/upload-media', authenticateToken, upload.single('media'), async (req, res) => {
   if (!req.file) {
     return res.status(400).json({ error: 'Dosya yüklenemedi' });
   }
+  
+  // FTP ile hosting'e yükle
+  const localFilePath = path.join(uploadsDir, req.file.filename);
+  const remoteFilePath = `/uploads/${req.file.filename}`;
+  
+  let mediaUrl;
+  try {
+    // FTP ile yükle
+    mediaUrl = await uploadToFTP(localFilePath, remoteFilePath);
+    // Local dosyayı sil
+    fs.unlinkSync(localFilePath);
+  } catch (error) {
+    console.error('FTP upload error:', error);
+    // FTP hatası olursa local URL kullan (fallback)
+    mediaUrl = `/uploads/${req.file.filename}`;
+  }
+  
   res.json({ 
-    mediaUrl: `/uploads/${req.file.filename}`,
+    mediaUrl: mediaUrl,
     mediaType: req.file.mimetype.startsWith('image/') ? 'image' : 'file'
   });
 });
