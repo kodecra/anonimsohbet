@@ -8,12 +8,35 @@ const jwt = require('jsonwebtoken');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
-const { 
-  saveUsers, loadUsers, 
-  saveAuth, loadAuth, 
-  saveMatches, loadMatches,
-  saveVerifications, loadVerifications 
-} = require('./dataStorage');
+// Veritabanı veya JSON dosyası kullanımı (DATABASE_URL varsa PostgreSQL, yoksa JSON)
+const useDatabase = !!process.env.DATABASE_URL;
+
+let saveUsers, loadUsers, saveAuth, loadAuth, saveMatches, loadMatches, saveVerifications, loadVerifications, initDatabase;
+
+if (useDatabase) {
+  const db = require('./database');
+  saveUsers = db.saveUsers;
+  loadUsers = db.loadUsers;
+  saveAuth = db.saveAuth;
+  loadAuth = db.loadAuth;
+  saveMatches = db.saveMatches;
+  loadMatches = db.loadMatches;
+  saveVerifications = db.saveVerifications;
+  loadVerifications = db.loadVerifications;
+  initDatabase = db.initDatabase;
+  console.log('✅ PostgreSQL kullanılıyor');
+} else {
+  const storage = require('./dataStorage');
+  saveUsers = storage.saveUsers;
+  loadUsers = storage.loadUsers;
+  saveAuth = storage.saveAuth;
+  loadAuth = storage.loadAuth;
+  saveMatches = storage.saveMatches;
+  loadMatches = storage.loadMatches;
+  saveVerifications = storage.saveVerifications;
+  loadVerifications = storage.loadVerifications;
+  console.log('⚠️ JSON dosyası kullanılıyor (DATABASE_URL bulunamadı - Render free tier için PostgreSQL kullanın!)');
+}
 const { uploadToFTP } = require('./ftpUpload');
 
 const app = express();
@@ -73,35 +96,69 @@ app.use(express.urlencoded({ extended: true }));
 // Statik dosya servisi (fotoğraflar için)
 app.use('/uploads', express.static(uploadsDir));
 
-// Veri yapıları - Kalıcı depolamadan yükle
-const users = loadUsers(); // userId -> user profile
-const userAuth = loadAuth(); // email -> { userId, passwordHash }
+// Veri yapıları - Kalıcı depolamadan yükle (async için Promise kullan)
+let users, userAuth, completedMatches, userMatches, pendingVerifications;
+
+// Async yükleme (PostgreSQL için)
+(async () => {
+  try {
+    users = await loadUsers(); // userId -> user profile
+    userAuth = await loadAuth(); // email -> { userId, passwordHash }
+    const matchesData = await loadMatches();
+    completedMatches = matchesData.completedMatches;
+    userMatches = matchesData.userMatches;
+    pendingVerifications = await loadVerifications();
+    console.log('✅ Veriler yüklendi:', {
+      users: users.size,
+      auth: userAuth.size,
+      completedMatches: completedMatches.size,
+      userMatches: userMatches.size,
+      verifications: pendingVerifications.size
+    });
+  } catch (error) {
+    console.error('❌ Veri yükleme hatası:', error);
+    // Fallback - boş Map'ler
+    users = new Map();
+    userAuth = new Map();
+    completedMatches = new Map();
+    userMatches = new Map();
+    pendingVerifications = new Map();
+  }
+})();
+
 const activeUsers = new Map(); // socketId -> user info (geçici)
 const matchingQueue = []; // Eşleşme bekleyen kullanıcılar (geçici)
 const activeMatches = new Map(); // matchId -> match info (geçici)
 
-// Kalıcı veriler
-const { completedMatches, userMatches } = loadMatches();
-const pendingVerifications = loadVerifications();
-
 const SUPERADMIN_EMAIL = process.env.SUPERADMIN_EMAIL || 'admin@admin.com'; // Superadmin email
 
+// Veritabanını başlat (eğer PostgreSQL kullanılıyorsa)
+if (useDatabase && initDatabase) {
+  initDatabase().catch(err => {
+    console.error('❌ Veritabanı başlatma hatası:', err);
+  });
+}
+
 // Verileri otomatik kaydet (her 30 saniyede bir)
-setInterval(() => {
-  saveUsers(users);
-  saveAuth(userAuth);
-  saveMatches(completedMatches, userMatches);
-  saveVerifications(pendingVerifications);
-  console.log('Veriler kaydedildi');
+setInterval(async () => {
+  if (users && userAuth && completedMatches && userMatches && pendingVerifications) {
+    await saveUsers(users);
+    await saveAuth(userAuth);
+    await saveMatches(completedMatches, userMatches);
+    await saveVerifications(pendingVerifications);
+    console.log('Veriler kaydedildi');
+  }
 }, 30000); // 30 saniye
 
 // Uygulama kapanırken kaydet
-process.on('SIGINT', () => {
-  saveUsers(users);
-  saveAuth(userAuth);
-  saveMatches(completedMatches, userMatches);
-  saveVerifications(pendingVerifications);
-  console.log('Veriler kaydedildi, uygulama kapanıyor...');
+process.on('SIGINT', async () => {
+  if (users && userAuth && completedMatches && userMatches && pendingVerifications) {
+    await saveUsers(users);
+    await saveAuth(userAuth);
+    await saveMatches(completedMatches, userMatches);
+    await saveVerifications(pendingVerifications);
+    console.log('Veriler kaydedildi, uygulama kapanıyor...');
+  }
   process.exit(0);
 });
 
@@ -126,7 +183,7 @@ app.post('/api/register', async (req, res) => {
   const passwordHash = await bcrypt.hash(password, 10);
 
   userAuth.set(email.toLowerCase(), { userId, passwordHash });
-  saveAuth(userAuth); // Hemen kaydet
+  await saveAuth(userAuth); // Hemen kaydet
 
   const userProfile = {
     userId,
@@ -142,7 +199,7 @@ app.post('/api/register', async (req, res) => {
   };
 
   users.set(userId, userProfile);
-  saveUsers(users); // Hemen kaydet
+  await saveUsers(users); // Hemen kaydet
 
   const token = jwt.sign({ userId, email: email.toLowerCase() }, JWT_SECRET, { expiresIn: '7d' });
 
@@ -266,7 +323,7 @@ app.post('/api/profile/photos', authenticateToken, upload.array('photos', 5), as
   };
 
   users.set(userId, updatedProfile);
-  saveUsers(users); // Hemen kaydet
+  await saveUsers(users); // Hemen kaydet
   res.json({ profile: updatedProfile, message: `${req.files.length} fotoğraf yüklendi` });
 });
 
@@ -340,7 +397,7 @@ app.post('/api/profile/verify-poses', authenticateToken, upload.fields([
     submittedAt: new Date(),
     status: 'pending'
   });
-  saveVerifications(pendingVerifications);
+  await saveVerifications(pendingVerifications);
 
   res.json({ 
     message: 'Poz doğrulama fotoğrafları yüklendi. İnceleme sonrası onaylanacaktır.',
@@ -390,7 +447,7 @@ app.post('/api/profile/verify-selfie', authenticateToken, upload.single('selfie'
     submittedAt: new Date(),
     status: 'pending'
   });
-  saveVerifications(pendingVerifications); // Hemen kaydet
+  await saveVerifications(pendingVerifications); // Hemen kaydet
 
   res.json({ 
     message: 'Selfie yüklendi. İnceleme sonrası onaylanacaktır.',
@@ -431,7 +488,7 @@ app.delete('/api/profile/photos/:photoId', authenticateToken, (req, res) => {
   };
 
   users.set(userId, updatedProfile);
-  saveUsers(users); // Hemen kaydet
+  await saveUsers(users); // Hemen kaydet
   res.json({ profile: updatedProfile, message: 'Fotoğraf silindi' });
 });
 
@@ -455,7 +512,7 @@ app.post('/api/profile', authenticateToken, (req, res) => {
   };
 
   users.set(userId, userProfile);
-  saveUsers(users); // Hemen kaydet
+  await saveUsers(users); // Hemen kaydet
   res.json({ profile: userProfile });
 });
 
@@ -544,8 +601,8 @@ app.post('/api/admin/verify-user', authenticateToken, (req, res) => {
     targetProfile.verified = true;
     verification.status = 'approved';
     users.set(targetUserId, targetProfile);
-    saveUsers(users); // Hemen kaydet
-    saveVerifications(pendingVerifications); // Hemen kaydet
+    await saveUsers(users); // Hemen kaydet
+    await saveVerifications(pendingVerifications); // Hemen kaydet
     res.json({ message: 'Kullanıcı onaylandı', verified: true });
   } else {
     verification.status = 'rejected';
@@ -554,7 +611,7 @@ app.post('/api/admin/verify-user', authenticateToken, (req, res) => {
     if (fs.existsSync(filePath)) {
       fs.unlinkSync(filePath);
     }
-    saveVerifications(pendingVerifications); // Hemen kaydet
+    await saveVerifications(pendingVerifications); // Hemen kaydet
     res.json({ message: 'Doğrulama reddedildi' });
   }
 });
@@ -1091,7 +1148,7 @@ io.on('connection', (socket) => {
         }
         userMatches.get(match.user1.userId).push(matchId);
         userMatches.get(match.user2.userId).push(matchId);
-        saveMatches(completedMatches, userMatches); // Hemen kaydet
+        await saveMatches(completedMatches, userMatches); // Hemen kaydet
 
         io.to(match.user1.socketId).emit('match-continued', {
           matchId: matchId,
