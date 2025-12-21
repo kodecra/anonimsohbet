@@ -105,3 +105,4 @@ Deploy tamamlandıktan sonra, backend loglarında şunu görmelisiniz:
 - **Internal URL kullanın:** Backend ile PostgreSQL aynı network'te olduğu için daha hızlı
 - **Otomatik yedekleme:** Render PostgreSQL otomatik yedek alır
 
+

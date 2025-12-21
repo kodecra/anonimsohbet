@@ -49,3 +49,4 @@ Upload yaptığınızda dosyalar:
 - **Dosya yüklenemiyor:** `uploads` klasörünün izinlerini kontrol edin (755 veya 777)
 - **Fallback çalışıyor:** FTP hatası olursa dosyalar Render'da kalır (geçici), logları kontrol edin
 
+
