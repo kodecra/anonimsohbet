@@ -34,7 +34,7 @@ import './MainScreen.css';
 const { Header, Content, Sider } = Layout;
 const { Title, Text } = Typography;
 
-function MainScreen({ userId, profile, token, onMatchFound, onMatchContinued, onMatchEnded, onLogout, onProfileUpdated, API_URL }) {
+function MainScreen({ userId, profile, token, onMatchFound, onMatchContinued, onMatchEnded, onLogout, onProfileUpdated, onGoToAdmin, API_URL }) {
   const { isDarkMode, toggleDarkMode } = React.useContext(ThemeContext);
   const [socket, setSocket] = useState(null);
   const [isMatching, setIsMatching] = useState(false);
@@ -288,7 +288,7 @@ function MainScreen({ userId, profile, token, onMatchFound, onMatchContinued, on
                 <Button
                   block
                   icon={<SettingOutlined />}
-                  onClick={() => window.location.href = '/admin'}
+                  onClick={() => onGoToAdmin && onGoToAdmin()}
                   style={{ 
                     backgroundColor: '#ffc107', 
                     color: '#333',

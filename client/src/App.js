@@ -175,6 +175,7 @@ function App() {
             onMatchEnded={handleMatchEnded}
             onLogout={handleLogout}
             onProfileUpdated={handleProfileUpdated}
+            onGoToAdmin={() => setScreen('admin')}
             API_URL={API_URL}
           />
         )}
