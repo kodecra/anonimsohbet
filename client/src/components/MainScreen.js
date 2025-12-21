@@ -24,7 +24,8 @@ import {
   LogoutOutlined,
   SettingOutlined,
   MoonOutlined,
-  SunOutlined
+  SunOutlined,
+  CheckCircleOutlined
 } from '@ant-design/icons';
 import { ThemeContext } from '../App';
 import ProfileEdit from './ProfileEdit';
@@ -45,6 +46,8 @@ function MainScreen({ userId, profile, token, onMatchFound, onMatchContinued, on
   const [showProfileEdit, setShowProfileEdit] = useState(false);
   const [currentProfile, setCurrentProfile] = useState(profile);
   const [activeTab, setActiveTab] = useState('match'); // 'match' or 'chats'
+  const [showMatchAnimation, setShowMatchAnimation] = useState(false);
+  const [pendingMatchId, setPendingMatchId] = useState(null);
   const timerRef = useRef(null);
 
   useEffect(() => {
@@ -72,10 +75,16 @@ function MainScreen({ userId, profile, token, onMatchFound, onMatchContinued, on
       console.log('Profil set edildi:', data.profile);
     });
 
-    // Eşleşme bulundu - Direkt ChatScreen'e geç
+    // Eşleşme bulundu - Animasyon göster, sonra ChatScreen'e geç
     newSocket.on('match-found', (data) => {
       setIsMatching(false);
-      onMatchFound(data.matchId);
+      setPendingMatchId(data.matchId);
+      setShowMatchAnimation(true);
+      // 2 saniye sonra chat sayfasına geç
+      setTimeout(() => {
+        setShowMatchAnimation(false);
+        onMatchFound(data.matchId);
+      }, 2000);
     });
 
     // Eşleşme onaylandı
@@ -476,6 +485,57 @@ function MainScreen({ userId, profile, token, onMatchFound, onMatchContinued, on
           onClose={() => setShowProfileEdit(false)}
           API_URL={API_URL}
         />
+      )}
+
+      {/* Eşleşme Bulundu Animasyonu */}
+      {showMatchAnimation && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: 'linear-gradient(135deg, rgba(102, 126, 234, 0.95) 0%, rgba(118, 75, 162, 0.95) 100%)',
+          display: 'flex',
+          flexDirection: 'column',
+          justifyContent: 'center',
+          alignItems: 'center',
+          zIndex: 9999,
+          animation: 'fadeIn 0.3s ease-in'
+        }}>
+          <div style={{
+            textAlign: 'center',
+            animation: 'scaleIn 0.5s ease-out'
+          }}>
+            <CheckCircleOutlined 
+              style={{ 
+                fontSize: '120px', 
+                color: '#52c41a',
+                animation: 'spinAndPulse 1.5s ease-in-out infinite',
+                filter: 'drop-shadow(0 4px 8px rgba(82, 196, 26, 0.3))'
+              }} 
+            />
+            <Title level={1} style={{ 
+              marginTop: '32px', 
+              color: '#fff',
+              fontWeight: 'bold',
+              fontSize: '48px',
+              textShadow: '0 2px 4px rgba(0, 0, 0, 0.2)'
+            }}>
+              Eşleşme Bulundu! 🎉
+            </Title>
+            <Text style={{ 
+              fontSize: '20px', 
+              color: '#fff',
+              opacity: 0.95,
+              display: 'block',
+              marginTop: '16px',
+              fontWeight: 500
+            }}>
+              Sohbete yönlendiriliyorsunuz...
+            </Text>
+          </div>
+        </div>
       )}
     </div>
   );
