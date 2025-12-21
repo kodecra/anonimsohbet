@@ -51,6 +51,10 @@ function ChatScreen({ userId, profile: currentProfile, matchId, partnerProfile: 
   const messagesEndRef = useRef(null);
   const typingTimeoutRef = useRef(null);
   const timerRef = useRef(null);
+  const fileInputRef = useRef(null);
+  const [selectedMedia, setSelectedMedia] = useState(null);
+  const [uploadingMedia, setUploadingMedia] = useState(false);
+  const [emojiPickerVisible, setEmojiPickerVisible] = useState(false);
   const [notificationSettings, setNotificationSettings] = useState({
     soundEnabled: true,
     browserEnabled: true,
