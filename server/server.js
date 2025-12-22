@@ -2009,34 +2009,87 @@ io.on('connection', (socket) => {
         console.log(`✅ completedMatches'e eklendi: ${matchId}`);
 
         // Kullanıcıların eşleşme listelerine ekle
-        // ÖNEMLİ: Eğer matchId zaten userMatches'te varsa, tekrar ekleme (duplicate önleme)
-        const user1Matches = userMatches.get(match.user1.userId) || [];
-        const user2Matches = userMatches.get(match.user2.userId) || [];
+        // ÖNEMLİ: Her iki kullanıcının da userMatches'ine EKLEMEK ZORUNLU
+        const user1Id = match.user1.userId;
+        const user2Id = match.user2.userId;
         
+        // user1 için ekle
+        let user1Matches = userMatches.get(user1Id) || [];
         if (!user1Matches.includes(matchId)) {
           user1Matches.push(matchId);
-          userMatches.set(match.user1.userId, user1Matches);
-          console.log(`✅ user1Matches'e eklendi: ${match.user1.userId} -> ${matchId}`);
+          userMatches.set(user1Id, user1Matches);
+          console.log(`✅ user1Matches'e eklendi: ${user1Id} -> ${matchId}`);
         } else {
-          console.log(`⚠️ user1Matches'te zaten var: ${match.user1.userId} -> ${matchId}`);
+          console.log(`⚠️ user1Matches'te zaten var: ${user1Id} -> ${matchId}`);
         }
+        
+        // user2 için ekle
+        let user2Matches = userMatches.get(user2Id) || [];
         if (!user2Matches.includes(matchId)) {
           user2Matches.push(matchId);
-          userMatches.set(match.user2.userId, user2Matches);
-          console.log(`✅ user2Matches'e eklendi: ${match.user2.userId} -> ${matchId}`);
+          userMatches.set(user2Id, user2Matches);
+          console.log(`✅ user2Matches'e eklendi: ${user2Id} -> ${matchId}`);
         } else {
-          console.log(`⚠️ user2Matches'te zaten var: ${match.user2.userId} -> ${matchId}`);
+          console.log(`⚠️ user2Matches'te zaten var: ${user2Id} -> ${matchId}`);
         }
         
-        await saveMatches(completedMatches, userMatches); // Hemen kaydet
+        // VERİTABANINA KAYDET - HEMEN VE ZORUNLU
+        try {
+          await saveMatches(completedMatches, userMatches);
+          console.log(`✅✅✅ saveMatches başarılı: ${matchId}`);
+        } catch (error) {
+          console.error(`❌❌❌ saveMatches HATASI:`, error);
+          // Hata olsa bile devam et, ama logla
+        }
         
-        console.log(`✅✅✅ userMatches güncellendi:`, {
-          user1: match.user1.userId,
-          user2: match.user2.userId,
-          user1Matches: userMatches.get(match.user1.userId),
-          user2Matches: userMatches.get(match.user2.userId),
+        // DOĞRULAMA: Her iki kullanıcının da userMatches'inde olduğundan emin ol
+        const finalUser1Matches = userMatches.get(user1Id) || [];
+        const finalUser2Matches = userMatches.get(user2Id) || [];
+        const user1HasMatch = finalUser1Matches.includes(matchId);
+        const user2HasMatch = finalUser2Matches.includes(matchId);
+        
+        if (!user1HasMatch || !user2HasMatch) {
+          console.error(`❌❌❌ KRİTİK HATA: userMatches senkronizasyon sorunu!`, {
+            matchId,
+            user1Id,
+            user2Id,
+            user1HasMatch,
+            user2HasMatch,
+            user1Matches: finalUser1Matches,
+            user2Matches: finalUser2Matches
+          });
+          
+          // ZORLA EKLE
+          if (!user1HasMatch) {
+            finalUser1Matches.push(matchId);
+            userMatches.set(user1Id, finalUser1Matches);
+            console.log(`🔧 ZORLA EKLENDİ: user1Matches -> ${user1Id}`);
+          }
+          if (!user2HasMatch) {
+            finalUser2Matches.push(matchId);
+            userMatches.set(user2Id, finalUser2Matches);
+            console.log(`🔧 ZORLA EKLENDİ: user2Matches -> ${user2Id}`);
+          }
+          
+          // Tekrar kaydet
+          try {
+            await saveMatches(completedMatches, userMatches);
+            console.log(`✅ Zorla ekleme sonrası saveMatches başarılı`);
+          } catch (error) {
+            console.error(`❌ Zorla ekleme sonrası saveMatches HATASI:`, error);
+          }
+        }
+        
+        console.log(`✅✅✅ userMatches güncellendi (DOĞRULAMA):`, {
+          user1: user1Id,
+          user2: user2Id,
+          user1Matches: userMatches.get(user1Id),
+          user2Matches: userMatches.get(user2Id),
           matchId: matchId,
-          completedMatchesSize: completedMatches.size
+          completedMatchesSize: completedMatches.size,
+          completedMatchExists: !!completedMatches.get(matchId),
+          user1HasMatch: userMatches.get(user1Id)?.includes(matchId),
+          user2HasMatch: userMatches.get(user2Id)?.includes(matchId)
         });
 
         // Güncel socket ID'leri bul (userId ile)
