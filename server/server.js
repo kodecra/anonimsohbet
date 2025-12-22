@@ -1342,16 +1342,12 @@ io.on('connection', (socket) => {
         // Active match'i temizle
         activeMatches.delete(matchId);
         
-        // Kullanıcıların match durumunu güncelle
-        const user1Info = activeUsers.get(match.user1.socketId);
-        const user2Info = activeUsers.get(match.user2.socketId);
-        if (user1Info) {
-          user1Info.inMatch = false;
-          user1Info.matchId = null;
-        }
-        if (user2Info) {
-          user2Info.inMatch = false;
-          user2Info.matchId = null;
+        // Kullanıcıların match durumunu güncelle (userId ile bul)
+        for (const [socketId, userInfo] of activeUsers.entries()) {
+          if (userInfo.userId === match.user1.userId || userInfo.userId === match.user2.userId) {
+            userInfo.inMatch = false;
+            userInfo.matchId = null;
+          }
         }
 
         console.log(`✅✅✅ Eşleşme onaylandı: ${matchId}`);
@@ -1362,31 +1358,44 @@ io.on('connection', (socket) => {
           user2Decision: match.user2Decision
         });
         
-        io.to(match.user1.socketId).emit('match-ended', {
-          matchId: matchId,
-          message: 'Eşleşme sona erdi.'
-        });
-
-        io.to(match.user2.socketId).emit('match-ended', {
-          matchId: matchId,
-          message: 'Eşleşme sona erdi.'
-        });
+        // Güncel socket ID'leri bul (userId ile)
+        let user1SocketId = match.user1.socketId;
+        let user2SocketId = match.user2.socketId;
+        
+        // activeUsers'dan güncel socket ID'leri bul
+        for (const [socketId, userInfo] of activeUsers.entries()) {
+          if (userInfo.userId === match.user1.userId) {
+            user1SocketId = socketId;
+          }
+          if (userInfo.userId === match.user2.userId) {
+            user2SocketId = socketId;
+          }
+        }
+        
+        if (user1SocketId) {
+          io.to(user1SocketId).emit('match-ended', {
+            matchId: matchId,
+            message: 'Eşleşme sona erdi.'
+          });
+        }
+        
+        if (user2SocketId) {
+          io.to(user2SocketId).emit('match-ended', {
+            matchId: matchId,
+            message: 'Eşleşme sona erdi.'
+          });
+        }
 
         // Active match'i temizle
         activeMatches.delete(matchId);
         
-        // Eşleşmeyi temizle
-        const user1Info = activeUsers.get(match.user1.socketId);
-        const user2Info = activeUsers.get(match.user2.socketId);
-        if (user1Info) {
-          user1Info.inMatch = false;
-          user1Info.matchId = null;
+        // Eşleşmeyi temizle (userId ile bul)
+        for (const [socketId, userInfo] of activeUsers.entries()) {
+          if (userInfo.userId === match.user1.userId || userInfo.userId === match.user2.userId) {
+            userInfo.inMatch = false;
+            userInfo.matchId = null;
+          }
         }
-        if (user2Info) {
-          user2Info.inMatch = false;
-          user2Info.matchId = null;
-        }
-        activeMatches.delete(matchId);
 
         console.log(`Eşleşme sona erdi: ${matchId}`);
       }
