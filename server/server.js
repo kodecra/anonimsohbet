@@ -712,16 +712,35 @@ app.get('/api/admin/pending-verifications', authenticateToken, (req, res) => {
     return res.status(403).json({ error: 'Bu işlem için yetkiniz yok' });
   }
 
+  // Poz isimleri mapping
+  const poseNames = {
+    1: 'El Buruna',
+    2: 'El Çeneye',
+    3: 'El Alna',
+    4: 'El Kulağa',
+    5: 'El Omza'
+  };
+
   const pending = Array.from(pendingVerifications.entries())
     .filter(([uid, verification]) => verification.status === 'pending')
     .map(([uid, verification]) => {
       const userProfile = users.get(uid);
+      // Poz isimlerini ekle
+      const poseImagesWithNames = (verification.poseImages || []).map((img, index) => {
+        const poseId = verification.poses && verification.poses[index] ? verification.poses[index] : index + 1;
+        return {
+          ...img,
+          poseId: poseId,
+          poseName: poseNames[poseId] || `Poz ${poseId}`
+        };
+      });
+      
       return {
         userId: uid,
         username: userProfile?.username || 'Bilinmeyen',
         email: userProfile?.email || '',
         selfieUrl: verification.selfieUrl, // Eski sistem için
-        poseImages: verification.poseImages || [], // Yeni sistem için
+        poseImages: poseImagesWithNames, // Yeni sistem için (poz isimleri ile)
         poses: verification.poses || [], // Poz ID'leri
         submittedAt: verification.submittedAt
       };
@@ -1039,15 +1058,24 @@ app.delete('/api/matches/:matchId', authenticateToken, async (req, res) => {
     const partnerMatchIds = userMatches.get(partnerId) || [];
     const filteredPartnerMatchIds = partnerMatchIds.filter(id => id !== matchId);
     userMatches.set(partnerId, filteredPartnerMatchIds);
+    
+    // Partner'a Socket.IO ile bildir (eğer online ise)
+    for (const [socketId, userInfo] of activeUsers.entries()) {
+      if (userInfo.userId === partnerId) {
+        io.to(socketId).emit('match-ended', { matchId, message: 'Eşleşme sona erdi' });
+        console.log(`✅ Partner'a match-ended event'i gönderildi: ${partnerId}`);
+        break;
+      }
+    }
   }
   
-  // Eşleşmeyi sil
+  // Eşleşmeyi tamamen sil (her iki kullanıcı için de)
   completedMatches.delete(matchId);
   activeMatches.delete(matchId);
   
   await saveMatches(completedMatches, userMatches);
   
-  console.log(`Eşleşme silindi: ${matchId} (Kullanıcı: ${userId})`);
+  console.log(`✅ Eşleşme tamamen silindi: ${matchId} (Kullanıcı: ${userId}, Partner: ${partnerId})`);
   
   res.json({ success: true, message: 'Eşleşmeden çıkıldı' });
 });
@@ -1457,23 +1485,31 @@ io.on('connection', (socket) => {
       for (let i = 1; i < matchingQueue.length; i++) {
         const candidate = matchingQueue[i];
         
-        // Cinsiyet filtresi kontrolü - erkek erkek, kadın kadın ile eşleşecek
+        // Cinsiyet filtresi kontrolü - MUTLAKA cinsiyet filtresine uymalı
         let genderMatch = true;
+        
+        // user1'in cinsiyet filtresi varsa, candidate'ın cinsiyeti eşleşmeli
         if (user1.filterGender) {
-          // Kullanıcı belirli bir cinsiyet arıyorsa, candidate'ın cinsiyeti eşleşmeli
           if (candidate.profile.gender !== user1.filterGender) {
             genderMatch = false;
+            console.log(`❌ Cinsiyet uyuşmazlığı: user1 ${user1.filterGender} arıyor, candidate ${candidate.profile.gender}`);
           }
-        } else if (candidate.filterGender) {
-          // Candidate belirli bir cinsiyet arıyorsa, user1'in cinsiyeti eşleşmeli
+        }
+        
+        // candidate'ın cinsiyet filtresi varsa, user1'in cinsiyeti eşleşmeli
+        if (candidate.filterGender) {
           if (user1.profile.gender !== candidate.filterGender) {
             genderMatch = false;
+            console.log(`❌ Cinsiyet uyuşmazlığı: candidate ${candidate.filterGender} arıyor, user1 ${user1.profile.gender}`);
           }
-        } else {
-          // Her iki taraf da cinsiyet filtresi belirtmemişse, aynı cinsiyet ile eşleş
+        }
+        
+        // Her iki taraf da cinsiyet filtresi belirtmemişse, aynı cinsiyet ile eşleş (erkek-erkek, kadın-kadın)
+        if (!user1.filterGender && !candidate.filterGender) {
           if (user1.profile.gender && candidate.profile.gender) {
             if (user1.profile.gender !== candidate.profile.gender) {
               genderMatch = false;
+              console.log(`❌ Cinsiyet uyuşmazlığı: user1 ${user1.profile.gender}, candidate ${candidate.profile.gender}`);
             }
           }
         }

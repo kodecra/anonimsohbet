@@ -46,6 +46,13 @@ function AdminPanel({ token, API_URL, onGoToProfile }) {
   const [activeTab, setActiveTab] = useState('verifications'); // 'verifications', 'users', 'complaints'
   const [sortBy, setSortBy] = useState('createdAt');
   const [sortOrder, setSortOrder] = useState('desc');
+  const [windowWidth, setWindowWidth] = useState(window.innerWidth);
+
+  useEffect(() => {
+    const handleResize = () => setWindowWidth(window.innerWidth);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   useEffect(() => {
     if (activeTab === 'verifications') {
@@ -205,22 +212,38 @@ function AdminPanel({ token, API_URL, onGoToProfile }) {
                   <Card
                     style={{
                       borderRadius: '12px',
-                      boxShadow: '0 2px 8px rgba(0,0,0,0.1)'
+                      boxShadow: isDarkMode ? '0 2px 8px rgba(0,0,0,0.3)' : '0 2px 8px rgba(0,0,0,0.1)',
+                      background: isDarkMode ? '#2e2e2e' : '#fff',
+                      border: isDarkMode ? '1px solid #424242' : 'none'
                     }}
                   >
                     <div style={{ marginBottom: '16px' }}>
-                      <Title level={4} style={{ margin: 0, marginBottom: '8px' }}>
+                      <Title level={4} style={{ 
+                        margin: 0, 
+                        marginBottom: '8px',
+                        color: isDarkMode ? '#fff' : '#000'
+                      }}>
                         {verification.username}
                       </Title>
-                      <Text type="secondary" style={{ display: 'block', marginBottom: '4px' }}>
+                      <Text type="secondary" style={{ 
+                        display: 'block', 
+                        marginBottom: '4px',
+                        color: isDarkMode ? '#b8b8b8' : '#666'
+                      }}>
                         {verification.email}
                       </Text>
-                      <Text type="secondary" style={{ fontSize: '12px' }}>
+                      <Text type="secondary" style={{ 
+                        fontSize: '12px',
+                        color: isDarkMode ? '#b8b8b8' : '#666'
+                      }}>
                         Tarih: {new Date(verification.submittedAt).toLocaleString('tr-TR')}
                       </Text>
                     </div>
 
-                    <Divider style={{ margin: '16px 0' }} />
+                    <Divider style={{ 
+                      margin: '16px 0',
+                      borderColor: isDarkMode ? '#424242' : '#f0f0f0'
+                    }} />
 
                     <div style={{ marginBottom: '16px' }}>
                       {verification.selfieUrl && (
@@ -254,16 +277,18 @@ function AdminPanel({ token, API_URL, onGoToProfile }) {
                                     e.target.style.display = 'none';
                                   }}
                                 />
-                                {verification.poses && verification.poses[index] && (
+                                {img.poseName && (
                                   <Tag
                                     style={{
                                       position: 'absolute',
                                       bottom: 4,
-                                      left: 4
+                                      left: 4,
+                                      color: isDarkMode ? '#fff' : '#000',
+                                      background: isDarkMode ? 'rgba(0,0,0,0.7)' : 'rgba(255,255,255,0.9)'
                                     }}
                                     color="blue"
                                   >
-                                    Poz {index + 1}
+                                    {img.poseName}
                                   </Tag>
                                 )}
                               </div>
@@ -326,52 +351,156 @@ function AdminPanel({ token, API_URL, onGoToProfile }) {
           <Table
             dataSource={users}
             rowKey="userId"
+            scroll={{ x: window.innerWidth < 768 ? 800 : undefined }}
+            style={{
+              background: isDarkMode ? '#2e2e2e' : '#fff'
+            }}
+            pagination={{
+              pageSize: 10,
+              showSizeChanger: false
+            }}
             columns={[
               {
                 title: 'Kullanıcı Adı',
                 dataIndex: 'username',
                 key: 'username',
+                render: (text) => <span style={{ color: isDarkMode ? '#fff' : '#000' }}>{text}</span>
               },
               {
                 title: 'Email',
                 dataIndex: 'email',
                 key: 'email',
+                render: (text) => <span style={{ color: isDarkMode ? '#b8b8b8' : '#666' }}>{text}</span>
               },
               {
                 title: 'Ad Soyad',
                 key: 'name',
-                render: (_, record) => `${record.firstName || ''} ${record.lastName || ''}`.trim() || '-',
+                render: (_, record) => (
+                  <span style={{ color: isDarkMode ? '#fff' : '#000' }}>
+                    {`${record.firstName || ''} ${record.lastName || ''}`.trim() || '-'}
+                  </span>
+                ),
               },
               {
                 title: 'Durum',
                 dataIndex: 'verified',
                 key: 'verified',
-                render: (verified) => (
-                  <Tag color={verified ? 'success' : 'default'}>
-                    {verified ? 'Onaylı' : 'Onaysız'}
-                  </Tag>
+                render: (verified, record) => (
+                  <Space>
+                    <Tag color={verified ? 'success' : 'default'}>
+                      {verified ? 'Onaylı' : 'Onaysız'}
+                    </Tag>
+                    {!verified && (
+                      <Button
+                        type="primary"
+                        size="small"
+                        icon={<CheckOutlined />}
+                        onClick={() => handleVerify(record.userId, 'approve')}
+                        style={{
+                          background: '#52c41a',
+                          borderColor: '#52c41a'
+                        }}
+                      >
+                        Onayla
+                      </Button>
+                    )}
+                  </Space>
                 ),
               },
               {
                 title: 'Kayıt Tarihi',
                 dataIndex: 'createdAt',
                 key: 'createdAt',
-                render: (date) => date ? new Date(date).toLocaleString('tr-TR') : '-',
+                render: (date) => (
+                  <span style={{ color: isDarkMode ? '#b8b8b8' : '#666' }}>
+                    {date ? new Date(date).toLocaleString('tr-TR') : '-'}
+                  </span>
+                ),
               },
             ]}
-            pagination={{ pageSize: 10 }}
           />
         </>
       );
     } else if (activeTab === 'complaints') {
+      if (complaints.length === 0) {
+        return (
+          <div style={{ 
+            textAlign: 'center', 
+            padding: '64px 0' 
+          }}>
+            <Text type="secondary" style={{ 
+              fontSize: '16px',
+              color: isDarkMode ? '#b8b8b8' : '#666'
+            }}>
+              Henüz şikayet bulunmuyor
+            </Text>
+          </div>
+        );
+      }
+      
       return (
-        <div style={{ 
-          textAlign: 'center', 
-          padding: '64px 0' 
-        }}>
-          <Text type="secondary" style={{ fontSize: '16px' }}>
-            Henüz şikayet bulunmuyor
-          </Text>
+        <div>
+          <Table
+            dataSource={complaints}
+            rowKey="id"
+            scroll={{ x: window.innerWidth < 768 ? 800 : undefined }}
+            style={{
+              background: isDarkMode ? '#2e2e2e' : '#fff'
+            }}
+            columns={[
+              {
+                title: 'Şikayet Eden',
+                dataIndex: 'reporterUsername',
+                key: 'reporterUsername',
+                render: (text) => <span style={{ color: isDarkMode ? '#fff' : '#000' }}>{text}</span>
+              },
+              {
+                title: 'Şikayet Edilen',
+                dataIndex: 'targetUsername',
+                key: 'targetUsername',
+                render: (text) => <span style={{ color: isDarkMode ? '#fff' : '#000' }}>{text}</span>
+              },
+              {
+                title: 'Sebep',
+                dataIndex: 'reasonType',
+                key: 'reasonType',
+                render: (reasonType) => {
+                  const reasonNames = {
+                    'fake_account': 'Sahte Hesap',
+                    'inappropriate_username': 'Uygunsuz Kullanıcı Adı',
+                    'inappropriate_photo': 'Uygunsuz Fotoğraf',
+                    'other': 'Diğer'
+                  };
+                  return (
+                    <Tag color="red">
+                      {reasonNames[reasonType] || reasonType}
+                    </Tag>
+                  );
+                }
+              },
+              {
+                title: 'Açıklama',
+                dataIndex: 'customReason',
+                key: 'customReason',
+                render: (text) => (
+                  <span style={{ color: isDarkMode ? '#b8b8b8' : '#666' }}>
+                    {text || '-'}
+                  </span>
+                )
+              },
+              {
+                title: 'Tarih',
+                dataIndex: 'timestamp',
+                key: 'timestamp',
+                render: (date) => (
+                  <span style={{ color: isDarkMode ? '#b8b8b8' : '#666' }}>
+                    {date ? new Date(date).toLocaleString('tr-TR') : '-'}
+                  </span>
+                )
+              },
+            ]}
+            pagination={{ pageSize: 10 }}
+          />
         </div>
       );
     }
