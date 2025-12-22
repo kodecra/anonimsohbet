@@ -752,8 +752,19 @@ function MainScreen({ userId, profile, token, onMatchFound, onMatchContinued, on
                 )}
               </div>
             </Card>
-          </Col>
-        )}
+          )}
+          
+          {activeTab === 'chats' && (
+            <Card style={{ borderRadius: '16px' }}>
+              <ChatsList 
+                key={chatsRefreshKey}
+                token={token}
+                onSelectChat={handleSelectChat}
+                API_URL={API_URL}
+              />
+            </Card>
+          )}
+        </Col>
       </Row>
 
       {showProfileEdit && (
