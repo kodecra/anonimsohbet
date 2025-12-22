@@ -311,9 +311,18 @@ function ChatScreen({ userId, profile: currentProfile, matchId, partnerProfile: 
       setTypingUsers((prev) => {
         const newSet = new Set(prev);
         if (data.isTyping) {
-          newSet.add(data.username);
+          // Anonim eşleşmede "Anonim yazıyor" göster
+          if (!partnerProfile) {
+            newSet.add('Anonim');
+          } else {
+            newSet.add(data.username);
+          }
         } else {
-          newSet.delete(data.username);
+          if (!partnerProfile) {
+            newSet.delete('Anonim');
+          } else {
+            newSet.delete(data.username);
+          }
         }
         return newSet;
       });
@@ -948,6 +957,11 @@ function ChatScreen({ userId, profile: currentProfile, matchId, partnerProfile: 
               <Space>
                 <Text strong style={{ color: isDarkMode ? '#fff' : '#000' }}>
                   {formatDisplayName(partnerProfile)}
+                  {partnerProfile.age && (
+                    <Text type="secondary" style={{ fontSize: '12px', color: isDarkMode ? '#b8b8b8' : '#999', marginLeft: '4px' }}>
+                      ({partnerProfile.age})
+                    </Text>
+                  )}
                 </Text>
                 {partnerProfile.verified && (
                   <SafetyCertificateOutlined style={{ color: '#52c41a' }} />
@@ -956,13 +970,6 @@ function ChatScreen({ userId, profile: currentProfile, matchId, partnerProfile: 
                   <Tag color="green" style={{ margin: 0 }}>Çevrimiçi</Tag>
                 )}
               </Space>
-              {partnerProfile.age && (
-                <div>
-                  <Text type="secondary" style={{ fontSize: '12px', color: isDarkMode ? '#b8b8b8' : '#999' }}>
-                    ({partnerProfile.age})
-                  </Text>
-                </div>
-              )}
               {!partnerProfile.isOnline && partnerProfile.lastSeen && (
                 <div>
                   <Text type="secondary" style={{ fontSize: '11px', color: isDarkMode ? '#b8b8b8' : '#999' }}>

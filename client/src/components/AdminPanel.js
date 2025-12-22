@@ -498,6 +498,28 @@ function AdminPanel({ token, API_URL, onGoToProfile }) {
                   </span>
                 )
               },
+              {
+                title: 'İşlemler',
+                key: 'actions',
+                render: (_, record) => (
+                  <Space>
+                    <Button
+                      size="small"
+                      danger
+                      onClick={() => handleBanUser(record.targetUserId, record.targetUsername)}
+                    >
+                      Yasakla
+                    </Button>
+                    <Button
+                      size="small"
+                      type="default"
+                      onClick={() => handleWarnUser(record.targetUserId, record.targetUsername)}
+                    >
+                      Uyarı Gönder
+                    </Button>
+                  </Space>
+                )
+              },
             ]}
             pagination={{ pageSize: 10 }}
           />

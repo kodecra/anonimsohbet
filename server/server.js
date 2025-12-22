@@ -764,24 +764,28 @@ app.post('/api/admin/verify-user', authenticateToken, async (req, res) => {
     return res.status(400).json({ error: 'Geçersiz parametreler' });
   }
 
-  const verification = pendingVerifications.get(targetUserId);
-  if (!verification) {
-    return res.status(404).json({ error: 'Doğrulama bulunamadı' });
-  }
-
   const targetProfile = users.get(targetUserId);
   if (!targetProfile) {
     return res.status(404).json({ error: 'Kullanıcı bulunamadı' });
   }
 
+  const verification = pendingVerifications.get(targetUserId);
+  
   if (action === 'approve') {
+    // Doğrulama isteği yoksa bile direkt onayla (kullanıcılar tablosundan onaylama)
     targetProfile.verified = true;
-    verification.status = 'approved';
+    if (verification) {
+      verification.status = 'approved';
+      await saveVerifications(pendingVerifications);
+    }
     users.set(targetUserId, targetProfile);
     await saveUsers(users); // Hemen kaydet
-    await saveVerifications(pendingVerifications); // Hemen kaydet
     res.json({ message: 'Kullanıcı onaylandı', verified: true });
   } else {
+    // Reddetme için doğrulama isteği olmalı
+    if (!verification) {
+      return res.status(404).json({ error: 'Doğrulama bulunamadı' });
+    }
     verification.status = 'rejected';
     // Selfie dosyasını sil
     const filePath = path.join(uploadsDir, verification.filename);
@@ -847,6 +851,72 @@ app.get('/api/admin/complaints', authenticateToken, (req, res) => {
     .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
   
   res.json({ complaints: complaintsList });
+});
+
+// Superadmin - Kullanıcıyı yasakla
+app.post('/api/admin/ban-user', authenticateToken, async (req, res) => {
+  const userId = req.user.userId;
+  const profile = users.get(userId);
+  const { targetUserId } = req.body;
+  
+  // Superadmin kontrolü
+  if (!isSuperAdmin(profile.email)) {
+    return res.status(403).json({ error: 'Bu işlem için yetkiniz yok' });
+  }
+
+  const targetProfile = users.get(targetUserId);
+  if (!targetProfile) {
+    return res.status(404).json({ error: 'Kullanıcı bulunamadı' });
+  }
+
+  targetProfile.banned = true;
+  targetProfile.bannedAt = new Date();
+  users.set(targetUserId, targetProfile);
+  await saveUsers(users);
+  
+  res.json({ message: 'Kullanıcı yasaklandı' });
+});
+
+// Superadmin - Kullanıcıya uyarı gönder
+app.post('/api/admin/warn-user', authenticateToken, async (req, res) => {
+  const userId = req.user.userId;
+  const profile = users.get(userId);
+  const { targetUserId } = req.body;
+  
+  // Superadmin kontrolü
+  if (!isSuperAdmin(profile.email)) {
+    return res.status(403).json({ error: 'Bu işlem için yetkiniz yok' });
+  }
+
+  const targetProfile = users.get(targetUserId);
+  if (!targetProfile) {
+    return res.status(404).json({ error: 'Kullanıcı bulunamadı' });
+  }
+
+  // Bildirim oluştur
+  const notificationId = uuidv4();
+  const notification = {
+    id: notificationId,
+    userId: targetUserId,
+    type: 'warning',
+    title: 'Uyarı',
+    message: 'Hakkınızda şikayet var. Lütfen kurallara uygun davranın.',
+    read: false,
+    createdAt: new Date()
+  };
+  
+  notifications.set(notificationId, notification);
+  await saveNotifications(notifications);
+  
+  // Kullanıcı online ise bildir
+  for (const [socketId, userInfo] of activeUsers.entries()) {
+    if (userInfo.userId === targetUserId) {
+      io.to(socketId).emit('notification', notification);
+      break;
+    }
+  }
+  
+  res.json({ message: 'Uyarı gönderildi' });
 });
 
 // Mesaj için resim yükleme

@@ -497,7 +497,23 @@ function ChatsList({ token, onSelectChat, API_URL, refreshTrigger }) {
         title="Profil Bilgileri"
         open={viewProfileModal}
         onCancel={() => setViewProfileModal(false)}
-        footer={null}
+        footer={[
+          <Button key="close" onClick={() => setViewProfileModal(false)}>
+            Kapat
+          </Button>,
+          <Button 
+            key="view" 
+            type="primary" 
+            onClick={() => {
+              setViewProfileModal(false);
+              // Profil görüntüleme modalını açmak için ChatScreen'e geç
+              // Bu özellik için MainScreen'den bir callback gerekebilir
+              // Şimdilik modal'da profil bilgilerini gösteriyoruz
+            }}
+          >
+            Profili Görüntüle
+          </Button>
+        ]}
         width={500}
       >
         {selectedPartner && (
