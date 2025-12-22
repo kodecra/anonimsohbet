@@ -169,7 +169,7 @@ function ChatScreen({ userId, profile: currentProfile, matchId, partnerProfile: 
       
       // Socket bağlandığında mesajları tekrar yükle (kaybolma sorununu önlemek için)
       if (matchId && isCompletedMatch) {
-        fetch(`${API_URL}/api/matches/${currentMatchId}`, {
+        fetch(`${API_URL}/api/matches/${matchId}`, {
           headers: {
             'Authorization': `Bearer ${localStorage.getItem('token')}`
           }
