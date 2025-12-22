@@ -412,7 +412,13 @@ app.post('/api/profile/photos', authenticateToken, upload.array('photos', 5), as
 
   users.set(userId, updatedProfile);
   await saveUsers(users); // Hemen kaydet
-  res.json({ profile: updatedProfile, message: `${req.files.length} fotoğraf yüklendi` });
+  
+  // Eğer verified false yapıldıysa, kullanıcıya bildir
+  if (wasVerified && !updatedProfile.verified) {
+    console.log(`✅ Kullanıcı ${profile.username} için verified false yapıldı, tekrar onaylama gerekecek`);
+  }
+  
+  res.json({ profile: updatedProfile, message: `${req.files.length} fotoğraf yüklendi`, verifiedRemoved: wasVerified && !updatedProfile.verified });
 });
 
 // Poz doğrulama yükleme (çoklu fotoğraf)
