@@ -183,9 +183,6 @@ app.post('/api/register', async (req, res) => {
   const userId = uuidv4();
   const passwordHash = await bcrypt.hash(password, 10);
 
-  userAuth.set(email.toLowerCase(), { userId, passwordHash });
-  await saveAuth(userAuth); // Hemen kaydet
-
   const userProfile = {
     userId,
     email: `${username.trim()}@anonimsohbet.local`, // Dummy email
