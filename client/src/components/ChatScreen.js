@@ -107,16 +107,20 @@ function ChatScreen({ userId, profile: currentProfile, matchId, partnerProfile: 
       })
       .then(data => {
         if (data && data.match) {
-          // Partner bilgisini bul
-          const partner = data.match.user1.userId === userId 
+          // Partner bilgisini bul - endpoint'ten gelen partner bilgisi
+          // Endpoint'te partner direkt olarak döndürülüyor (partner.profile değil)
+          const partner = data.match.partner || (data.match.user1.userId === userId 
             ? data.match.user2 
-            : data.match.user1;
+            : data.match.user1);
           
           // Partner profile varsa completed match'tir
-          if (partner && partner.profile) {
-            console.log('✅ Completed match bulundu, profil yükleniyor:', partner.profile);
+          // Endpoint'te partner direkt profile olarak döndürülüyor
+          const partnerProfile = partner?.profile || partner;
+          
+          if (partnerProfile && (partnerProfile.userId || partnerProfile.username)) {
+            console.log('✅ Completed match bulundu, profil yükleniyor:', partnerProfile);
             setIsCompletedMatch(true);
-            setPartnerProfile(partner.profile);
+            setPartnerProfile(partnerProfile);
             setTimer(null);
             
             // Mesaj geçmişini yükle
@@ -128,7 +132,7 @@ function ChatScreen({ userId, profile: currentProfile, matchId, partnerProfile: 
             }
           } else {
             // Yeni eşleşme
-            console.log('⚠️ Yeni eşleşme (completed match değil)');
+            console.log('⚠️ Yeni eşleşme (completed match değil)', { partner, partnerProfile });
             setIsCompletedMatch(false);
           }
         }
