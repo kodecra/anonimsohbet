@@ -72,7 +72,7 @@ function ChatsList({ token, onSelectChat, API_URL, refreshTrigger }) {
     
     const query = searchQuery.toLowerCase();
     const filtered = matches.filter(match => 
-      match.partner.username.toLowerCase().includes(query) ||
+      (match.partner?.username || '').toLowerCase().includes(query) ||
       (match.lastMessage && match.lastMessage.text.toLowerCase().includes(query))
     );
     setFilteredMatches(filtered);
@@ -280,7 +280,7 @@ function ChatsList({ token, onSelectChat, API_URL, refreshTrigger }) {
                   />
                 ) : (
                   <Avatar size={60} style={{ backgroundColor: '#1890ff' }}>
-                    {match.partner.username.charAt(0).toUpperCase()}
+                    {match.partner?.username ? match.partner.username.charAt(0).toUpperCase() : '?'}
                   </Avatar>
                 )}
                 {match.partner.verified && (
@@ -301,7 +301,7 @@ function ChatsList({ token, onSelectChat, API_URL, refreshTrigger }) {
             }
             title={
               <Space>
-                <Text strong>{match.partner.username}</Text>
+                <Text strong>{match.partner?.username || 'Bilinmeyen Kullanıcı'}</Text>
               </Space>
             }
             description={
@@ -342,7 +342,7 @@ function ChatsList({ token, onSelectChat, API_URL, refreshTrigger }) {
                   danger: true,
                   onClick: ({ domEvent }) => {
                     domEvent.stopPropagation();
-                    handleLeaveMatch(match.matchId, match.partner.username, domEvent);
+                    handleLeaveMatch(match.matchId, match.partner?.username || 'Bilinmeyen Kullanıcı', domEvent);
                   }
                 },
                 {
@@ -352,7 +352,7 @@ function ChatsList({ token, onSelectChat, API_URL, refreshTrigger }) {
                   danger: true,
                   onClick: ({ domEvent }) => {
                     domEvent.stopPropagation();
-                    handleBlockUser(match.partner.userId, match.partner.username, domEvent);
+                    handleBlockUser(match.partner?.userId, match.partner?.username || 'Bilinmeyen Kullanıcı', domEvent);
                   }
                 },
                 {
@@ -361,7 +361,7 @@ function ChatsList({ token, onSelectChat, API_URL, refreshTrigger }) {
                   icon: <WarningOutlined />,
                   onClick: ({ domEvent }) => {
                     domEvent.stopPropagation();
-                    handleReportUser(match.partner.userId, match.partner.username, domEvent);
+                    handleReportUser(match.partner?.userId, match.partner?.username || 'Bilinmeyen Kullanıcı', domEvent);
                   }
                 }
               ]

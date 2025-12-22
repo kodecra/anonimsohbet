@@ -863,13 +863,20 @@ app.get('/api/matches', authenticateToken, (req, res) => {
     // Partner bilgisini bul
     const partner = match.user1.userId === userId ? match.user2 : match.user1;
     
+    // Partner bilgisini esnek şekilde al (farklı yapılar için)
+    const partnerProfile = partner.profile || partner;
+    const partnerUserId = partner.userId || partnerProfile?.userId;
+    const partnerUsername = partner.username || partnerProfile?.username || 'Bilinmeyen Kullanıcı';
+    const partnerPhotos = partnerProfile?.photos || partner.photos || [];
+    const partnerVerified = partnerProfile?.verified || partner.verified || false;
+    
     return {
       matchId: match.id,
       partner: {
-        userId: partner.userId,
-        username: partner.username,
-        photos: partner.profile.photos || [],
-        verified: partner.profile.verified || false
+        userId: partnerUserId,
+        username: partnerUsername,
+        photos: partnerPhotos,
+        verified: partnerVerified
       },
       lastMessage: match.messages.length > 0 ? match.messages[match.messages.length - 1] : null,
       lastMessageAt: match.lastMessageAt,
