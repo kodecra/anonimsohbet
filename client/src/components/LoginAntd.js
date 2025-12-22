@@ -53,8 +53,18 @@ function LoginAntd({ onLogin, onSwitchToRegister, API_URL }) {
         }}
       >
         <div style={{ textAlign: 'center', marginBottom: '32px' }}>
+          <img 
+            src="/logo.png" 
+            alt="Soulbate Logo" 
+            style={{ 
+              maxWidth: '200px', 
+              height: 'auto', 
+              marginBottom: '16px',
+              objectFit: 'contain'
+            }} 
+          />
           <Title level={2} style={{ color: '#1890ff', marginBottom: '8px' }}>
-            🎭 Anonim Sohbet
+            Soulbate
           </Title>
           <Text type="secondary">Giriş Yap</Text>
         </div>
