@@ -40,7 +40,8 @@ nano .env
 PORT=5000
 JWT_SECRET=your-secret-key-here-change-this
 NODE_ENV=production
-DATABASE_URL=  # PostgreSQL kullanıyorsanız, yoksa boş bırakın (JSON dosyası kullanılır)
+DATABASE_URL=postgresql://anonimsohbet_user:your-password@localhost:5432/anonimsohbet
+# PostgreSQL kurulumu için POSTGRESQL_KURULUM.md dosyasına bakın
 ```
 
 ### PM2 ile Backend'i Çalıştırma
