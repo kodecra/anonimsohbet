@@ -6,6 +6,8 @@ import '@mantine/core/styles.css';
 import '@mantine/notifications/styles.css';
 import { theme } from './theme-mantine';
 import './index.css';
+import './theme.css';
+import './dating-theme.css';
 import App from './App';
 
 const root = ReactDOM.createRoot(document.getElementById('root'));
