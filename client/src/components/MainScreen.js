@@ -227,20 +227,15 @@ function MainScreen({ userId, profile, token, onMatchFound, onMatchContinued, on
               justifyContent: 'space-between', 
               alignItems: 'center' 
             }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                <img 
-                  src="/logo.png" 
-                  alt="Soulbate Logo" 
-                  style={{ 
-                    height: '32px', 
-                    width: 'auto',
-                    objectFit: 'contain'
-                  }} 
-                />
-                <Title level={4} style={{ margin: 0, color: '#1890ff', fontWeight: 600 }}>
-                  Soulbate
-                </Title>
-              </div>
+              <img 
+                src="/logo.png" 
+                alt="Soulbate Logo" 
+                style={{ 
+                  height: '32px', 
+                  width: 'auto',
+                  objectFit: 'contain'
+                }} 
+              />
               <Space>
                 <Switch
                   checked={isDarkMode}

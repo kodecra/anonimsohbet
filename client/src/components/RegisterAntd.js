@@ -80,16 +80,13 @@ function RegisterAntd({ onRegister, onSwitchToLogin, API_URL }) {
             src="/logo.png" 
             alt="Soulbate Logo" 
             style={{ 
-              maxWidth: '200px', 
-              height: 'auto', 
+              height: '48px', 
+              width: 'auto', 
               marginBottom: '16px',
               objectFit: 'contain'
             }} 
           />
-          <Title level={2} style={{ color: '#1890ff', marginBottom: '8px' }}>
-            Soulbate
-          </Title>
-          <Text type="secondary">Kayıt Ol</Text>
+          <Text type="secondary" style={{ display: 'block', fontSize: '16px' }}>Kayıt Ol</Text>
         </div>
 
         {error && (
