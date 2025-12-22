@@ -1572,6 +1572,39 @@ io.on('connection', (socket) => {
       }
       
       if (user1 && user2) {
+        // ÖNEMLİ: Önceden eşleşmiş kullanıcıları kontrol et
+        // Eğer bu iki kullanıcı daha önce eşleşmişse ve eşleşme silinmişse, tekrar eşleşebilirler
+        // Ama aktif bir eşleşmeleri varsa, tekrar eşleşemezler
+        const user1MatchIds = userMatches.get(user1.userId) || [];
+        const user2MatchIds = userMatches.get(user2.userId) || [];
+        
+        // Aktif eşleşme kontrolü - eğer her iki kullanıcı da aktif bir eşleşmedeyse, eşleşme yapma
+        // Ama eşleşme silinmişse (userMatches'te yoksa), tekrar eşleşebilirler
+        let hasActiveMatch = false;
+        for (const mid of [...user1MatchIds, ...user2MatchIds]) {
+          const match = completedMatches.get(mid);
+          if (match) {
+            const u1Id = match.user1?.userId;
+            const u2Id = match.user2?.userId;
+            // Bu iki kullanıcı arasında aktif bir eşleşme var mı?
+            if ((u1Id === user1.userId && u2Id === user2.userId) || 
+                (u1Id === user2.userId && u2Id === user1.userId)) {
+              hasActiveMatch = true;
+              console.log(`⚠️ Bu kullanıcılar zaten aktif bir eşleşmede: ${user1.profile.username} & ${user2.profile.username} (matchId: ${mid})`);
+              break;
+            }
+          }
+        }
+        
+        // Eğer aktif bir eşleşme varsa, eşleşme yapma
+        if (hasActiveMatch) {
+          console.log(`❌ Eşleşme yapılamıyor: Aktif eşleşme mevcut`);
+          // Eşleşme yapma, kuyrukta beklesinler
+          return;
+        }
+        
+        console.log(`✅ Eşleşme yapılabilir: ${user1.profile.username} & ${user2.profile.username} (aktif eşleşme yok)`);
+        
         // Kuyruktan çıkar
         matchingQueue.splice(user2Index, 1);
         matchingQueue.splice(user1Index, 1);
