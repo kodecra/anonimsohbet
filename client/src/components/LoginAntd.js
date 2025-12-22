@@ -166,7 +166,7 @@ function LoginAntd({ onLogin, onSwitchToRegister, API_URL }) {
           >
             <Input 
               prefix={<UserOutlined />} 
-              placeholder="Kullanıcı adı veya telefon numarası"
+              placeholder="Kullanıcı adı"
               style={{
                 height: '56px',
                 fontSize: '17px',
@@ -187,7 +187,7 @@ function LoginAntd({ onLogin, onSwitchToRegister, API_URL }) {
           >
             <Input.Password 
               prefix={<LockOutlined />} 
-              placeholder="Şifrenizi girin"
+              placeholder="Şifre"
               style={{
                 height: '56px',
                 fontSize: '17px',
@@ -221,8 +221,8 @@ function LoginAntd({ onLogin, onSwitchToRegister, API_URL }) {
           </Form.Item>
         </Form>
 
-        <div style={{ marginTop: '32px' }}>
-          <Text style={{ color: '#71767b', fontSize: '15px', display: 'block', marginBottom: '16px' }}>
+        <div style={{ marginTop: '24px' }}>
+          <Text style={{ color: '#71767b', fontSize: '15px', display: 'block', marginBottom: '12px' }}>
             Zaten bir hesabın var mı?
           </Text>
           <Button 

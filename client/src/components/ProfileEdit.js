@@ -20,6 +20,7 @@ import {
   DatePicker,
   Checkbox,
   ConfigProvider,
+  Progress,
   message
 } from 'antd';
 import {
@@ -51,6 +52,8 @@ function ProfileEdit({ profile, token, onProfileUpdated, onClose, API_URL }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [showPoseVerification, setShowPoseVerification] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [isUploading, setIsUploading] = useState(false);
 
   // Temel ilgi alanları listesi
   const interestOptions = [
@@ -81,6 +84,20 @@ function ProfileEdit({ profile, token, onProfileUpdated, onClose, API_URL }) {
       return;
     }
 
+    setIsUploading(true);
+    setUploadProgress(0);
+
+    // Simüle edilmiş progress (gerçek upload progress için axios interceptor kullanılabilir)
+    const progressInterval = setInterval(() => {
+      setUploadProgress(prev => {
+        if (prev >= 90) {
+          clearInterval(progressInterval);
+          return 90;
+        }
+        return prev + 10;
+      });
+    }, 200);
+
     const formData = new FormData();
     formData.append('photos', file);
 
@@ -89,17 +106,33 @@ function ProfileEdit({ profile, token, onProfileUpdated, onClose, API_URL }) {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'multipart/form-data'
+        },
+        onUploadProgress: (progressEvent) => {
+          if (progressEvent.total) {
+            const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total);
+            setUploadProgress(percentCompleted);
+          }
         }
       });
 
-      setPhotos(response.data.profile.photos);
-      onSuccess();
-      message.success('Fotoğraf yüklendi');
+      clearInterval(progressInterval);
+      setUploadProgress(100);
       
-      if (onProfileUpdated) {
-        onProfileUpdated(response.data.profile);
-      }
+      setTimeout(() => {
+        setPhotos(response.data.profile.photos);
+        setIsUploading(false);
+        setUploadProgress(0);
+        onSuccess();
+        message.success('Fotoğraf yüklendi');
+        
+        if (onProfileUpdated) {
+          onProfileUpdated(response.data.profile);
+        }
+      }, 500);
     } catch (err) {
+      clearInterval(progressInterval);
+      setIsUploading(false);
+      setUploadProgress(0);
       message.error(err.response?.data?.error || 'Fotoğraf yüklenemedi');
       onError();
     }
