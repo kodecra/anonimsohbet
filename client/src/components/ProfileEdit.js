@@ -137,9 +137,8 @@ function ProfileEdit({ profile, token, onProfileUpdated, onClose, API_URL }) {
         message.success('Fotoğraf yüklendi');
         
         if (onProfileUpdated) {
-          onProfileUpdated(response.data.profile);
+          onProfileUpdated(response.data.profile, false); // false = modal kapanmasın
         }
-        // Modal kapanmayacak - kullanıcı kendisi kapatacak
       }, 500);
     } catch (err) {
       clearInterval(progressInterval);
@@ -162,9 +161,8 @@ function ProfileEdit({ profile, token, onProfileUpdated, onClose, API_URL }) {
       message.success('Fotoğraf silindi');
       
       if (onProfileUpdated) {
-        onProfileUpdated(response.data.profile);
+        onProfileUpdated(response.data.profile, false); // false = modal kapanmasın
       }
-      // Modal kapanmayacak - kullanıcı kendisi kapatacak
     } catch (err) {
       message.error('Fotoğraf silinemedi');
     }
@@ -191,7 +189,7 @@ function ProfileEdit({ profile, token, onProfileUpdated, onClose, API_URL }) {
       message.success('Fotoğraf sırası güncellendi');
       
       if (onProfileUpdated) {
-        onProfileUpdated(response.data.profile);
+        onProfileUpdated(response.data.profile, false); // false = modal kapanmasın
       }
     } catch (err) {
       // Hata durumunda eski sıraya geri dön
@@ -250,10 +248,10 @@ function ProfileEdit({ profile, token, onProfileUpdated, onClose, API_URL }) {
       message.success('Profil güncellendi');
       
       if (onProfileUpdated) {
-        onProfileUpdated(response.data.profile);
+        onProfileUpdated(response.data.profile, true); // true = modal kapansın (kaydet butonuna basınca)
       }
       
-      // Profil kaydedildiğinde modal kapanacak (sadece kaydet butonuna basınca)
+      // Profil kaydedildiğinde modal kapanacak
       if (onClose) {
         onClose();
       }

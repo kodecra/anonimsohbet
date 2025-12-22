@@ -772,12 +772,15 @@ function MainScreen({ userId, profile, token, onMatchFound, onMatchContinued, on
         <ProfileEdit
           profile={currentProfile}
           token={token}
-          onProfileUpdated={(updatedProfile) => {
+          onProfileUpdated={(updatedProfile, shouldClose = false) => {
             setCurrentProfile(updatedProfile);
             if (onProfileUpdated) {
               onProfileUpdated(updatedProfile);
             }
-            setShowProfileEdit(false);
+            // Sadece shouldClose true ise modal'ı kapat (örneğin profil kaydedildiğinde)
+            if (shouldClose) {
+              setShowProfileEdit(false);
+            }
           }}
           onClose={() => setShowProfileEdit(false)}
           API_URL={API_URL}
