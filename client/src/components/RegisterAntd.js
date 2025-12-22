@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import axios from 'axios';
-import { Form, Input, Button, Card, Typography, Alert, Divider, Select, Row, Col } from 'antd';
-import { UserOutlined, PhoneOutlined } from '@ant-design/icons';
+import { Form, Input, Button, Card, Typography, Alert, Divider, Select, Row, Col, DatePicker } from 'antd';
+import { UserOutlined, PhoneOutlined, LockOutlined, CalendarOutlined } from '@ant-design/icons';
+import dayjs from 'dayjs';
 import './Register.css';
 
 const { Title, Text } = Typography;
@@ -12,16 +13,32 @@ function RegisterAntd({ onRegister, onSwitchToLogin, API_URL }) {
   const [form] = Form.useForm();
 
   const handleRegister = async (values) => {
+    if (values.password !== values.confirmPassword) {
+      setError('Şifreler eşleşmiyor');
+      return;
+    }
+
     setError('');
     setLoading(true);
 
     try {
+      // Doğum tarihinden yaş hesapla
+      let age = null;
+      if (values.birthDate) {
+        const today = dayjs();
+        const birthDate = dayjs(values.birthDate);
+        age = today.diff(birthDate, 'year');
+      }
+
       const response = await axios.post(`${API_URL}/api/register`, {
         username: values.username.trim(),
         firstName: values.firstName?.trim() || null,
         lastName: values.lastName.trim(),
         gender: values.gender || null,
-        phoneNumber: values.phoneNumber?.trim() || null
+        phoneNumber: values.phoneNumber?.trim() || null,
+        password: values.password,
+        birthDate: values.birthDate ? dayjs(values.birthDate).format('YYYY-MM-DD') : null,
+        age: age
       });
 
       localStorage.setItem('token', response.data.token);
@@ -155,6 +172,61 @@ function RegisterAntd({ onRegister, onSwitchToLogin, API_URL }) {
               prefix={<PhoneOutlined />} 
               placeholder="5XX XXX XX XX"
               maxLength={15}
+            />
+          </Form.Item>
+
+          <Form.Item
+            name="birthDate"
+            label="Doğum Tarihi"
+            rules={[
+              { required: true, message: 'Doğum tarihi gereklidir' }
+            ]}
+          >
+            <DatePicker
+              prefix={<CalendarOutlined />}
+              style={{ width: '100%' }}
+              placeholder="Doğum tarihinizi seçin"
+              format="DD/MM/YYYY"
+              disabledDate={(current) => {
+                // 18 yaşından küçükleri engelle
+                return current && current > dayjs().subtract(18, 'year');
+              }}
+            />
+          </Form.Item>
+
+          <Form.Item
+            name="password"
+            label="Şifre"
+            rules={[
+              { required: true, message: 'Şifre gereklidir' },
+              { min: 6, message: 'Şifre en az 6 karakter olmalıdır' }
+            ]}
+          >
+            <Input.Password 
+              prefix={<LockOutlined />} 
+              placeholder="Şifrenizi girin"
+            />
+          </Form.Item>
+
+          <Form.Item
+            name="confirmPassword"
+            label="Şifre Tekrar"
+            dependencies={['password']}
+            rules={[
+              { required: true, message: 'Şifre tekrarı gereklidir' },
+              ({ getFieldValue }) => ({
+                validator(_, value) {
+                  if (!value || getFieldValue('password') === value) {
+                    return Promise.resolve();
+                  }
+                  return Promise.reject(new Error('Şifreler eşleşmiyor'));
+                },
+              }),
+            ]}
+          >
+            <Input.Password 
+              prefix={<LockOutlined />} 
+              placeholder="Şifrenizi tekrar girin"
             />
           </Form.Item>
 

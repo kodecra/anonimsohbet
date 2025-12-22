@@ -30,6 +30,7 @@ async function initDatabase() {
         last_name VARCHAR(255),
         gender VARCHAR(50),
         phone_number VARCHAR(20),
+        birth_date DATE,
         age INTEGER,
         bio TEXT,
         interests TEXT[],
@@ -49,6 +50,7 @@ async function initDatabase() {
       ALTER TABLE users ADD COLUMN IF NOT EXISTS last_name VARCHAR(255);
       ALTER TABLE users ADD COLUMN IF NOT EXISTS gender VARCHAR(50);
       ALTER TABLE users ADD COLUMN IF NOT EXISTS phone_number VARCHAR(20);
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS birth_date DATE;
     `);
 
     // Auth tablosu
@@ -114,16 +116,17 @@ async function saveUsers(usersMap) {
     for (const [userId, profile] of usersMap.entries()) {
       await client.query(`
         INSERT INTO users (
-          user_id, email, username, first_name, last_name, gender, phone_number, age, bio, interests, photos,
+          user_id, email, username, first_name, last_name, gender, phone_number, birth_date, age, bio, interests, photos,
           verified, profile_views, notification_settings, blocked_users,
           created_at, updated_at
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
         ON CONFLICT (user_id) DO UPDATE SET
           username = EXCLUDED.username,
           first_name = EXCLUDED.first_name,
           last_name = EXCLUDED.last_name,
           gender = EXCLUDED.gender,
           phone_number = EXCLUDED.phone_number,
+          birth_date = EXCLUDED.birth_date,
           age = EXCLUDED.age,
           bio = EXCLUDED.bio,
           interests = EXCLUDED.interests,
@@ -141,6 +144,7 @@ async function saveUsers(usersMap) {
         profile.lastName || null,
         profile.gender || null,
         profile.phoneNumber || null,
+        profile.birthDate ? new Date(profile.birthDate) : null,
         profile.age || null,
         profile.bio || null,
         profile.interests || [],
@@ -182,6 +186,7 @@ async function loadUsers() {
         lastName: row.last_name || null,
         gender: row.gender || null,
         phoneNumber: row.phone_number || null,
+        birthDate: row.birth_date ? row.birth_date.toISOString().split('T')[0] : null,
         age: row.age,
         bio: row.bio,
         interests: row.interests || [],

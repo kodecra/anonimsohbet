@@ -16,8 +16,12 @@ function LoginAntd({ onLogin, onSwitchToRegister, API_URL }) {
     setLoading(true);
 
     try {
+      // Kullanıcı adı mı telefon numarası mı kontrol et
+      const isPhone = /^[0-9]{10,15}$/.test(values.username.trim());
+      
       const response = await axios.post(`${API_URL}/api/login`, {
-        email: values.email.trim(),
+        username: isPhone ? null : values.username.trim(),
+        phoneNumber: isPhone ? values.username.trim() : null,
         password: values.password
       });
 
@@ -76,16 +80,15 @@ function LoginAntd({ onLogin, onSwitchToRegister, API_URL }) {
           autoComplete="off"
         >
           <Form.Item
-            name="email"
-            label="Email"
+            name="username"
+            label="Kullanıcı Adı veya Telefon"
             rules={[
-              { required: true, message: 'Email gereklidir' },
-              { type: 'email', message: 'Geçerli bir email girin' }
+              { required: true, message: 'Kullanıcı adı veya telefon numarası gereklidir' }
             ]}
           >
             <Input 
               prefix={<UserOutlined />} 
-              placeholder="ornek@email.com"
+              placeholder="Kullanıcı adı veya telefon numarası"
             />
           </Form.Item>
 

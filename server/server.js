@@ -164,7 +164,7 @@ process.on('SIGINT', async () => {
 
 // Kayıt ol
 app.post('/api/register', async (req, res) => {
-  const { username, firstName, lastName, gender, phoneNumber } = req.body;
+  const { username, firstName, lastName, gender, phoneNumber, password, birthDate, age } = req.body;
   
   if (!username || !username.trim()) {
     return res.status(400).json({ error: 'Kullanıcı adı gereklidir' });
@@ -178,10 +178,24 @@ app.post('/api/register', async (req, res) => {
     return res.status(400).json({ error: 'Cep telefonu numarası gereklidir' });
   }
 
+  if (!password || password.length < 6) {
+    return res.status(400).json({ error: 'Şifre en az 6 karakter olmalıdır' });
+  }
+
+  if (!birthDate) {
+    return res.status(400).json({ error: 'Doğum tarihi gereklidir' });
+  }
+
   // Telefon numarası format kontrolü (sadece rakam, 10-15 karakter)
   const phoneRegex = /^[0-9]{10,15}$/;
   if (!phoneRegex.test(phoneNumber.trim())) {
     return res.status(400).json({ error: 'Geçerli bir telefon numarası giriniz (10-15 rakam)' });
+  }
+
+  // Yaş kontrolü (18 yaş altı engelle)
+  const calculatedAge = age || (birthDate ? Math.floor((new Date() - new Date(birthDate)) / (365.25 * 24 * 60 * 60 * 1000)) : null);
+  if (calculatedAge && calculatedAge < 18) {
+    return res.status(400).json({ error: '18 yaşından küçükler kayıt olamaz' });
   }
 
   // Kullanıcı adı kontrolü
@@ -197,16 +211,21 @@ app.post('/api/register', async (req, res) => {
   }
 
   const userId = uuidv4();
+  const email = `${username.trim()}@anonimsohbet.local`;
+  
+  // Şifreyi hash'le
+  const passwordHash = await bcrypt.hash(password, 10);
 
   const userProfile = {
     userId,
-    email: `${username.trim()}@anonimsohbet.local`, // Dummy email
+    email: email,
     username: username.trim(),
     firstName: firstName ? firstName.trim() : null,
     lastName: lastName.trim(),
     gender: gender || null,
     phoneNumber: phoneNumber.trim(),
-    age: null,
+    birthDate: birthDate || null,
+    age: calculatedAge,
     bio: '',
     interests: [],
     photos: [],
@@ -214,6 +233,16 @@ app.post('/api/register', async (req, res) => {
     createdAt: new Date(),
     updatedAt: new Date()
   };
+
+  // Auth bilgisini kaydet
+  if (useDatabase) {
+    await saveAuth(new Map([[email, { userId, passwordHash }]]));
+  } else {
+    if (!auth.has(email)) {
+      auth.set(email, { userId, passwordHash });
+      await saveAuth(auth);
+    }
+  }
 
   users.set(userId, userProfile);
   await saveUsers(users); // Hemen kaydet
@@ -229,30 +258,43 @@ app.post('/api/register', async (req, res) => {
   });
 });
 
-// Giriş yap
+// Giriş yap (kullanıcı adı veya telefon numarası ile)
 app.post('/api/login', async (req, res) => {
-  const { email, password } = req.body;
+  const { username, phoneNumber, password } = req.body;
   
-  if (!email || !password) {
-    return res.status(400).json({ error: 'Email ve şifre gereklidir' });
+  if (!password) {
+    return res.status(400).json({ error: 'Şifre gereklidir' });
   }
 
+  if (!username && !phoneNumber) {
+    return res.status(400).json({ error: 'Kullanıcı adı veya telefon numarası gereklidir' });
+  }
+
+  // Kullanıcıyı bul (kullanıcı adı veya telefon numarası ile)
+  let profile = null;
+  if (username) {
+    profile = Array.from(users.values()).find(u => u.username === username.trim());
+  } else if (phoneNumber) {
+    profile = Array.from(users.values()).find(u => u.phoneNumber === phoneNumber.trim());
+  }
+
+  if (!profile) {
+    return res.status(401).json({ error: 'Kullanıcı adı/telefon veya şifre hatalı' });
+  }
+
+  // Auth bilgisini bul
+  const email = profile.email;
   const auth = userAuth.get(email.toLowerCase());
   if (!auth) {
-    return res.status(401).json({ error: 'Email veya şifre hatalı' });
+    return res.status(401).json({ error: 'Kullanıcı adı/telefon veya şifre hatalı' });
   }
 
   const isValidPassword = await bcrypt.compare(password, auth.passwordHash);
   if (!isValidPassword) {
-    return res.status(401).json({ error: 'Email veya şifre hatalı' });
+    return res.status(401).json({ error: 'Kullanıcı adı/telefon veya şifre hatalı' });
   }
 
-  const profile = users.get(auth.userId);
-  if (!profile) {
-    return res.status(404).json({ error: 'Profil bulunamadı' });
-  }
-
-  const token = jwt.sign({ userId: auth.userId, email: email.toLowerCase() }, JWT_SECRET, { expiresIn: '7d' });
+  const token = jwt.sign({ userId: auth.userId, username: profile.username }, JWT_SECRET, { expiresIn: '7d' });
 
   res.json({ 
     token,
