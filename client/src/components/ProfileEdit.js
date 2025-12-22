@@ -29,7 +29,8 @@ import {
   SafetyCertificateOutlined,
   UploadOutlined,
   PhoneOutlined,
-  CalendarOutlined
+  CalendarOutlined,
+  UserOutlined
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import 'dayjs/locale/tr';
