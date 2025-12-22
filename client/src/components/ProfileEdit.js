@@ -189,7 +189,7 @@ function ProfileEdit({ profile, token, onProfileUpdated, onClose, API_URL }) {
   const uploadProps = {
     customRequest: handleUploadPhotos,
     showUploadList: false,
-    accept: 'image/*',
+    accept: 'image/png,image/jpeg,image/jpg,image/gif,image/webp',
     multiple: true,
     disabled: photos.length >= 5
   };
@@ -385,14 +385,33 @@ function ProfileEdit({ profile, token, onProfileUpdated, onClose, API_URL }) {
               {photos.map((photo) => (
                 <Col xs={12} sm={8} md={6} key={photo.id}>
                   <div style={{ position: 'relative' }}>
-                    <Avatar
+                    <img
                       src={photo.url && photo.url.startsWith('http') 
                         ? photo.url 
                         : `${API_URL}${photo.url}`}
+                      alt="Profile photo"
+                      style={{ 
+                        width: '100%', 
+                        height: 150, 
+                        objectFit: 'cover',
+                        borderRadius: '8px',
+                        display: 'block'
+                      }}
+                      onError={(e) => {
+                        e.target.style.display = 'none';
+                        e.target.nextSibling.style.display = 'block';
+                      }}
+                    />
+                    <Avatar
                       shape="square"
                       size={120}
-                      style={{ width: '100%', height: 150, objectFit: 'cover' }}
                       icon={<UserOutlined />}
+                      style={{ 
+                        width: '100%', 
+                        height: 150, 
+                        display: 'none',
+                        borderRadius: '8px'
+                      }}
                     />
                     <Button
                       type="primary"

@@ -245,76 +245,63 @@ function MainScreen({ userId, profile, token, onMatchFound, onMatchContinued, on
               }
             }}
           >
-            {/* Banner Image */}
-            <div style={{
-              height: '180px',
-              background: isDarkMode 
-                ? 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)'
-                : 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-              position: 'relative',
+            {/* Header - Logo ve Controls */}
+            <div style={{ 
+              padding: '20px', 
+              borderBottom: `1px solid ${isDarkMode ? '#2d3748' : '#f0f0f0'}`,
               display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center'
+              justifyContent: 'space-between',
+              alignItems: 'center'
             }}>
-              {/* Profile Picture - Banner üzerine bindirilmiş */}
-              {currentProfile && (
-                <div style={{
-                  position: 'absolute',
-                  bottom: '-50px',
-                  left: '50%',
-                  transform: 'translateX(-50%)',
-                  zIndex: 10
-                }}>
-                  <Avatar
-                    src={currentProfile.photos && currentProfile.photos.length > 0 
-                      ? (currentProfile.photos[0].url.startsWith('http') 
-                          ? currentProfile.photos[0].url 
-                          : `${API_URL}${currentProfile.photos[0].url}`)
-                      : undefined}
-                    size={100}
-                    style={{ 
-                      backgroundColor: '#1890ff', 
-                      border: '4px solid #fff',
-                      boxShadow: '0 4px 12px rgba(0,0,0,0.15)'
-                    }}
-                  >
-                    {currentProfile.username.charAt(0).toUpperCase()}
-                  </Avatar>
-                </div>
-              )}
-              {/* Header Controls - Sağ üstte */}
-              <div style={{
-                position: 'absolute',
-                top: '16px',
-                right: '16px',
-                zIndex: 11
-              }}>
-                <Space>
-                  <Switch
-                    checked={isDarkMode}
-                    onChange={toggleDarkMode}
-                    checkedChildren={<MoonOutlined />}
-                    unCheckedChildren={<SunOutlined />}
+              <img 
+                src="/logo.png" 
+                alt="Soulbate Logo" 
+                style={{ 
+                  height: '50px', 
+                  width: 'auto',
+                  objectFit: 'contain'
+                }} 
+              />
+              <Space>
+                <Switch
+                  checked={isDarkMode}
+                  onChange={toggleDarkMode}
+                  checkedChildren={<MoonOutlined />}
+                  unCheckedChildren={<SunOutlined />}
+                />
+                {currentProfile && (
+                  <Button
+                    type="text"
+                    icon={<EditOutlined />}
+                    onClick={() => setShowProfileEdit(true)}
                   />
-                  {currentProfile && (
-                    <Button
-                      type="text"
-                      icon={<EditOutlined />}
-                      onClick={() => setShowProfileEdit(true)}
-                      style={{ color: '#fff' }}
-                    />
-                  )}
-                </Space>
-              </div>
+                )}
+              </Space>
             </div>
 
-            {/* Profile Info - Banner altında */}
+            {/* Profile Info */}
             {currentProfile && (
               <div style={{ 
-                padding: '60px 20px 20px 20px', 
+                padding: '20px', 
                 textAlign: 'center',
                 borderBottom: `1px solid ${isDarkMode ? '#2d3748' : '#f0f0f0'}`
               }}>
+                <Avatar
+                  src={currentProfile.photos && currentProfile.photos.length > 0 
+                    ? (currentProfile.photos[0].url.startsWith('http') 
+                        ? currentProfile.photos[0].url 
+                        : `${API_URL}${currentProfile.photos[0].url}`)
+                    : undefined}
+                  size={100}
+                  style={{ 
+                    backgroundColor: '#1890ff', 
+                    marginBottom: '16px',
+                    border: '4px solid #fff',
+                    boxShadow: '0 4px 12px rgba(0,0,0,0.15)'
+                  }}
+                >
+                  {currentProfile.username.charAt(0).toUpperCase()}
+                </Avatar>
                 <Title level={4} style={{ 
                   margin: '0 0 4px 0',
                   color: isDarkMode ? '#e2e8f0' : '#32325d'
@@ -632,22 +619,6 @@ function MainScreen({ userId, profile, token, onMatchFound, onMatchContinued, on
               </div>
             )}
 
-            {/* Tab Content */}
-            {activeTab === 'chats' && (
-              <div style={{ 
-                flex: 1, 
-                overflow: 'auto',
-                backgroundColor: '#fff',
-                minHeight: '400px'
-              }}>
-                <ChatsList 
-                  key={chatsRefreshKey} // Key değiştiğinde component yeniden render olur
-                  token={token}
-                  onSelectChat={handleSelectChat}
-                  API_URL={API_URL}
-                />
-              </div>
-            )}
 
             {/* View Profile & Logout Buttons */}
             <div style={{ 
@@ -687,91 +658,9 @@ function MainScreen({ userId, profile, token, onMatchFound, onMatchContinued, on
         </Col>
 
         {/* Main Content */}
-        {activeTab === 'match' && (
-          <Col xs={24} md={16}>
+        <Col xs={24} md={16}>
+          {activeTab === 'match' && (
             <Card style={{ borderRadius: '16px' }}>
-              {currentProfile && (
-                <div style={{ marginBottom: '32px' }}>
-                  <div style={{ 
-                    display: 'flex', 
-                    justifyContent: 'space-between', 
-                    alignItems: 'flex-start', 
-                    marginBottom: '16px' 
-                  }}>
-                    <Title level={3} style={{ margin: 0 }}>
-                      Hoş geldin, {(() => {
-                        const firstName = currentProfile.firstName || '';
-                        const lastName = currentProfile.lastName || '';
-                        const username = currentProfile.username || '';
-                        if (firstName || lastName) {
-                          const fullName = `${firstName} ${lastName}`.trim();
-                          return username ? `${fullName} (@${username})` : fullName;
-                        }
-                        return username ? `@${username}` : 'Bilinmeyen Kullanıcı';
-                      })()}!
-                    </Title>
-                    <Button
-                      icon={<EditOutlined />}
-                      onClick={() => setShowProfileEdit(true)}
-                    >
-                      Düzenle
-                    </Button>
-                  </div>
-                  
-                  {currentProfile.age && (
-                    <Text type="secondary" style={{ display: 'block', marginBottom: '8px' }}>
-                      Yaş: {currentProfile.age}
-                    </Text>
-                  )}
-                  
-                  {currentProfile.bio && (
-                    <Text italic style={{ 
-                      display: 'block', 
-                      marginBottom: '16px', 
-                      color: '#8c8c8c' 
-                    }}>
-                      {currentProfile.bio}
-                    </Text>
-                  )}
-                  
-                  {currentProfile.interests && currentProfile.interests.length > 0 && (
-                    <div style={{ marginBottom: '16px' }}>
-                      <Text strong style={{ display: 'block', marginBottom: '8px' }}>
-                        İlgi Alanları:
-                      </Text>
-                      <Space wrap>
-                        {currentProfile.interests.map((interest, index) => (
-                          <Tag key={index}>{interest}</Tag>
-                        ))}
-                      </Space>
-                    </div>
-                  )}
-                  
-                  {currentProfile.photos && currentProfile.photos.length > 0 && (
-                    <div>
-                      <Text strong style={{ display: 'block', marginBottom: '8px' }}>
-                        Fotoğraflar:
-                      </Text>
-                      <Space wrap>
-                        {currentProfile.photos.slice(0, 3).map((photo) => (
-                          <Avatar
-                            key={photo.id}
-                            src={`${API_URL}${photo.url}`}
-                            size={50}
-                            shape="square"
-                          />
-                        ))}
-                        {currentProfile.photos.length > 3 && (
-                          <Avatar size={50} shape="square" style={{ backgroundColor: '#d9d9d9' }}>
-                            +{currentProfile.photos.length - 3}
-                          </Avatar>
-                        )}
-                      </Space>
-                    </div>
-                  )}
-                </div>
-              )}
-
               {/* Matching Section */}
               <div>
                 {!isMatching && !matchId && (
