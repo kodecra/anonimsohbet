@@ -466,8 +466,10 @@ function AdminPanel({ token, API_URL, onGoToProfile }) {
           ) : (
             renderContent()
           )}
-        </>
-      );
+        </Card>
+      </Content>
+    </Layout>
+  );
     } else if (activeTab === 'users') {
       return (
         <>
