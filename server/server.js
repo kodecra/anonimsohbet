@@ -2035,7 +2035,15 @@ io.on('connection', (socket) => {
       }
     } else {
       // Diğer kullanıcının kararını bekle
+      // ÖNEMLİ: Timer bitmiş olsa bile, eğer kullanıcı "devam et" butonuna basmışsa, karşı tarafın kararını beklemeli
+      // Timer bitince eşleşme iptal edilmemeli, sadece karar ekranı gösterilmeli
       socket.emit('decision-saved', { message: 'Kararınız kaydedildi, diğer kullanıcının kararını bekliyorsunuz...' });
+      console.log(`⏳ Karar kaydedildi, diğer kullanıcının kararını bekleniyor: ${matchId}`, {
+        user1Decision: match.user1Decision,
+        user2Decision: match.user2Decision,
+        currentUser: isUser1 ? 'user1' : 'user2',
+        decision: decision
+      });
     }
   });
 
