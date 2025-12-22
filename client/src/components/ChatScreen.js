@@ -914,19 +914,32 @@ function ChatScreen({ userId, profile: currentProfile, matchId, partnerProfile: 
           </Title>
         </Space>
         {partnerProfile && (
-          <Space>
+          <Space 
+            style={{ 
+              cursor: 'pointer',
+              padding: '4px 8px',
+              borderRadius: '8px',
+              transition: 'background 0.2s',
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.background = isDarkMode ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = 'transparent';
+            }}
+            onClick={() => setShowPartnerProfileModal(true)}
+          >
             <Avatar
               src={partnerProfile.photos && partnerProfile.photos.length > 0 
                 ? (partnerProfile.photos[0].url && partnerProfile.photos[0].url.startsWith('http')
                     ? partnerProfile.photos[0].url
                     : `${API_URL}${partnerProfile.photos[0].url}`)
                 : undefined}
-              style={{ backgroundColor: '#1890ff', cursor: 'pointer' }}
-              onClick={() => setShowPartnerProfileModal(true)}
+              style={{ backgroundColor: '#1890ff' }}
             >
               {partnerProfile.username.charAt(0).toUpperCase()}
             </Avatar>
-            <div style={{ cursor: 'pointer' }} onClick={() => setShowPartnerProfileModal(true)}>
+            <div>
               <Space>
                 <Text strong style={{ color: isDarkMode ? '#fff' : '#000' }}>
                   {formatDisplayName(partnerProfile)}
@@ -1572,11 +1585,22 @@ function ChatScreen({ userId, profile: currentProfile, matchId, partnerProfile: 
           <Button 
             key="profile" 
             type="primary" 
-            onClick={() => {
-              // Profile git - MainScreen'e dön ve profil görüntüle
+            onClick={async () => {
               setShowPartnerProfileModal(false);
-              // TODO: Navigate to profile view
-              antdMessage.info('Profil görüntüleme özelliği yakında eklenecek');
+              try {
+                const token = localStorage.getItem('token');
+                // Profil görüntüleme sayısını artır
+                await axios.post(`${API_URL}/api/profile/view`, 
+                  { targetUserId: partnerProfile.userId },
+                  { headers: { 'Authorization': `Bearer ${token}` } }
+                );
+                // Partner profil bilgilerini set et ve modalı aç
+                setViewProfileData(partnerProfile);
+                setShowViewProfileModal(true);
+              } catch (error) {
+                console.error('Profil görüntüleme hatası:', error);
+                antdMessage.error('Profil görüntülenemedi');
+              }
             }}
           >
             Profile Git
@@ -1771,6 +1795,162 @@ function ChatScreen({ userId, profile: currentProfile, matchId, partnerProfile: 
             />
           </div>
         </Space>
+      </Modal>
+
+      {/* Profil Görüntüleme Modal */}
+      <Modal
+        title={
+          <Space>
+            <Avatar
+              src={viewProfileData?.photos && viewProfileData.photos.length > 0 
+                ? (viewProfileData.photos[0].url && viewProfileData.photos[0].url.startsWith('http')
+                    ? viewProfileData.photos[0].url
+                    : `${API_URL}${viewProfileData.photos[0].url}`)
+                : undefined}
+              size={40}
+              style={{ backgroundColor: '#1890ff' }}
+            >
+              {viewProfileData?.username?.charAt(0).toUpperCase()}
+            </Avatar>
+            <div>
+              <Text strong style={{ color: isDarkMode ? '#fff' : '#000' }}>
+                {viewProfileData ? formatDisplayName(viewProfileData) : 'Kullanıcı Profili'}
+              </Text>
+              {viewProfileData?.verified && (
+                <SafetyCertificateOutlined style={{ color: '#52c41a', marginLeft: '8px' }} />
+              )}
+            </div>
+          </Space>
+        }
+        open={showViewProfileModal}
+        onCancel={() => {
+          setShowViewProfileModal(false);
+          setViewProfileData(null);
+        }}
+        footer={[
+          <Button key="close" onClick={() => {
+            setShowViewProfileModal(false);
+            setViewProfileData(null);
+          }}>
+            Kapat
+          </Button>
+        ]}
+        width={600}
+        style={{ top: 20 }}
+        styles={{
+          body: {
+            background: isDarkMode ? '#1a1a2e' : '#fff',
+            color: isDarkMode ? '#fff' : '#000'
+          },
+          header: {
+            background: isDarkMode ? '#1a1a2e' : '#fff',
+            borderBottom: isDarkMode ? '1px solid #424242' : '1px solid #f0f0f0',
+            color: isDarkMode ? '#fff' : '#000'
+          },
+          footer: {
+            background: isDarkMode ? '#1a1a2e' : '#fff',
+            borderTop: isDarkMode ? '1px solid #424242' : '1px solid #f0f0f0'
+          }
+        }}
+      >
+        {viewProfileData ? (
+          <div>
+            {/* Fotoğraflar Galerisi */}
+            {viewProfileData.photos && viewProfileData.photos.length > 0 && (
+              <div style={{ marginBottom: '24px' }}>
+                <Title level={5} style={{ color: isDarkMode ? '#fff' : '#000', marginBottom: '12px' }}>
+                  Fotoğraflar
+                </Title>
+                <Image.PreviewGroup>
+                  <Row gutter={[8, 8]}>
+                    {viewProfileData.photos.map((photo, index) => (
+                      <Col key={photo.id || index} span={8}>
+                        <Image
+                          src={photo.url && photo.url.startsWith('http')
+                            ? photo.url
+                            : `${API_URL}${photo.url}`}
+                          alt={`Fotoğraf ${index + 1}`}
+                          style={{
+                            width: '100%',
+                            height: '150px',
+                            objectFit: 'cover',
+                            borderRadius: '8px',
+                            cursor: 'pointer'
+                          }}
+                          preview={{
+                            mask: <div style={{ color: '#fff' }}>Görüntüle</div>
+                          }}
+                        />
+                      </Col>
+                    ))}
+                  </Row>
+                </Image.PreviewGroup>
+              </div>
+            )}
+
+            {/* Bio */}
+            {viewProfileData.bio && (
+              <div style={{ marginBottom: '24px' }}>
+                <Title level={5} style={{ color: isDarkMode ? '#fff' : '#000', marginBottom: '8px' }}>
+                  Hakkında
+                </Title>
+                <Text style={{ color: isDarkMode ? '#b8b8b8' : '#666' }}>
+                  {viewProfileData.bio}
+                </Text>
+              </div>
+            )}
+
+            {/* İlgi Alanları */}
+            {viewProfileData.interests && viewProfileData.interests.length > 0 && (
+              <div style={{ marginBottom: '24px' }}>
+                <Title level={5} style={{ color: isDarkMode ? '#fff' : '#000', marginBottom: '8px' }}>
+                  İlgi Alanları
+                </Title>
+                <Space wrap>
+                  {viewProfileData.interests.map((interest, index) => (
+                    <Tag key={index} color="blue" style={{ marginBottom: '4px' }}>
+                      {interest}
+                    </Tag>
+                  ))}
+                </Space>
+              </div>
+            )}
+
+            {/* Bilgiler */}
+            <div>
+              <Title level={5} style={{ color: isDarkMode ? '#fff' : '#000', marginBottom: '8px' }}>
+                Bilgiler
+              </Title>
+              <Space direction="vertical" style={{ width: '100%' }}>
+                {viewProfileData.age && (
+                  <Text style={{ color: isDarkMode ? '#b8b8b8' : '#666' }}>
+                    <strong>Yaş:</strong> {viewProfileData.age}
+                  </Text>
+                )}
+                {viewProfileData.gender && (
+                  <Text style={{ color: isDarkMode ? '#b8b8b8' : '#666' }}>
+                    <strong>Cinsiyet:</strong> {viewProfileData.gender === 'male' ? 'Erkek' : viewProfileData.gender === 'female' ? 'Kadın' : viewProfileData.gender}
+                  </Text>
+                )}
+                {viewProfileData.isOnline ? (
+                  <Tag color="green">Çevrimiçi</Tag>
+                ) : viewProfileData.lastSeen ? (
+                  <Text style={{ color: isDarkMode ? '#b8b8b8' : '#666' }}>
+                    <strong>Son görülme:</strong> {new Date(viewProfileData.lastSeen).toLocaleString('tr-TR', {
+                      day: '2-digit',
+                      month: '2-digit',
+                      year: 'numeric',
+                      hour: '2-digit',
+                      minute: '2-digit'
+                    })}
+                  </Text>
+                ) : null}
+              </Space>
+            </div>
+          </div>
+        ) : (
+          <Spin />
+        )}
       </Modal>
     </Layout>
   );
