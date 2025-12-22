@@ -516,7 +516,7 @@ app.delete('/api/profile/photos/:photoId', authenticateToken, async (req, res) =
 
 // Profil oluşturma/güncelleme (artık authenticated)
 app.post('/api/profile', authenticateToken, async (req, res) => {
-  const { username, firstName, lastName, age, bio, interests } = req.body;
+  const { username, firstName, lastName, gender, age, bio, interests } = req.body;
   const userId = req.user.userId;
   
   const existingProfile = users.get(userId);
@@ -534,6 +534,7 @@ app.post('/api/profile', authenticateToken, async (req, res) => {
     username: username || existingProfile.username,
     firstName: firstName !== undefined ? firstName : existingProfile.firstName,
     lastName: lastName !== undefined ? lastName : existingProfile.lastName,
+    gender: gender !== undefined ? gender : existingProfile.gender,
     age: age !== undefined ? age : existingProfile.age,
     bio: bio !== undefined ? bio : existingProfile.bio,
     interests: interests || existingProfile.interests,
