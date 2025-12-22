@@ -164,6 +164,13 @@ function MainScreen({ userId, profile, token, onMatchFound, onMatchContinued, on
     };
   }, [userId, API_URL, onMatchFound, onMatchContinued]);
 
+  // Temel ilgi alanları listesi (ProfileEdit ile aynı)
+  const interestOptions = [
+    'Müzik', 'Spor', 'Film', 'Kitap', 'Seyahat', 'Yemek', 'Sanat', 'Teknoloji',
+    'Doğa', 'Dans', 'Fotoğrafçılık', 'Oyun', 'Moda', 'Hayvanlar', 'Fitness', 'Yoga',
+    'Müze', 'Konser', 'Festival', 'Kamp', 'Deniz', 'Dağ', 'Şehir', 'Köy'
+  ];
+
   const handleStartMatching = () => {
     if (socket && !isMatching && userId) {
       // Önce profil set edildiğinden emin ol
@@ -198,13 +205,6 @@ function MainScreen({ userId, profile, token, onMatchFound, onMatchContinued, on
       }
     }
   };
-
-  // Temel ilgi alanları listesi (ProfileEdit ile aynı)
-  const interestOptions = [
-    'Müzik', 'Spor', 'Film', 'Kitap', 'Seyahat', 'Yemek', 'Sanat', 'Teknoloji',
-    'Doğa', 'Dans', 'Fotoğrafçılık', 'Oyun', 'Moda', 'Hayvanlar', 'Fitness', 'Yoga',
-    'Müze', 'Konser', 'Festival', 'Kamp', 'Deniz', 'Dağ', 'Şehir', 'Köy'
-  ];
 
   const handleStopMatching = () => {
     if (socket) {
