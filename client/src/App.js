@@ -11,6 +11,7 @@ import './theme.css';
 import './dating-theme.css';
 import './social-media-theme.css';
 import './socialv-theme.css';
+import './modern-social-ui.css';
 
 const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000';
 

@@ -2,9 +2,12 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { MantineProvider } from '@mantine/core';
 import { Notifications } from '@mantine/notifications';
+import { ThemeProvider } from '@mui/material/styles';
+import CssBaseline from '@mui/material/CssBaseline';
 import '@mantine/core/styles.css';
 import '@mantine/notifications/styles.css';
 import { theme } from './theme-mantine';
+import socialMediaTheme from './mui-social-theme';
 import './index.css';
 import './theme.css';
 import './dating-theme.css';
@@ -15,9 +18,12 @@ import App from './App';
 const root = ReactDOM.createRoot(document.getElementById('root'));
 root.render(
   <React.StrictMode>
-    <MantineProvider theme={theme} defaultColorScheme="light">
-      <Notifications position="top-right" />
-      <App />
-    </MantineProvider>
+    <ThemeProvider theme={socialMediaTheme}>
+      <CssBaseline />
+      <MantineProvider theme={theme} defaultColorScheme="light">
+        <Notifications position="top-right" />
+        <App />
+      </MantineProvider>
+    </ThemeProvider>
   </React.StrictMode>
 );
