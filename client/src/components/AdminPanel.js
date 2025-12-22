@@ -13,33 +13,51 @@ import {
   Col,
   Image,
   Divider,
-  message
+  message,
+  Layout,
+  Table,
+  Select,
+  Input
 } from 'antd';
 import {
   SafetyCertificateOutlined,
   CheckOutlined,
   CloseOutlined,
-  UserOutlined
+  UserOutlined,
+  ExclamationCircleOutlined,
+  CheckCircleOutlined,
+  SearchOutlined
 } from '@ant-design/icons';
 import { ThemeContext } from '../App';
 import './AdminPanel.css';
 
 const { Title, Text } = Typography;
+const { Sider, Content } = Layout;
 
 const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000';
 
 function AdminPanel({ token, API_URL, onGoToProfile }) {
   const { isDarkMode } = React.useContext(ThemeContext);
   const [verifications, setVerifications] = useState([]);
+  const [users, setUsers] = useState([]);
+  const [complaints, setComplaints] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [activeTab, setActiveTab] = useState('verifications'); // 'verifications', 'users', 'complaints'
+  const [sortBy, setSortBy] = useState('createdAt');
+  const [sortOrder, setSortOrder] = useState('desc');
 
   useEffect(() => {
-    loadVerifications();
-    // Her 5 saniyede bir yenile
-    const interval = setInterval(loadVerifications, 5000);
-    return () => clearInterval(interval);
-  }, []);
+    if (activeTab === 'verifications') {
+      loadVerifications();
+      const interval = setInterval(loadVerifications, 5000);
+      return () => clearInterval(interval);
+    } else if (activeTab === 'users') {
+      loadUsers();
+    } else if (activeTab === 'complaints') {
+      loadComplaints();
+    }
+  }, [activeTab, sortBy, sortOrder]);
 
   const loadVerifications = async () => {
     try {
@@ -50,13 +68,59 @@ function AdminPanel({ token, API_URL, onGoToProfile }) {
       });
       setVerifications(response.data.verifications || []);
       setError('');
+      setLoading(false);
     } catch (err) {
       if (err.response?.status === 403) {
         setError('Bu sayfaya erişim yetkiniz yok');
       } else {
         setError(err.response?.data?.error || 'Veriler yüklenemedi');
       }
-    } finally {
+      setLoading(false);
+    }
+  };
+
+  const loadUsers = async () => {
+    setLoading(true);
+    try {
+      const response = await axios.get(`${API_URL}/api/admin/users`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        },
+        params: {
+          sortBy: sortBy,
+          order: sortOrder
+        }
+      });
+      setUsers(response.data.users || []);
+      setError('');
+      setLoading(false);
+    } catch (err) {
+      if (err.response?.status === 403) {
+        setError('Bu sayfaya erişim yetkiniz yok');
+      } else {
+        setError(err.response?.data?.error || 'Veriler yüklenemedi');
+      }
+      setLoading(false);
+    }
+  };
+
+  const loadComplaints = async () => {
+    setLoading(true);
+    try {
+      const response = await axios.get(`${API_URL}/api/admin/complaints`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      setComplaints(response.data.complaints || []);
+      setError('');
+      setLoading(false);
+    } catch (err) {
+      if (err.response?.status === 403) {
+        setError('Bu sayfaya erişim yetkiniz yok');
+      } else {
+        setError(err.response?.data?.error || 'Veriler yüklenemedi');
+      }
       setLoading(false);
     }
   };
@@ -121,59 +185,10 @@ function AdminPanel({ token, API_URL, onGoToProfile }) {
     );
   }
 
-  return (
-    <div style={{ 
-      minHeight: '100vh',
-      background: isDarkMode 
-        ? 'linear-gradient(135deg, #1a1a2e 0%, #16213e 100%)'
-        : 'linear-gradient(135deg, #40a9ff 0%, #1890ff 100%)',
-      padding: '24px',
-      transition: 'background 0.3s ease'
-    }}>
-      <div style={{ maxWidth: 1200, margin: '0 auto' }}>
-        <Card style={{ marginBottom: '24px', borderRadius: '16px' }}>
-          <div style={{ 
-            display: 'flex', 
-            justifyContent: 'space-between', 
-            alignItems: 'center',
-            marginBottom: '24px',
-            flexWrap: 'wrap',
-            gap: '16px'
-          }}>
-            <div style={{ textAlign: 'center', flex: 1 }}>
-              <Title level={2} style={{ margin: 0, color: '#1890ff' }}>
-                🛡️ Superadmin Panel
-              </Title>
-              <Text type="secondary">Bekleyen Doğrulamalar</Text>
-            </div>
-            {onGoToProfile && (
-              <Button
-                type="primary"
-                icon={<UserOutlined />}
-                onClick={onGoToProfile}
-                size="large"
-                style={{
-                  background: 'linear-gradient(135deg, #40a9ff 0%, #1890ff 100%)',
-                  border: 'none'
-                }}
-              >
-                Profile Geçiş Yap
-              </Button>
-            )}
-          </div>
-
-          {error && (
-            <Alert
-              message="Hata"
-              description={error}
-              type="error"
-              showIcon
-              closable
-              onClose={() => setError('')}
-              style={{ marginBottom: '24px' }}
-            />
-          )}
-
+  const renderContent = () => {
+    if (activeTab === 'verifications') {
+      return (
+        <>
           {verifications.length === 0 ? (
             <div style={{ 
               textAlign: 'center', 
@@ -208,7 +223,6 @@ function AdminPanel({ token, API_URL, onGoToProfile }) {
                     <Divider style={{ margin: '16px 0' }} />
 
                     <div style={{ marginBottom: '16px' }}>
-                      {/* Eski sistem için selfie */}
                       {verification.selfieUrl && (
                         <Image
                           src={`${API_URL}${verification.selfieUrl}`}
@@ -223,7 +237,6 @@ function AdminPanel({ token, API_URL, onGoToProfile }) {
                           }}
                         />
                       )}
-                      {/* Yeni sistem için pozlar */}
                       {verification.poseImages && verification.poseImages.length > 0 && (
                         <Row gutter={[8, 8]}>
                           {verification.poseImages.map((img, index) => (
@@ -285,9 +298,345 @@ function AdminPanel({ token, API_URL, onGoToProfile }) {
               ))}
             </Row>
           )}
+        </>
+      );
+    } else if (activeTab === 'users') {
+      return (
+        <>
+          <div style={{ marginBottom: '16px', display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+            <Select
+              value={sortBy}
+              onChange={setSortBy}
+              style={{ width: 200 }}
+            >
+              <Select.Option value="createdAt">Kayıt Tarihi</Select.Option>
+              <Select.Option value="username">Kullanıcı Adı</Select.Option>
+              <Select.Option value="updatedAt">Güncelleme Tarihi</Select.Option>
+              <Select.Option value="profileViews">Profil Görüntüleme</Select.Option>
+            </Select>
+            <Select
+              value={sortOrder}
+              onChange={setSortOrder}
+              style={{ width: 150 }}
+            >
+              <Select.Option value="desc">Azalan</Select.Option>
+              <Select.Option value="asc">Artan</Select.Option>
+            </Select>
+          </div>
+          <Table
+            dataSource={users}
+            rowKey="userId"
+            columns={[
+              {
+                title: 'Kullanıcı Adı',
+                dataIndex: 'username',
+                key: 'username',
+              },
+              {
+                title: 'Email',
+                dataIndex: 'email',
+                key: 'email',
+              },
+              {
+                title: 'Ad Soyad',
+                key: 'name',
+                render: (_, record) => `${record.firstName || ''} ${record.lastName || ''}`.trim() || '-',
+              },
+              {
+                title: 'Durum',
+                dataIndex: 'verified',
+                key: 'verified',
+                render: (verified) => (
+                  <Tag color={verified ? 'success' : 'default'}>
+                    {verified ? 'Onaylı' : 'Onaysız'}
+                  </Tag>
+                ),
+              },
+              {
+                title: 'Kayıt Tarihi',
+                dataIndex: 'createdAt',
+                key: 'createdAt',
+                render: (date) => date ? new Date(date).toLocaleString('tr-TR') : '-',
+              },
+            ]}
+            pagination={{ pageSize: 10 }}
+          />
+        </>
+      );
+    } else if (activeTab === 'complaints') {
+      return (
+        <div style={{ 
+          textAlign: 'center', 
+          padding: '64px 0' 
+        }}>
+          <Text type="secondary" style={{ fontSize: '16px' }}>
+            Henüz şikayet bulunmuyor
+          </Text>
+        </div>
+      );
+    }
+  };
+
+  return (
+    <Layout style={{ 
+      minHeight: '100vh',
+      background: isDarkMode 
+        ? 'linear-gradient(135deg, #1a1a2e 0%, #16213e 100%)'
+        : 'linear-gradient(135deg, #40a9ff 0%, #1890ff 100%)',
+    }}>
+      <Sider
+        width={250}
+        style={{
+          background: isDarkMode ? '#1a202c' : '#fff',
+          boxShadow: '2px 0 8px rgba(0,0,0,0.1)'
+        }}
+      >
+        <div style={{ padding: '24px' }}>
+          <Title level={4} style={{ marginBottom: '24px', color: isDarkMode ? '#e2e8f0' : '#32325d' }}>
+            🛡️ Admin Panel
+          </Title>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            <Button
+              type={activeTab === 'verifications' ? 'primary' : 'default'}
+              icon={<CheckCircleOutlined />}
+              onClick={() => setActiveTab('verifications')}
+              block
+              style={{ textAlign: 'left' }}
+            >
+              Doğrulama İstekleri
+            </Button>
+            <Button
+              type={activeTab === 'users' ? 'primary' : 'default'}
+              icon={<UserOutlined />}
+              onClick={() => setActiveTab('users')}
+              block
+              style={{ textAlign: 'left' }}
+            >
+              Kullanıcılar
+            </Button>
+            <Button
+              type={activeTab === 'complaints' ? 'primary' : 'default'}
+              icon={<ExclamationCircleOutlined />}
+              onClick={() => setActiveTab('complaints')}
+              block
+              style={{ textAlign: 'left' }}
+            >
+              Şikayetler
+            </Button>
+          </div>
+          {onGoToProfile && (
+            <Button
+              type="default"
+              icon={<UserOutlined />}
+              onClick={onGoToProfile}
+              block
+              style={{ marginTop: '24px' }}
+            >
+              Profile Geçiş Yap
+            </Button>
+          )}
+        </div>
+      </Sider>
+      <Content style={{ padding: '24px' }}>
+        <Card style={{ borderRadius: '16px', minHeight: 'calc(100vh - 48px)' }}>
+          <div style={{ marginBottom: '24px' }}>
+            <Title level={2} style={{ margin: 0, color: '#1890ff' }}>
+              {activeTab === 'verifications' && 'Bekleyen Doğrulamalar'}
+              {activeTab === 'users' && 'Kullanıcılar'}
+              {activeTab === 'complaints' && 'Şikayetler'}
+            </Title>
+          </div>
+
+          {error && (
+            <Alert
+              message="Hata"
+              description={error}
+              type="error"
+              showIcon
+              closable
+              onClose={() => setError('')}
+              style={{ marginBottom: '24px' }}
+            />
+          )}
+
+          {loading ? (
+            <div style={{ textAlign: 'center', padding: '48px' }}>
+              <Spin size="large" />
+            </div>
+          ) : (
+            renderContent()
+          )}
+        </>
+      );
+    } else if (activeTab === 'users') {
+      return (
+        <>
+          <div style={{ marginBottom: '16px', display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+            <Select
+              value={sortBy}
+              onChange={setSortBy}
+              style={{ width: 200 }}
+            >
+              <Select.Option value="createdAt">Kayıt Tarihi</Select.Option>
+              <Select.Option value="username">Kullanıcı Adı</Select.Option>
+              <Select.Option value="updatedAt">Güncelleme Tarihi</Select.Option>
+              <Select.Option value="profileViews">Profil Görüntüleme</Select.Option>
+            </Select>
+            <Select
+              value={sortOrder}
+              onChange={setSortOrder}
+              style={{ width: 150 }}
+            >
+              <Select.Option value="desc">Azalan</Select.Option>
+              <Select.Option value="asc">Artan</Select.Option>
+            </Select>
+          </div>
+          <Table
+            dataSource={users}
+            rowKey="userId"
+            columns={[
+              {
+                title: 'Kullanıcı Adı',
+                dataIndex: 'username',
+                key: 'username',
+              },
+              {
+                title: 'Email',
+                dataIndex: 'email',
+                key: 'email',
+              },
+              {
+                title: 'Ad Soyad',
+                key: 'name',
+                render: (_, record) => `${record.firstName || ''} ${record.lastName || ''}`.trim() || '-',
+              },
+              {
+                title: 'Durum',
+                dataIndex: 'verified',
+                key: 'verified',
+                render: (verified) => (
+                  <Tag color={verified ? 'success' : 'default'}>
+                    {verified ? 'Onaylı' : 'Onaysız'}
+                  </Tag>
+                ),
+              },
+              {
+                title: 'Kayıt Tarihi',
+                dataIndex: 'createdAt',
+                key: 'createdAt',
+                render: (date) => date ? new Date(date).toLocaleString('tr-TR') : '-',
+              },
+            ]}
+            pagination={{ pageSize: 10 }}
+          />
+        </>
+      );
+    } else if (activeTab === 'complaints') {
+      return (
+        <div style={{ 
+          textAlign: 'center', 
+          padding: '64px 0' 
+        }}>
+          <Text type="secondary" style={{ fontSize: '16px' }}>
+            Henüz şikayet bulunmuyor
+          </Text>
+        </div>
+      );
+    }
+  };
+
+  return (
+    <Layout style={{ 
+      minHeight: '100vh',
+      background: isDarkMode 
+        ? 'linear-gradient(135deg, #1a1a2e 0%, #16213e 100%)'
+        : 'linear-gradient(135deg, #40a9ff 0%, #1890ff 100%)',
+    }}>
+      <Sider
+        width={250}
+        style={{
+          background: isDarkMode ? '#1a202c' : '#fff',
+          boxShadow: '2px 0 8px rgba(0,0,0,0.1)'
+        }}
+      >
+        <div style={{ padding: '24px' }}>
+          <Title level={4} style={{ marginBottom: '24px', color: isDarkMode ? '#e2e8f0' : '#32325d' }}>
+            🛡️ Admin Panel
+          </Title>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            <Button
+              type={activeTab === 'verifications' ? 'primary' : 'default'}
+              icon={<CheckCircleOutlined />}
+              onClick={() => setActiveTab('verifications')}
+              block
+              style={{ textAlign: 'left' }}
+            >
+              Doğrulama İstekleri
+            </Button>
+            <Button
+              type={activeTab === 'users' ? 'primary' : 'default'}
+              icon={<UserOutlined />}
+              onClick={() => setActiveTab('users')}
+              block
+              style={{ textAlign: 'left' }}
+            >
+              Kullanıcılar
+            </Button>
+            <Button
+              type={activeTab === 'complaints' ? 'primary' : 'default'}
+              icon={<ExclamationCircleOutlined />}
+              onClick={() => setActiveTab('complaints')}
+              block
+              style={{ textAlign: 'left' }}
+            >
+              Şikayetler
+            </Button>
+          </div>
+          {onGoToProfile && (
+            <Button
+              type="default"
+              icon={<UserOutlined />}
+              onClick={onGoToProfile}
+              block
+              style={{ marginTop: '24px' }}
+            >
+              Profile Geçiş Yap
+            </Button>
+          )}
+        </div>
+      </Sider>
+      <Content style={{ padding: '24px' }}>
+        <Card style={{ borderRadius: '16px', minHeight: 'calc(100vh - 48px)' }}>
+          <div style={{ marginBottom: '24px' }}>
+            <Title level={2} style={{ margin: 0, color: '#1890ff' }}>
+              {activeTab === 'verifications' && 'Bekleyen Doğrulamalar'}
+              {activeTab === 'users' && 'Kullanıcılar'}
+              {activeTab === 'complaints' && 'Şikayetler'}
+            </Title>
+          </div>
+
+          {error && (
+            <Alert
+              message="Hata"
+              description={error}
+              type="error"
+              showIcon
+              closable
+              onClose={() => setError('')}
+              style={{ marginBottom: '24px' }}
+            />
+          )}
+
+          {loading ? (
+            <div style={{ textAlign: 'center', padding: '48px' }}>
+              <Spin size="large" />
+            </div>
+          ) : (
+            renderContent()
+          )}
         </Card>
-      </div>
-    </div>
+      </Content>
+    </Layout>
   );
 }
 

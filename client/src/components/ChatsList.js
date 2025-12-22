@@ -270,7 +270,9 @@ function ChatsList({ token, onSelectChat, API_URL, refreshTrigger }) {
               <div style={{ position: 'relative' }}>
                 {match.partner.photos && match.partner.photos.length > 0 ? (
                   <Avatar
-                    src={`${API_URL}${match.partner.photos[0].url}`}
+                    src={match.partner.photos[0].url && match.partner.photos[0].url.startsWith('http')
+                      ? match.partner.photos[0].url
+                      : `${API_URL}${match.partner.photos[0].url}`}
                     size={60}
                     onError={(e) => {
                       if (e && e.target) {
@@ -409,7 +411,9 @@ function ChatsList({ token, onSelectChat, API_URL, refreshTrigger }) {
             <div style={{ textAlign: 'center', marginBottom: '24px' }}>
               {selectedPartner.photos && selectedPartner.photos.length > 0 ? (
                 <Avatar
-                  src={`${API_URL}${selectedPartner.photos[0].url}`}
+                  src={selectedPartner.photos[0].url && selectedPartner.photos[0].url.startsWith('http')
+                    ? selectedPartner.photos[0].url
+                    : `${API_URL}${selectedPartner.photos[0].url}`}
                   size={120}
                   style={{ marginBottom: '16px' }}
                 />

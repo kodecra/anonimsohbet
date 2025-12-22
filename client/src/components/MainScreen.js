@@ -17,7 +17,8 @@ import {
   Divider,
   Switch,
   Modal,
-  Statistic
+  Statistic,
+  Checkbox
 } from 'antd';
 import {
   EditOutlined,
@@ -62,7 +63,16 @@ function MainScreen({ userId, profile, token, onMatchFound, onMatchContinued, on
   const [chatsRefreshKey, setChatsRefreshKey] = useState(0); // ChatsList'i yenilemek için
   const [statistics, setStatistics] = useState(null);
   const [showSettings, setShowSettings] = useState(false);
+  const [showMatchFilters, setShowMatchFilters] = useState(false);
+  const [selectedInterests, setSelectedInterests] = useState([]);
   const timerRef = useRef(null);
+
+  // Temel ilgi alanları listesi (ProfileEdit ile aynı)
+  const interestOptions = [
+    'Müzik', 'Spor', 'Film', 'Kitap', 'Seyahat', 'Yemek', 'Sanat', 'Teknoloji',
+    'Doğa', 'Dans', 'Fotoğrafçılık', 'Oyun', 'Moda', 'Hayvanlar', 'Fitness', 'Yoga',
+    'Müze', 'Konser', 'Festival', 'Kamp', 'Deniz', 'Dağ', 'Şehir', 'Köy'
+  ];
 
   useEffect(() => {
     setCurrentProfile(profile);
@@ -165,7 +175,10 @@ function MainScreen({ userId, profile, token, onMatchFound, onMatchContinued, on
           setMatchStatus('Eşleşme aranıyor...');
           setShowDecision(false);
           setTimer(30);
-          socket.emit('start-matching', { userId }); // userId'yi de gönder
+          socket.emit('start-matching', { 
+            userId,
+            filterInterests: selectedInterests.length > 0 ? selectedInterests : null
+          });
         }, 200);
       } else {
         // Socket bağlı değilse, bağlanmasını bekle
@@ -176,12 +189,22 @@ function MainScreen({ userId, profile, token, onMatchFound, onMatchContinued, on
             setMatchStatus('Eşleşme aranıyor...');
             setShowDecision(false);
             setTimer(30);
-            socket.emit('start-matching', { userId });
+            socket.emit('start-matching', { 
+              userId,
+              filterInterests: selectedInterests.length > 0 ? selectedInterests : null
+            });
           }, 200);
         });
       }
     }
   };
+
+  // Temel ilgi alanları listesi (ProfileEdit ile aynı)
+  const interestOptions = [
+    'Müzik', 'Spor', 'Film', 'Kitap', 'Seyahat', 'Yemek', 'Sanat', 'Teknoloji',
+    'Doğa', 'Dans', 'Fotoğrafçılık', 'Oyun', 'Moda', 'Hayvanlar', 'Fitness', 'Yoga',
+    'Müze', 'Konser', 'Festival', 'Kamp', 'Deniz', 'Dağ', 'Şehir', 'Köy'
+  ];
 
   const handleStopMatching = () => {
     if (socket) {
@@ -338,6 +361,104 @@ function MainScreen({ userId, profile, token, onMatchFound, onMatchContinued, on
                     "{currentProfile.bio}"
                   </Text>
                 )}
+                {/* Profil Doluluğu */}
+                {(() => {
+                  const calculateProfileCompleteness = (profile) => {
+                    let completed = 0;
+                    let total = 0;
+                    
+                    // Fotoğraf (20%)
+                    total += 20;
+                    if (profile.photos && profile.photos.length > 0) completed += 20;
+                    
+                    // İsim Soyisim (15%)
+                    total += 15;
+                    if (profile.firstName && profile.lastName) completed += 15;
+                    
+                    // Bio (15%)
+                    total += 15;
+                    if (profile.bio && profile.bio.trim().length > 0) completed += 15;
+                    
+                    // İlgi Alanları (15%)
+                    total += 15;
+                    if (profile.interests && profile.interests.length > 0) completed += 15;
+                    
+                    // Doğum Tarihi (10%)
+                    total += 10;
+                    if (profile.birthDate) completed += 10;
+                    
+                    // Telefon (10%)
+                    total += 10;
+                    if (profile.phoneNumber) completed += 10;
+                    
+                    // Cinsiyet (5%)
+                    total += 5;
+                    if (profile.gender) completed += 5;
+                    
+                    // Doğrulama (10%)
+                    total += 10;
+                    if (profile.verified) completed += 10;
+                    
+                    return Math.round((completed / total) * 100);
+                  };
+                  
+                  const completeness = calculateProfileCompleteness(currentProfile);
+                  
+                  return (
+                    <div style={{ 
+                      marginTop: '16px',
+                      padding: '12px',
+                      background: isDarkMode ? 'rgba(94, 114, 228, 0.1)' : 'rgba(94, 114, 228, 0.05)',
+                      borderRadius: '8px',
+                      border: `1px solid ${isDarkMode ? 'rgba(94, 114, 228, 0.3)' : 'rgba(94, 114, 228, 0.2)'}`
+                    }}>
+                      <div style={{ 
+                        display: 'flex', 
+                        justifyContent: 'space-between', 
+                        alignItems: 'center',
+                        marginBottom: '8px'
+                      }}>
+                        <Text strong style={{ color: isDarkMode ? '#e2e8f0' : '#32325d' }}>
+                          Profil Doluluğu
+                        </Text>
+                        <Text strong style={{ 
+                          fontSize: '18px',
+                          color: completeness >= 80 ? '#52c41a' : completeness >= 50 ? '#faad14' : '#ff4d4f'
+                        }}>
+                          %{completeness}
+                        </Text>
+                      </div>
+                      <div style={{ 
+                        width: '100%', 
+                        height: '8px', 
+                        background: isDarkMode ? '#2d3748' : '#e9ecef',
+                        borderRadius: '4px',
+                        overflow: 'hidden',
+                        marginBottom: '8px'
+                      }}>
+                        <div style={{
+                          width: `${completeness}%`,
+                          height: '100%',
+                          background: completeness >= 80 
+                            ? 'linear-gradient(90deg, #52c41a 0%, #73d13d 100%)'
+                            : completeness >= 50 
+                            ? 'linear-gradient(90deg, #faad14 0%, #ffc53d 100%)'
+                            : 'linear-gradient(90deg, #ff4d4f 0%, #ff7875 100%)',
+                          transition: 'width 0.3s ease'
+                        }} />
+                      </div>
+                      <Text style={{ 
+                        fontSize: '12px',
+                        color: isDarkMode ? '#a0aec0' : '#8898aa',
+                        fontStyle: 'italic'
+                      }}>
+                        {completeness < 100 
+                          ? 'Profili tamamlamak eşleşme şansını arttırır'
+                          : 'Profiliniz tamamlandı! 🎉'}
+                      </Text>
+                    </div>
+                  );
+                })()}
               </div>
             )}
 
@@ -661,21 +782,65 @@ function MainScreen({ userId, profile, token, onMatchFound, onMatchContinued, on
               {/* Matching Section */}
               <div>
                 {!isMatching && !matchId && (
-                  <Button
-                    block
-                    type="primary"
-                    size="large"
-                    icon={<SearchOutlined />}
-                    onClick={handleStartMatching}
-                    style={{
-                      height: '56px',
-                      fontSize: '18px',
-                      background: 'linear-gradient(135deg, #40a9ff 0%, #1890ff 100%)',
-                      border: 'none'
-                    }}
-                  >
-                    Eşleşme Başlat
-                  </Button>
+                  <>
+                    <Button
+                      block
+                      type="default"
+                      size="middle"
+                      icon={<SettingOutlined />}
+                      onClick={() => setShowMatchFilters(!showMatchFilters)}
+                      style={{
+                        marginBottom: '12px',
+                        height: '40px'
+                      }}
+                    >
+                      {showMatchFilters ? 'Filtreleri Gizle' : 'Filtrele (İlgi Alanları)'}
+                    </Button>
+                    
+                    {showMatchFilters && (
+                      <Card style={{ marginBottom: '16px', borderRadius: '12px' }}>
+                        <Title level={5} style={{ marginBottom: '12px' }}>
+                          İlgi Alanlarına Göre Filtrele
+                        </Title>
+                        <Checkbox.Group
+                          value={selectedInterests}
+                          onChange={setSelectedInterests}
+                          style={{ width: '100%' }}
+                        >
+                          <Row gutter={[8, 8]}>
+                            {interestOptions.map(interest => (
+                              <Col span={8} key={interest}>
+                                <Checkbox value={interest}>{interest}</Checkbox>
+                              </Col>
+                            ))}
+                          </Row>
+                        </Checkbox.Group>
+                        {selectedInterests.length > 0 && (
+                          <div style={{ marginTop: '12px' }}>
+                            <Text type="secondary" style={{ fontSize: '12px' }}>
+                              Seçilen: {selectedInterests.join(', ')}
+                            </Text>
+                          </div>
+                        )}
+                      </Card>
+                    )}
+                    
+                    <Button
+                      block
+                      type="primary"
+                      size="large"
+                      icon={<SearchOutlined />}
+                      onClick={handleStartMatching}
+                      style={{
+                        height: '56px',
+                        fontSize: '18px',
+                        background: 'linear-gradient(135deg, #40a9ff 0%, #1890ff 100%)',
+                        border: 'none'
+                      }}
+                    >
+                      Eşleşme Başlat
+                    </Button>
+                  </>
                 )}
 
                 {isMatching && (

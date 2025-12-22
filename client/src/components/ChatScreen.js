@@ -844,7 +844,11 @@ function ChatScreen({ userId, profile: currentProfile, matchId, partnerProfile: 
         {partnerProfile && (
           <Space>
             <Avatar
-              src={partnerProfile.photos && partnerProfile.photos.length > 0 ? `${API_URL}${partnerProfile.photos[0].url}` : undefined}
+              src={partnerProfile.photos && partnerProfile.photos.length > 0 
+                ? (partnerProfile.photos[0].url && partnerProfile.photos[0].url.startsWith('http')
+                    ? partnerProfile.photos[0].url
+                    : `${API_URL}${partnerProfile.photos[0].url}`)
+                : undefined}
               style={{ backgroundColor: '#1890ff' }}
             >
               {partnerProfile.username.charAt(0).toUpperCase()}
@@ -1019,7 +1023,9 @@ function ChatScreen({ userId, profile: currentProfile, matchId, partnerProfile: 
             {isCompletedMatch && messageSenderProfile && (
               <Avatar
                 src={messageSenderProfile.photos && messageSenderProfile.photos.length > 0 
-                  ? `${API_URL}${messageSenderProfile.photos[0].url}`
+                  ? (messageSenderProfile.photos[0].url && messageSenderProfile.photos[0].url.startsWith('http')
+                      ? messageSenderProfile.photos[0].url
+                      : `${API_URL}${messageSenderProfile.photos[0].url}`)
                   : null}
                 size={32}
                 style={{ 

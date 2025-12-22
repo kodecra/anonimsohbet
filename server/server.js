@@ -574,7 +574,7 @@ app.delete('/api/profile/photos/:photoId', authenticateToken, async (req, res) =
 
 // Profil oluşturma/güncelleme (artık authenticated)
 app.post('/api/profile', authenticateToken, async (req, res) => {
-  const { username, firstName, lastName, gender, age, bio, interests } = req.body;
+  const { username, firstName, lastName, gender, age, bio, interests, phoneNumber, birthDate } = req.body;
   const userId = req.user.userId;
   
   const existingProfile = users.get(userId);
@@ -596,6 +596,8 @@ app.post('/api/profile', authenticateToken, async (req, res) => {
     age: age !== undefined ? age : existingProfile.age,
     bio: bio !== undefined ? bio : existingProfile.bio,
     interests: interests || existingProfile.interests,
+    phoneNumber: phoneNumber !== undefined ? phoneNumber : existingProfile.phoneNumber,
+    birthDate: birthDate !== undefined ? birthDate : existingProfile.birthDate,
     updatedAt: new Date()
   };
 
@@ -702,6 +704,59 @@ app.post('/api/admin/verify-user', authenticateToken, async (req, res) => {
     await saveVerifications(pendingVerifications); // Hemen kaydet
     res.json({ message: 'Doğrulama reddedildi' });
   }
+});
+
+// Superadmin - Tüm kullanıcıları getir
+app.get('/api/admin/users', authenticateToken, (req, res) => {
+  const userId = req.user.userId;
+  const profile = users.get(userId);
+  
+  // Superadmin kontrolü
+  if (!isSuperAdmin(profile.email)) {
+    return res.status(403).json({ error: 'Bu işlem için yetkiniz yok' });
+  }
+
+  const { sortBy = 'createdAt', order = 'desc' } = req.query;
+  
+  const allUsers = Array.from(users.values()).map(user => ({
+    userId: user.userId,
+    username: user.username,
+    email: user.email,
+    firstName: user.firstName,
+    lastName: user.lastName,
+    verified: user.verified,
+    createdAt: user.createdAt,
+    updatedAt: user.updatedAt,
+    profileViews: user.profileViews || 0
+  }));
+
+  // Sıralama
+  allUsers.sort((a, b) => {
+    const aValue = a[sortBy] || new Date(0);
+    const bValue = b[sortBy] || new Date(0);
+    
+    if (order === 'asc') {
+      return aValue > bValue ? 1 : -1;
+    } else {
+      return aValue < bValue ? 1 : -1;
+    }
+  });
+
+  res.json({ users: allUsers });
+});
+
+// Superadmin - Şikayetler (şimdilik boş, ileride eklenebilir)
+app.get('/api/admin/complaints', authenticateToken, (req, res) => {
+  const userId = req.user.userId;
+  const profile = users.get(userId);
+  
+  // Superadmin kontrolü
+  if (!isSuperAdmin(profile.email)) {
+    return res.status(403).json({ error: 'Bu işlem için yetkiniz yok' });
+  }
+
+  // Şimdilik boş array döndür, ileride şikayet sistemi eklendiğinde doldurulacak
+  res.json({ complaints: [] });
 });
 
 // Mesaj için resim yükleme
@@ -1141,44 +1196,99 @@ io.on('connection', (socket) => {
       return;
     }
 
-    // Kuyruğa ekle
+    // Kuyruğa ekle (filtreleme bilgisi ile)
     if (!matchingQueue.find(u => u.socketId === socket.id)) {
       matchingQueue.push({
         socketId: socket.id,
         userId: userInfo.userId,
-        profile: userInfo.profile
+        profile: userInfo.profile,
+        filterInterests: data.filterInterests || null
       });
       socket.emit('matching-started', { message: 'Eşleşme aranıyor...' });
-      console.log(`${userInfo.profile.username} eşleşme kuyruğuna eklendi`);
+      console.log(`${userInfo.profile.username} eşleşme kuyruğuna eklendi`, data.filterInterests ? `(Filtre: ${data.filterInterests.join(', ')})` : '');
     }
 
-    // Eşleşme kontrolü
+    // Eşleşme kontrolü - İlgi alanlarına göre filtreleme ile
     if (matchingQueue.length >= 2) {
-      const user1 = matchingQueue.shift();
-      const user2 = matchingQueue.shift();
+      // İlgi alanlarına göre eşleşme bul
+      let user1 = null;
+      let user2 = null;
+      let user1Index = -1;
+      let user2Index = -1;
+      
+      // İlk kullanıcıyı al
+      user1 = matchingQueue[0];
+      user1Index = 0;
+      
+      // İkinci kullanıcıyı bul - ilgi alanlarına göre filtrele
+      for (let i = 1; i < matchingQueue.length; i++) {
+        const candidate = matchingQueue[i];
+        
+        // Eğer user1'in filtreleme tercihi varsa
+        if (user1.filterInterests && user1.filterInterests.length > 0) {
+          const candidateInterests = candidate.profile.interests || [];
+          const hasCommonInterest = user1.filterInterests.some(interest => 
+            candidateInterests.includes(interest)
+          );
+          if (hasCommonInterest) {
+            user2 = candidate;
+            user2Index = i;
+            break;
+          }
+        }
+        // Eğer candidate'ın filtreleme tercihi varsa
+        else if (candidate.filterInterests && candidate.filterInterests.length > 0) {
+          const user1Interests = user1.profile.interests || [];
+          const hasCommonInterest = candidate.filterInterests.some(interest => 
+            user1Interests.includes(interest)
+          );
+          if (hasCommonInterest) {
+            user2 = candidate;
+            user2Index = i;
+            break;
+          }
+        }
+        // Filtreleme yoksa direkt eşleştir
+        else {
+          user2 = candidate;
+          user2Index = i;
+          break;
+        }
+      }
+      
+      // Eğer filtreleme ile eşleşme bulunamazsa, filtreleme olmadan eşleştir
+      if (!user2 && matchingQueue.length >= 2) {
+        user2 = matchingQueue[1];
+        user2Index = 1;
+      }
+      
+      if (user1 && user2) {
+        // Kuyruktan çıkar
+        matchingQueue.splice(user2Index, 1);
+        matchingQueue.splice(user1Index, 1);
 
-      const matchId = uuidv4();
-      // Match yapısını netleştir - user1 ve user2'de userId ve socketId olmalı
-      const match = {
-        id: matchId,
-        user1: {
-          socketId: user1.socketId,
-          userId: user1.userId,
-          profile: user1.profile
-        },
-        user2: {
-          socketId: user2.socketId,
-          userId: user2.userId,
-          profile: user2.profile
-        },
-        startedAt: new Date(),
-        messages: [],
-        user1Decision: null,
-        user2Decision: null,
-        timerStarted: false
-      };
+        const matchId = uuidv4();
+        // Match yapısını netleştir - user1 ve user2'de userId ve socketId olmalı
+        const match = {
+          id: matchId,
+          user1: {
+            socketId: user1.socketId,
+            userId: user1.userId,
+            profile: user1.profile
+          },
+          user2: {
+            socketId: user2.socketId,
+            userId: user2.userId,
+            profile: user2.profile
+          },
+          startedAt: new Date(),
+          messages: [],
+          user1Decision: null,
+          user2Decision: null,
+          timerStarted: false
+        };
 
-      activeMatches.set(matchId, match);
+        activeMatches.set(matchId, match);
       console.log('✅✅✅ MATCH OLUŞTURULDU:', matchId);
       console.log('   user1:', { userId: user1.userId, socketId: user1.socketId, username: user1.profile?.username });
       console.log('   user2:', { userId: user2.userId, socketId: user2.socketId, username: user2.profile?.username });

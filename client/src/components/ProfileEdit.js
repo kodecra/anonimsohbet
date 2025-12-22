@@ -17,6 +17,9 @@ import {
   Row,
   Col,
   Select,
+  DatePicker,
+  Checkbox,
+  ConfigProvider,
   message
 } from 'antd';
 import {
@@ -24,10 +27,19 @@ import {
   DeleteOutlined,
   PlusOutlined,
   SafetyCertificateOutlined,
-  UploadOutlined
+  UploadOutlined,
+  PhoneOutlined,
+  CalendarOutlined
 } from '@ant-design/icons';
+import dayjs from 'dayjs';
+import 'dayjs/locale/tr';
+import trTR from 'antd/locale/tr_TR';
+import customParseFormat from 'dayjs/plugin/customParseFormat';
 import PoseVerification from './PoseVerification';
 import './ProfileEdit.css';
+
+dayjs.extend(customParseFormat);
+dayjs.locale('tr');
 
 const { TextArea } = Input;
 const { Title, Text } = Typography;
@@ -39,6 +51,13 @@ function ProfileEdit({ profile, token, onProfileUpdated, onClose, API_URL }) {
   const [error, setError] = useState('');
   const [showPoseVerification, setShowPoseVerification] = useState(false);
 
+  // Temel ilgi alanları listesi
+  const interestOptions = [
+    'Müzik', 'Spor', 'Film', 'Kitap', 'Seyahat', 'Yemek', 'Sanat', 'Teknoloji',
+    'Doğa', 'Dans', 'Fotoğrafçılık', 'Oyun', 'Moda', 'Hayvanlar', 'Fitness', 'Yoga',
+    'Müze', 'Konser', 'Festival', 'Kamp', 'Deniz', 'Dağ', 'Şehir', 'Köy'
+  ];
+
   React.useEffect(() => {
     form.setFieldsValue({
       username: profile.username || '',
@@ -46,7 +65,9 @@ function ProfileEdit({ profile, token, onProfileUpdated, onClose, API_URL }) {
       lastName: profile.lastName || '',
       gender: profile.gender || undefined,
       bio: profile.bio || '',
-      interests: (profile.interests || []).join(', ')
+      phoneNumber: profile.phoneNumber || '',
+      birthDate: profile.birthDate ? dayjs(profile.birthDate) : null,
+      interests: profile.interests || []
     });
   }, [profile, form]);
 
@@ -107,14 +128,30 @@ function ProfileEdit({ profile, token, onProfileUpdated, onClose, API_URL }) {
     setError('');
 
     try {
-      const interestsArray = values.interests
-        ? values.interests.split(',').map(i => i.trim()).filter(i => i.length > 0)
-        : [];
+      // İlgi alanları array olarak geliyor (checkbox'lardan)
+      const interestsArray = Array.isArray(values.interests) 
+        ? values.interests 
+        : (values.interests 
+            ? values.interests.split(',').map(i => i.trim()).filter(i => i.length > 0)
+            : []);
 
       if (!values.lastName || !values.lastName.trim()) {
         setError('Soyisim zorunludur');
         setLoading(false);
         return;
+      }
+
+      // Doğum tarihinden yaş hesapla
+      let age = null;
+      let birthDateFormatted = null;
+      
+      if (values.birthDate) {
+        const birthDate = dayjs(values.birthDate);
+        if (birthDate.isValid()) {
+          const today = dayjs();
+          age = today.diff(birthDate, 'year');
+          birthDateFormatted = birthDate.format('YYYY-MM-DD');
+        }
       }
 
       const response = await axios.post(`${API_URL}/api/profile`, {
@@ -123,6 +160,9 @@ function ProfileEdit({ profile, token, onProfileUpdated, onClose, API_URL }) {
         lastName: values.lastName.trim(),
         gender: values.gender || null,
         bio: values.bio?.trim() || '',
+        phoneNumber: values.phoneNumber?.trim() || null,
+        birthDate: birthDateFormatted,
+        age: age,
         interests: interestsArray
       }, {
         headers: {
@@ -154,7 +194,7 @@ function ProfileEdit({ profile, token, onProfileUpdated, onClose, API_URL }) {
   };
 
   return (
-    <>
+    <ConfigProvider locale={trTR}>
       <Modal
         open={true}
         onCancel={onClose}
@@ -236,6 +276,36 @@ function ProfileEdit({ profile, token, onProfileUpdated, onClose, API_URL }) {
             </Select>
           </Form.Item>
 
+          <Form.Item
+            name="phoneNumber"
+            label="Cep Telefonu"
+            rules={[
+              {
+                pattern: /^[0-9]{10,15}$/,
+                message: 'Geçerli bir telefon numarası giriniz (10-15 rakam)'
+              }
+            ]}
+          >
+            <Input
+              prefix={<PhoneOutlined />}
+              placeholder="5XX XXX XX XX"
+              maxLength={15}
+            />
+          </Form.Item>
+
+          <Form.Item
+            name="birthDate"
+            label="Doğum Tarihi"
+          >
+            <DatePicker
+              style={{ width: '100%' }}
+              placeholder="Doğum tarihinizi seçin"
+              format={['DD/MM/YYYY', 'DD.MM.YYYY']}
+              disabledDate={(current) => {
+                return current && current > dayjs().subtract(18, 'year');
+              }}
+            />
+          </Form.Item>
 
           <Form.Item
             name="bio"
@@ -254,9 +324,17 @@ function ProfileEdit({ profile, token, onProfileUpdated, onClose, API_URL }) {
 
           <Form.Item
             name="interests"
-            label="İlgi Alanları (virgülle ayırın)"
+            label="İlgi Alanları"
           >
-            <Input placeholder="Müzik, Spor, Film..." />
+            <Checkbox.Group style={{ width: '100%' }}>
+              <Row gutter={[8, 8]}>
+                {interestOptions.map(interest => (
+                  <Col span={8} key={interest}>
+                    <Checkbox value={interest}>{interest}</Checkbox>
+                  </Col>
+                ))}
+              </Row>
+            </Checkbox.Group>
           </Form.Item>
 
           {/* Poz Doğrulama */}
@@ -307,10 +385,13 @@ function ProfileEdit({ profile, token, onProfileUpdated, onClose, API_URL }) {
                 <Col xs={12} sm={8} md={6} key={photo.id}>
                   <div style={{ position: 'relative' }}>
                     <Avatar
-                      src={`${API_URL}${photo.url}`}
+                      src={photo.url && photo.url.startsWith('http') 
+                        ? photo.url 
+                        : `${API_URL}${photo.url}`}
                       shape="square"
                       size={120}
                       style={{ width: '100%', height: 150, objectFit: 'cover' }}
+                      icon={<UserOutlined />}
                     />
                     <Button
                       type="primary"
@@ -375,6 +456,7 @@ function ProfileEdit({ profile, token, onProfileUpdated, onClose, API_URL }) {
           </Form.Item>
         </Form>
       </Modal>
+    </ConfigProvider>
 
       {showPoseVerification && (
         <PoseVerification
