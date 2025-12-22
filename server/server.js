@@ -1988,6 +1988,26 @@ io.on('connection', (socket) => {
         // Her iki kullanıcı da devam etmek istiyor - Profilleri göster
         const user1Profile = users.get(match.user1.userId);
         const user2Profile = users.get(match.user2.userId);
+        
+        console.log(`🔍 Profil kontrolü:`, {
+          user1Id: match.user1.userId,
+          user2Id: match.user2.userId,
+          user1ProfileExists: !!user1Profile,
+          user2ProfileExists: !!user2Profile,
+          user1ProfileUsername: user1Profile?.username,
+          user2ProfileUsername: user2Profile?.username
+        });
+        
+        if (!user1Profile || !user2Profile) {
+          console.error(`❌❌❌ KRİTİK HATA: Profil bulunamadı!`, {
+            user1Id: match.user1.userId,
+            user2Id: match.user2.userId,
+            user1Profile: user1Profile,
+            user2Profile: user2Profile,
+            usersMapSize: users.size,
+            usersMapKeys: Array.from(users.keys())
+          });
+        }
 
         // Eşleşmeyi kalıcı olarak kaydet
         // ÖNEMLİ: Partner profile bilgileri sadece bu eşleşmeye özel olmalı
@@ -2152,7 +2172,17 @@ io.on('connection', (socket) => {
         });
 
         // Her iki kullanıcıya da match-continued event'ini gönder
-        if (user1SocketId) {
+        if (user1SocketId && user2Profile) {
+          console.log(`📤 user1'e match-continued gönderiliyor:`, {
+            socketId: user1SocketId,
+            userId: match.user1.userId,
+            partnerProfile: {
+              userId: user2Profile.userId,
+              username: user2Profile.username,
+              firstName: user2Profile.firstName,
+              lastName: user2Profile.lastName
+            }
+          });
           io.to(user1SocketId).emit('match-continued', {
             matchId: matchId,
             partnerProfile: user2Profile,
@@ -2164,10 +2194,24 @@ io.on('connection', (socket) => {
           });
           console.log(`✅ user1'e match-continued gönderildi: ${user1SocketId}`);
         } else {
-          console.log(`❌ user1 socket bulunamadı: ${match.user1.userId}`);
+          console.error(`❌ user1 socket veya profil bulunamadı:`, {
+            socketId: user1SocketId,
+            userId: match.user1.userId,
+            hasProfile: !!user2Profile
+          });
         }
 
-        if (user2SocketId) {
+        if (user2SocketId && user1Profile) {
+          console.log(`📤 user2'ye match-continued gönderiliyor:`, {
+            socketId: user2SocketId,
+            userId: match.user2.userId,
+            partnerProfile: {
+              userId: user1Profile.userId,
+              username: user1Profile.username,
+              firstName: user1Profile.firstName,
+              lastName: user1Profile.lastName
+            }
+          });
           io.to(user2SocketId).emit('match-continued', {
             matchId: matchId,
             partnerProfile: user1Profile,
@@ -2179,7 +2223,11 @@ io.on('connection', (socket) => {
           });
           console.log(`✅ user2'ye match-continued gönderildi: ${user2SocketId}`);
         } else {
-          console.log(`❌ user2 socket bulunamadı: ${match.user2.userId}`);
+          console.error(`❌ user2 socket veya profil bulunamadı:`, {
+            socketId: user2SocketId,
+            userId: match.user2.userId,
+            hasProfile: !!user1Profile
+          });
         }
 
         // SONRA active match'i temizle (event'ler gönderildikten sonra)
