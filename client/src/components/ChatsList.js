@@ -164,27 +164,45 @@ function ChatsList({ token, onSelectChat, API_URL, refreshTrigger }) {
     }
   };
 
+  const [showReportModal, setShowReportModal] = useState(false);
+  const [reportTargetUserId, setReportTargetUserId] = useState(null);
+  const [reportTargetUsername, setReportTargetUsername] = useState('');
+  const [reportReasonType, setReportReasonType] = useState(null);
+  const [reportCustomReason, setReportCustomReason] = useState('');
+
   // Şikayet et
   const handleReportUser = async (partnerUserId, partnerUsername, e) => {
     e.stopPropagation();
-    Modal.confirm({
-      title: 'Şikayet Et',
-      content: `${partnerUsername} kullanıcısını şikayet etmek istediğinizden emin misiniz?`,
-      okText: 'Şikayet Et',
-      cancelText: 'İptal',
-      onOk: async () => {
-        try {
-          await axios.post(`${API_URL}/api/users/report`, 
-            { targetUserId: partnerUserId, reason: 'Kullanıcı şikayeti' },
-            { headers: { 'Authorization': `Bearer ${token}` } }
-          );
-          antdMessage.success('Şikayet gönderildi');
-        } catch (error) {
-          console.error('Şikayet hatası:', error);
-          antdMessage.error('Şikayet gönderilemedi');
-        }
-      }
-    });
+    setReportTargetUserId(partnerUserId);
+    setReportTargetUsername(partnerUsername);
+    setShowReportModal(true);
+  };
+
+  const submitReport = async () => {
+    if (!reportReasonType && !reportCustomReason.trim()) {
+      antdMessage.warning('Lütfen bir sebep seçin veya yazın');
+      return;
+    }
+
+    try {
+      await axios.post(`${API_URL}/api/users/report`, 
+        { 
+          targetUserId: reportTargetUserId, 
+          reasonType: reportReasonType,
+          customReason: reportCustomReason.trim() || null
+        },
+        { headers: { 'Authorization': `Bearer ${token}` } }
+      );
+      antdMessage.success('Şikayet gönderildi');
+      setShowReportModal(false);
+      setReportTargetUserId(null);
+      setReportTargetUsername('');
+      setReportReasonType(null);
+      setReportCustomReason('');
+    } catch (error) {
+      console.error('Şikayet gönderme hatası:', error);
+      antdMessage.error('Şikayet gönderilemedi');
+    }
   };
 
   // Eşleşmeden çık
@@ -566,6 +584,54 @@ function ChatsList({ token, onSelectChat, API_URL, refreshTrigger }) {
             </Space>
           </div>
         )}
+      </Modal>
+
+      {/* Şikayet Modal */}
+      <Modal
+        title="Şikayet Et"
+        open={showReportModal}
+        onCancel={() => {
+          setShowReportModal(false);
+          setReportTargetUserId(null);
+          setReportTargetUsername('');
+          setReportReasonType(null);
+          setReportCustomReason('');
+        }}
+        onOk={submitReport}
+        okText="Şikayet Gönder"
+        cancelText="İptal"
+      >
+        <Space direction="vertical" style={{ width: '100%' }} size="large">
+          <div>
+            <Text strong style={{ display: 'block', marginBottom: '12px' }}>
+              Şikayet Sebebi
+            </Text>
+            <Radio.Group 
+              value={reportReasonType} 
+              onChange={(e) => setReportReasonType(e.target.value)}
+              style={{ width: '100%' }}
+            >
+              <Space direction="vertical" style={{ width: '100%' }}>
+                <Radio value="fake_account">Sahte Hesap</Radio>
+                <Radio value="inappropriate_username">Uygunsuz Kullanıcı Adı</Radio>
+                <Radio value="inappropriate_photo">Uygunsuz Fotoğraf</Radio>
+                <Radio value="other">Diğer</Radio>
+              </Space>
+            </Radio.Group>
+          </div>
+          
+          <div>
+            <Text strong style={{ display: 'block', marginBottom: '8px' }}>
+              Açıklama (İsteğe Bağlı)
+            </Text>
+            <TextArea
+              rows={4}
+              placeholder="Şikayet sebebinizi detaylı olarak açıklayın..."
+              value={reportCustomReason}
+              onChange={(e) => setReportCustomReason(e.target.value)}
+            />
+          </div>
+        </Space>
       </Modal>
     </div>
   );
