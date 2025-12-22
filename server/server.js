@@ -2006,6 +2006,7 @@ io.on('connection', (socket) => {
 
         // ÖNCE completedMatches'e ekle (match-decision handler'ında bulunabilmesi için)
         completedMatches.set(matchId, completedMatch);
+        console.log(`✅ completedMatches'e eklendi: ${matchId}`);
 
         // Kullanıcıların eşleşme listelerine ekle
         // ÖNEMLİ: Eğer matchId zaten userMatches'te varsa, tekrar ekleme (duplicate önleme)
