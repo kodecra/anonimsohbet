@@ -1349,14 +1349,35 @@ app.get('/api/matches/:matchId', authenticateToken, (req, res) => {
   
   console.log('✅ Match detayları döndürülüyor:', { matchId: match.id, isActiveMatch, hasPartner: !!partnerInfo, messageCount: (match.messages || []).length });
   
+  // Aktif eşleşmede user1 ve user2 bilgilerini anonim tut (sadece userId)
+  let user1Response = null;
+  let user2Response = null;
+  
+  if (isActiveMatch) {
+    // Aktif eşleşme - sadece userId göster, profil bilgilerini gizle
+    user1Response = {
+      userId: user1Id,
+      socketId: match.user1?.socketId || null
+    };
+    user2Response = {
+      userId: user2Id,
+      socketId: match.user2?.socketId || null
+    };
+  } else {
+    // Completed match - tam bilgileri göster
+    user1Response = match.user1;
+    user2Response = match.user2;
+  }
+  
   res.json({
     match: {
       matchId: match.id,
-      user1: match.user1,
-      user2: match.user2,
+      user1: user1Response,
+      user2: user2Response,
       partner: partnerInfo,  // Aktif eşleşmede null, completed'de partner bilgisi
       messages: match.messages || [],
-      startedAt: match.startedAt
+      startedAt: match.startedAt,
+      isActiveMatch: isActiveMatch  // Frontend'e aktif eşleşme olduğunu bildir
     }
   });
 });

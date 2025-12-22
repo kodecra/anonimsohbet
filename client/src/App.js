@@ -149,13 +149,12 @@ function App() {
       });
       console.log('✅ handleMatchFound: Match data alındı', response.data);
       if (response.data && response.data.match) {
-        // Partner bilgisini bul
-        const partner = response.data.match.user1.userId === userId 
-          ? response.data.match.user2 
-          : response.data.match.user1;
-        // Partner profile varsa completed match'tir
-        if (partner && partner.profile) {
-          partnerProfileData = partner.profile;
+        // Backend'den gelen partner bilgisini kullan (aktif eşleşmede null, completed'de dolu)
+        if (response.data.match.partner) {
+          partnerProfileData = response.data.match.partner;
+          console.log('✅ Completed match - partner profile alındı');
+        } else {
+          console.log('✅ Aktif eşleşme - partner profile null (anonim)');
         }
       }
     } catch (error) {
