@@ -181,7 +181,6 @@ app.post('/api/register', async (req, res) => {
   }
 
   const userId = uuidv4();
-  const passwordHash = await bcrypt.hash(password, 10);
 
   const userProfile = {
     userId,
