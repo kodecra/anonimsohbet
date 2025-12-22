@@ -9,6 +9,7 @@ import './index.css';
 import './theme.css';
 import './dating-theme.css';
 import './social-media-theme.css';
+import './socialv-theme.css';
 import App from './App';
 
 const root = ReactDOM.createRoot(document.getElementById('root'));
