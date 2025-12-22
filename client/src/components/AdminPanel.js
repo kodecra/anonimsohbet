@@ -470,69 +470,7 @@ function AdminPanel({ token, API_URL, onGoToProfile }) {
       </Content>
     </Layout>
   );
-      return (
-        <>
-          <div style={{ marginBottom: '16px', display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
-            <Select
-              value={sortBy}
-              onChange={setSortBy}
-              style={{ width: 200 }}
-            >
-              <Select.Option value="createdAt">Kayıt Tarihi</Select.Option>
-              <Select.Option value="username">Kullanıcı Adı</Select.Option>
-              <Select.Option value="updatedAt">Güncelleme Tarihi</Select.Option>
-              <Select.Option value="profileViews">Profil Görüntüleme</Select.Option>
-            </Select>
-            <Select
-              value={sortOrder}
-              onChange={setSortOrder}
-              style={{ width: 150 }}
-            >
-              <Select.Option value="desc">Azalan</Select.Option>
-              <Select.Option value="asc">Artan</Select.Option>
-            </Select>
-          </div>
-          <Table
-            dataSource={users}
-            rowKey="userId"
-            columns={[
-              {
-                title: 'Kullanıcı Adı',
-                dataIndex: 'username',
-                key: 'username',
-              },
-              {
-                title: 'Email',
-                dataIndex: 'email',
-                key: 'email',
-              },
-              {
-                title: 'Ad Soyad',
-                key: 'name',
-                render: (_, record) => `${record.firstName || ''} ${record.lastName || ''}`.trim() || '-',
-              },
-              {
-                title: 'Durum',
-                dataIndex: 'verified',
-                key: 'verified',
-                render: (verified) => (
-                  <Tag color={verified ? 'success' : 'default'}>
-                    {verified ? 'Onaylı' : 'Onaysız'}
-                  </Tag>
-                ),
-              },
-              {
-                title: 'Kayıt Tarihi',
-                dataIndex: 'createdAt',
-                key: 'createdAt',
-                render: (date) => date ? new Date(date).toLocaleString('tr-TR') : '-',
-              },
-            ]}
-            pagination={{ pageSize: 10 }}
-          />
-        </>
-      );
-    } else if (activeTab === 'complaints') {
+}
       return (
         <div style={{ 
           textAlign: 'center', 
