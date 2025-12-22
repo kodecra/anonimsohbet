@@ -456,8 +456,6 @@ function ProfileEdit({ profile, token, onProfileUpdated, onClose, API_URL }) {
           </Form.Item>
         </Form>
       </Modal>
-    </ConfigProvider>
-
       {showPoseVerification && (
         <PoseVerification
           userId={profile.userId}

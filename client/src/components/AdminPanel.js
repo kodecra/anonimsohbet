@@ -470,7 +470,6 @@ function AdminPanel({ token, API_URL, onGoToProfile }) {
       </Content>
     </Layout>
   );
-    } else if (activeTab === 'users') {
       return (
         <>
           <div style={{ marginBottom: '16px', display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
