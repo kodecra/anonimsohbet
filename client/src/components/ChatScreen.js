@@ -65,6 +65,7 @@ function ChatScreen({ userId, profile: currentProfile, matchId, partnerProfile: 
   const waitingForPartnerRef = useRef(false);
   const [userAnonymousId, setUserAnonymousId] = useState(null);
   const [partnerAnonymousId, setPartnerAnonymousId] = useState(null);
+  const [matchStartedAt, setMatchStartedAt] = useState(null); // Timer senkronizasyonu için
   const messagesEndRef = useRef(null);
   const typingTimeoutRef = useRef(null);
   const timerRef = useRef(null);
@@ -110,6 +111,12 @@ function ChatScreen({ userId, profile: currentProfile, matchId, partnerProfile: 
           // Backend'den gelen partner bilgisini kullan
           // Aktif eşleşmede partner null, completed'de dolu
           const partnerProfile = data.match.partner;
+          
+          // Timer senkronizasyonu için startedAt'ı kaydet
+          if (data.match.startedAt) {
+            setMatchStartedAt(data.match.startedAt);
+            console.log('✅ Match startedAt alındı:', data.match.startedAt);
+          }
           
           if (partnerProfile && (partnerProfile.userId || partnerProfile.username)) {
             // Completed match - partner bilgisi var
@@ -229,6 +236,15 @@ function ChatScreen({ userId, profile: currentProfile, matchId, partnerProfile: 
     // profile-set event'ini dinle
     newSocket.on('profile-set', (data) => {
       console.log('ChatScreen: Profil başarıyla set edildi, mesaj gönderebilirsiniz');
+    });
+
+    // match-found event'ini dinle - startedAt bilgisini al
+    newSocket.on('match-found', (data) => {
+      console.log('✅ ChatScreen: match-found event alındı', data);
+      if (data.startedAt) {
+        setMatchStartedAt(data.startedAt);
+        console.log('✅ Match startedAt kaydedildi:', data.startedAt);
+      }
     });
 
     // İlk kontrol
@@ -406,6 +422,7 @@ function ChatScreen({ userId, profile: currentProfile, matchId, partnerProfile: 
       setWaitingForPartner(false);
       setWaitingTimer(0);
       setTimer(null); // Timer'ı null yap
+      setMatchStartedAt(null); // Timer başlangıç zamanını temizle
       setIsCompletedMatch(true); // ÖNCE isCompletedMatch'i true yap
       setPartnerProfile(data.partnerProfile); // SONRA partnerProfile'ı set et
       
@@ -477,9 +494,9 @@ function ChatScreen({ userId, profile: currentProfile, matchId, partnerProfile: 
     };
   }, [userId, API_URL, onMatchEnded, onMatchContinued]);
 
-  // Timer başlat
+  // Timer başlat - Server'dan gelen startedAt'a göre senkronize
   useEffect(() => {
-    console.log('🔄 Timer useEffect çalışıyor:', { isCompletedMatch, partnerProfile: !!partnerProfile, showDecision, waitingForPartner, matchId });
+    console.log('🔄 Timer useEffect çalışıyor:', { isCompletedMatch, partnerProfile: !!partnerProfile, showDecision, waitingForPartner, matchId, matchStartedAt });
     
     // Önceki timer'ı temizle
     if (timerRef.current) {
@@ -503,24 +520,61 @@ function ChatScreen({ userId, profile: currentProfile, matchId, partnerProfile: 
 
     // Sadece yeni eşleşmelerde timer başlat (isCompletedMatch false ise ve partnerProfile yoksa)
     if (!isCompletedMatch && !partnerProfile && !showDecision && !waitingForPartner && matchId) {
-      console.log('⏱️ Yeni eşleşme - timer başlatılıyor');
-      setTimer(30);
+      // Timer senkronizasyonu: matchStartedAt varsa onu kullan, yoksa şu anki zamanı kullan
+      const calculateRemainingTime = () => {
+        if (matchStartedAt) {
+          // Server'dan gelen başlangıç zamanına göre kalan süreyi hesapla
+          const now = Date.now();
+          const elapsed = now - matchStartedAt; // milliseconds
+          const remaining = Math.max(0, 30000 - elapsed); // 30 saniye = 30000 ms
+          return Math.ceil(remaining / 1000); // saniyeye çevir
+        }
+        // startedAt yoksa varsayılan 30 saniye
+        return 30;
+      };
+
+      const initialTime = calculateRemainingTime();
+      console.log('⏱️ Yeni eşleşme - timer başlatılıyor:', { initialTime, matchStartedAt });
+      
+      if (initialTime <= 0) {
+        // Timer zaten bitmiş
+        setShowDecision(true);
+        setTimer(0);
+        return;
+      }
+
+      setTimer(initialTime);
       timerRef.current = setInterval(() => {
-        setTimer((prev) => {
-          if (prev === null || prev <= 1) {
+        if (matchStartedAt) {
+          // Server zamanına göre hesapla (senkronize)
+          const now = Date.now();
+          const elapsed = now - matchStartedAt;
+          const remaining = Math.max(0, 30000 - elapsed);
+          const remainingSeconds = Math.ceil(remaining / 1000);
+          
+          if (remainingSeconds <= 0) {
             clearInterval(timerRef.current);
             timerRef.current = null;
-            // Timer bittiğinde karar ekranını göster
-            // ÖNEMLİ: Timer bitince eşleşme iptal edilmemeli, sadece karar ekranı gösterilmeli
-            // Kullanıcılar geç de olsa "devam et" butonuna basabilmeli
             setShowDecision(true);
-            return 0;
+            setTimer(0);
+          } else {
+            setTimer(remainingSeconds);
           }
-          return prev - 1;
-        });
+        } else {
+          // Fallback: Normal geri sayım (startedAt yoksa)
+          setTimer((prev) => {
+            if (prev === null || prev <= 1) {
+              clearInterval(timerRef.current);
+              timerRef.current = null;
+              setShowDecision(true);
+              return 0;
+            }
+            return prev - 1;
+          });
+        }
       }, 1000);
     } else {
-      console.log('⏸️ Timer başlatılmıyor:', { isCompletedMatch, partnerProfile: !!partnerProfile, showDecision, waitingForPartner, matchId });
+      console.log('⏸️ Timer başlatılmıyor:', { isCompletedMatch, partnerProfile: !!partnerProfile, showDecision, waitingForPartner, matchId, matchStartedAt });
     }
 
     return () => {
@@ -529,7 +583,7 @@ function ChatScreen({ userId, profile: currentProfile, matchId, partnerProfile: 
         timerRef.current = null;
       }
     };
-  }, [isCompletedMatch, showDecision, waitingForPartner, matchId, partnerProfile]); // partnerProfile eklendi - completed match'te timer başlamasın
+  }, [isCompletedMatch, showDecision, waitingForPartner, matchId, partnerProfile, matchStartedAt]); // matchStartedAt eklendi
 
   // Mesajlar değiştiğinde scroll
   useEffect(() => {

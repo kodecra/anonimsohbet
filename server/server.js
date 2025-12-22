@@ -11,9 +11,8 @@ const fs = require('fs');
 // Veritabanı veya JSON dosyası kullanımı (DATABASE_URL varsa PostgreSQL, yoksa JSON)
 const useDatabase = !!process.env.DATABASE_URL;
 
-let saveUsers, loadUsers, saveAuth, loadAuth, saveMatches, loadMatches, saveVerifications, loadVerifications, initDatabase, addUserMatch;
+let saveUsers, loadUsers, saveAuth, loadAuth, saveMatches, loadMatches, saveVerifications, loadVerifications, initDatabase;
 
-let pool;
 if (useDatabase) {
   const db = require('./database');
   saveUsers = db.saveUsers;
@@ -25,8 +24,6 @@ if (useDatabase) {
   saveVerifications = db.saveVerifications;
   loadVerifications = db.loadVerifications;
   initDatabase = db.initDatabase;
-  addUserMatch = db.addUserMatch;
-  pool = db.pool;
   console.log('✅ PostgreSQL kullanılıyor');
 } else {
   const storage = require('./dataStorage');
@@ -66,7 +63,7 @@ const storage = multer.diskStorage({
 
 const upload = multer({
   storage: storage,
-  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB limit
+  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB limit
   fileFilter: (req, file, cb) => {
     const allowedTypes = /jpeg|jpg|png|gif|webp/;
     const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
@@ -93,8 +90,8 @@ app.use(cors({
   origin: "*",
   credentials: true
 }));
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 
 // Statik dosya servisi (fotoğraflar için)
 app.use('/uploads', express.static(uploadsDir));
@@ -132,17 +129,8 @@ let users, userAuth, completedMatches, userMatches, pendingVerifications;
 const activeUsers = new Map(); // socketId -> user info (geçici)
 const matchingQueue = []; // Eşleşme bekleyen kullanıcılar (geçici)
 const activeMatches = new Map(); // matchId -> match info (geçici)
-const complaints = new Map(); // complaintId -> complaint info
 
-// Superadmin email'leri (virgülle ayrılmış veya array)
-const SUPERADMIN_EMAILS = process.env.SUPERADMIN_EMAILS 
-  ? process.env.SUPERADMIN_EMAILS.split(',').map(e => e.trim().toLowerCase())
-  : ['admin@admin.com', 'oguzhancakar@anonimsohbet.local'].map(e => e.toLowerCase());
-
-// Helper function to check if user is superadmin
-function isSuperAdmin(email) {
-  return SUPERADMIN_EMAILS.includes(email.toLowerCase());
-}
+const SUPERADMIN_EMAIL = process.env.SUPERADMIN_EMAIL || 'admin@admin.com'; // Superadmin email
 
 // Veritabanını başlat (eğer PostgreSQL kullanılıyorsa)
 if (useDatabase && initDatabase) {
@@ -176,68 +164,32 @@ process.on('SIGINT', async () => {
 
 // Kayıt ol
 app.post('/api/register', async (req, res) => {
-  const { username, firstName, lastName, gender, phoneNumber, password, birthDate, age } = req.body;
+  const { email, password } = req.body;
   
-  if (!username || !username.trim()) {
-    return res.status(400).json({ error: 'Kullanıcı adı gereklidir' });
+  if (!email || !password) {
+    return res.status(400).json({ error: 'Email ve şifre gereklidir' });
   }
 
-  if (!lastName || !lastName.trim()) {
-    return res.status(400).json({ error: 'Soyisim zorunludur' });
-  }
-
-  if (!phoneNumber || !phoneNumber.trim()) {
-    return res.status(400).json({ error: 'Cep telefonu numarası gereklidir' });
-  }
-
-  if (!password || password.length < 6) {
+  if (password.length < 6) {
     return res.status(400).json({ error: 'Şifre en az 6 karakter olmalıdır' });
   }
 
-  if (!birthDate) {
-    return res.status(400).json({ error: 'Doğum tarihi gereklidir' });
-  }
-
-  // Telefon numarası format kontrolü (sadece rakam, 10-15 karakter)
-  const phoneRegex = /^[0-9]{10,15}$/;
-  if (!phoneRegex.test(phoneNumber.trim())) {
-    return res.status(400).json({ error: 'Geçerli bir telefon numarası giriniz (10-15 rakam)' });
-  }
-
-  // Yaş kontrolü (18 yaş altı engelle)
-  const calculatedAge = age || (birthDate ? Math.floor((new Date() - new Date(birthDate)) / (365.25 * 24 * 60 * 60 * 1000)) : null);
-  if (calculatedAge && calculatedAge < 18) {
-    return res.status(400).json({ error: '18 yaşından küçükler kayıt olamaz' });
-  }
-
-  // Kullanıcı adı kontrolü
-  const existingUser = Array.from(users.values()).find(u => u.username === username.trim());
-  if (existingUser) {
-    return res.status(400).json({ error: 'Bu kullanıcı adı zaten kullanılıyor' });
-  }
-
-  // Telefon numarası kontrolü
-  const existingPhone = Array.from(users.values()).find(u => u.phoneNumber === phoneNumber.trim());
-  if (existingPhone) {
-    return res.status(400).json({ error: 'Bu telefon numarası zaten kayıtlı' });
+  // Email kontrolü
+  if (userAuth.has(email.toLowerCase())) {
+    return res.status(400).json({ error: 'Bu email zaten kayıtlı' });
   }
 
   const userId = uuidv4();
-  const email = `${username.trim()}@anonimsohbet.local`;
-  
-  // Şifreyi hash'le
   const passwordHash = await bcrypt.hash(password, 10);
+
+  userAuth.set(email.toLowerCase(), { userId, passwordHash });
+  await saveAuth(userAuth); // Hemen kaydet
 
   const userProfile = {
     userId,
-    email: email,
-    username: username.trim(),
-    firstName: firstName ? firstName.trim() : null,
-    lastName: lastName.trim(),
-    gender: gender || null,
-    phoneNumber: phoneNumber.trim(),
-    birthDate: birthDate || null,
-    age: calculatedAge,
+    email: email.toLowerCase(),
+    username: email.split('@')[0], // Varsayılan kullanıcı adı
+    age: null,
     bio: '',
     interests: [],
     photos: [],
@@ -246,93 +198,45 @@ app.post('/api/register', async (req, res) => {
     updatedAt: new Date()
   };
 
-  // Auth bilgisini kaydet
-  if (useDatabase) {
-    // userAuth Map'ini de güncelle
-    userAuth.set(email.toLowerCase(), { userId, passwordHash });
-    await saveAuth(new Map([[email.toLowerCase(), { userId, passwordHash }]]));
-  } else {
-    if (!userAuth.has(email.toLowerCase())) {
-      userAuth.set(email.toLowerCase(), { userId, passwordHash });
-      await saveAuth(userAuth);
-    }
-  }
-
   users.set(userId, userProfile);
   await saveUsers(users); // Hemen kaydet
 
-  const token = jwt.sign({ userId, username: username.trim() }, JWT_SECRET, { expiresIn: '7d' });
+  const token = jwt.sign({ userId, email: email.toLowerCase() }, JWT_SECRET, { expiresIn: '7d' });
 
   res.json({ 
     token,
     user: {
       userId,
+      email: userProfile.email,
       username: userProfile.username
     }
   });
 });
 
-// Giriş yap (kullanıcı adı veya telefon numarası ile)
+// Giriş yap
 app.post('/api/login', async (req, res) => {
-  const { username, phoneNumber, password } = req.body;
+  const { email, password } = req.body;
   
-  console.log('🔐 Login attempt:', { username, phoneNumber: phoneNumber ? '***' : null, hasPassword: !!password });
-  
-  if (!password) {
-    return res.status(400).json({ error: 'Şifre gereklidir' });
+  if (!email || !password) {
+    return res.status(400).json({ error: 'Email ve şifre gereklidir' });
   }
 
-  if (!username && !phoneNumber) {
-    return res.status(400).json({ error: 'Kullanıcı adı veya telefon numarası gereklidir' });
-  }
-
-  // Kullanıcıyı bul (kullanıcı adı veya telefon numarası ile)
-  let profile = null;
-  if (username) {
-    const usernameLower = username.trim().toLowerCase();
-    profile = Array.from(users.values()).find(u => 
-      u.username.toLowerCase() === usernameLower || 
-      u.username === username.trim()
-    );
-    console.log('👤 Profile found by username:', profile ? { userId: profile.userId, email: profile.email, username: profile.username } : 'NOT FOUND');
-  } else if (phoneNumber) {
-    profile = Array.from(users.values()).find(u => u.phoneNumber === phoneNumber.trim());
-    console.log('👤 Profile found by phone:', profile ? { userId: profile.userId, email: profile.email } : 'NOT FOUND');
-  }
-
-  if (!profile) {
-    console.log('❌ Profile not found');
-    return res.status(401).json({ error: 'Kullanıcı adı/telefon veya şifre hatalı' });
-  }
-
-  // Auth bilgisini bul - email ile veya kullanıcı adı ile
-  const email = profile.email;
-  let auth = userAuth.get(email.toLowerCase());
-  console.log('🔑 Auth lookup by email:', email.toLowerCase(), auth ? 'FOUND' : 'NOT FOUND');
-  
-  // Eğer email ile bulunamazsa, kullanıcı adı ile dene (admin gibi özel durumlar için)
-  if (!auth && username) {
-    const possibleEmail = `${username.trim()}@anonimsohbet.local`;
-    auth = userAuth.get(possibleEmail.toLowerCase());
-    console.log('🔑 Auth lookup by possible email:', possibleEmail.toLowerCase(), auth ? 'FOUND' : 'NOT FOUND');
-  }
-  
+  const auth = userAuth.get(email.toLowerCase());
   if (!auth) {
-    console.log('❌ Auth not found. userAuth size:', userAuth.size);
-    console.log('🔍 Available emails in userAuth:', Array.from(userAuth.keys()).slice(0, 5));
-    return res.status(401).json({ error: 'Kullanıcı adı/telefon veya şifre hatalı' });
+    return res.status(401).json({ error: 'Email veya şifre hatalı' });
   }
 
-  console.log('🔐 Comparing password. Hash exists:', !!auth.passwordHash);
   const isValidPassword = await bcrypt.compare(password, auth.passwordHash);
-  console.log('🔐 Password match:', isValidPassword);
-  
   if (!isValidPassword) {
-    return res.status(401).json({ error: 'Kullanıcı adı/telefon veya şifre hatalı' });
+    return res.status(401).json({ error: 'Email veya şifre hatalı' });
   }
 
-  const token = jwt.sign({ userId: auth.userId, username: profile.username }, JWT_SECRET, { expiresIn: '7d' });
-  console.log('✅ Login successful for:', profile.username);
+  const profile = users.get(auth.userId);
+  if (!profile) {
+    return res.status(404).json({ error: 'Profil bulunamadı' });
+  }
+
+  const token = jwt.sign({ userId: auth.userId, email: email.toLowerCase() }, JWT_SECRET, { expiresIn: '7d' });
 
   res.json({ 
     token,
@@ -382,38 +286,37 @@ app.post('/api/profile/photos', authenticateToken, upload.array('photos', 5), as
     return res.status(400).json({ error: 'Fotoğraf seçilmedi' });
   }
 
-  // Dosya boyutu kontrolü
-  const oversizedFiles = req.files.filter(file => file.size > 10 * 1024 * 1024);
-  if (oversizedFiles.length > 0) {
-    return res.status(413).json({ error: 'Dosya boyutu çok büyük. Maksimum 10MB olmalıdır.' });
-  }
-
   // Mevcut fotoğrafları kontrol et (max 5)
   const currentPhotos = profile.photos || [];
   
-  // Onaylanmış kullanıcılar yeni fotoğraf yüklerse verified'ı false yap
-  const wasVerified = profile.verified;
-  if (profile.verified) {
-    console.log(`⚠️ Onaylanmış kullanıcı ${profile.username} yeni fotoğraf yüklüyor, verified false yapılıyor`);
-    profile.verified = false;
-    // Verification request'i de sil (tekrar onaylama yapması gerekecek)
-    if (pendingVerifications.has(userId)) {
-      pendingVerifications.delete(userId);
-      await saveVerifications(pendingVerifications);
-    }
-  }
-
-  // Dosyaları direkt dosya sistemine kaydet (VPS'de FTP'ye gerek yok)
+  // Dosyaları FTP ile hosting'e yükle
   const newPhotos = await Promise.all(req.files.map(async (file) => {
-    // Local dosya zaten uploadsDir'de, direkt URL oluştur
-    const fileUrl = `/uploads/${file.filename}`;
+    const localFilePath = path.join(uploadsDir, file.filename);
+    const remoteFilePath = `/uploads/${file.filename}`;
     
-    return {
-      id: uuidv4(),
-      url: fileUrl, // Local URL (VPS'de direkt erişilebilir)
-      filename: file.filename,
-      uploadedAt: new Date()
-    };
+    try {
+      // FTP ile yükle
+      const fileUrl = await uploadToFTP(localFilePath, remoteFilePath);
+      
+      // Local dosyayı sil (artık hosting'de var)
+      fs.unlinkSync(localFilePath);
+      
+      return {
+        id: uuidv4(),
+        url: fileUrl, // Hosting URL'i
+        filename: file.filename,
+        uploadedAt: new Date()
+      };
+    } catch (error) {
+      console.error('FTP upload error:', error);
+      // FTP hatası olursa local URL kullan (fallback)
+      return {
+        id: uuidv4(),
+        url: `/uploads/${file.filename}`, // Local URL (fallback)
+        filename: file.filename,
+        uploadedAt: new Date()
+      };
+    }
   }));
 
   const allPhotos = [...currentPhotos, ...newPhotos].slice(0, 5); // En fazla 5 fotoğraf
@@ -426,13 +329,7 @@ app.post('/api/profile/photos', authenticateToken, upload.array('photos', 5), as
 
   users.set(userId, updatedProfile);
   await saveUsers(users); // Hemen kaydet
-  
-  // Eğer verified false yapıldıysa, kullanıcıya bildir
-  if (wasVerified && !updatedProfile.verified) {
-    console.log(`✅ Kullanıcı ${profile.username} için verified false yapıldı, tekrar onaylama gerekecek`);
-  }
-  
-  res.json({ profile: updatedProfile, message: `${req.files.length} fotoğraf yüklendi`, verifiedRemoved: wasVerified && !updatedProfile.verified });
+  res.json({ profile: updatedProfile, message: `${req.files.length} fotoğraf yüklendi` });
 });
 
 // Poz doğrulama yükleme (çoklu fotoğraf)
@@ -600,50 +497,9 @@ app.delete('/api/profile/photos/:photoId', authenticateToken, async (req, res) =
   res.json({ profile: updatedProfile, message: 'Fotoğraf silindi' });
 });
 
-// Fotoğraf sıralama güncelleme
-app.post('/api/profile/photos/reorder', authenticateToken, async (req, res) => {
-  const userId = req.user.userId;
-  const profile = users.get(userId);
-  
-  if (!profile) {
-    return res.status(404).json({ error: 'Profil bulunamadı' });
-  }
-
-  const { photoIds } = req.body;
-  
-  if (!Array.isArray(photoIds)) {
-    return res.status(400).json({ error: 'Geçersiz fotoğraf ID listesi' });
-  }
-
-  const currentPhotos = profile.photos || [];
-  
-  // Yeni sıraya göre fotoğrafları yeniden düzenle
-  const reorderedPhotos = photoIds.map(id => {
-    return currentPhotos.find(p => p.id === id);
-  }).filter(Boolean); // undefined'ları filtrele
-
-  // Eğer bazı fotoğraflar bulunamadıysa, mevcut fotoğrafları koru
-  if (reorderedPhotos.length !== currentPhotos.length) {
-    // Bulunamayan fotoğrafları sona ekle
-    const foundIds = new Set(reorderedPhotos.map(p => p.id));
-    const missingPhotos = currentPhotos.filter(p => !foundIds.has(p.id));
-    reorderedPhotos.push(...missingPhotos);
-  }
-
-  const updatedProfile = {
-    ...profile,
-    photos: reorderedPhotos,
-    updatedAt: new Date()
-  };
-
-  users.set(userId, updatedProfile);
-  await saveUsers(users); // Hemen kaydet
-  res.json({ profile: updatedProfile, message: 'Fotoğraf sırası güncellendi' });
-});
-
 // Profil oluşturma/güncelleme (artık authenticated)
 app.post('/api/profile', authenticateToken, async (req, res) => {
-  const { username, firstName, lastName, gender, age, bio, interests, phoneNumber, birthDate } = req.body;
+  const { username, age, bio, interests } = req.body;
   const userId = req.user.userId;
   
   const existingProfile = users.get(userId);
@@ -651,22 +507,12 @@ app.post('/api/profile', authenticateToken, async (req, res) => {
     return res.status(404).json({ error: 'Kullanıcı bulunamadı' });
   }
 
-  // Soyisim zorunlu kontrolü
-  if (lastName === undefined || lastName === null || lastName.trim() === '') {
-    return res.status(400).json({ error: 'Soyisim zorunludur' });
-  }
-
   const userProfile = {
     ...existingProfile,
     username: username || existingProfile.username,
-    firstName: firstName !== undefined ? firstName : existingProfile.firstName,
-    lastName: lastName !== undefined ? lastName : existingProfile.lastName,
-    gender: gender !== undefined ? gender : existingProfile.gender,
     age: age !== undefined ? age : existingProfile.age,
     bio: bio !== undefined ? bio : existingProfile.bio,
     interests: interests || existingProfile.interests,
-    phoneNumber: phoneNumber !== undefined ? phoneNumber : existingProfile.phoneNumber,
-    birthDate: birthDate !== undefined ? birthDate : existingProfile.birthDate,
     updatedAt: new Date()
   };
 
@@ -709,39 +555,20 @@ app.get('/api/admin/pending-verifications', authenticateToken, (req, res) => {
   const profile = users.get(userId);
   
   // Superadmin kontrolü (email ile)
-  if (!isSuperAdmin(profile.email)) {
+  if (profile.email !== SUPERADMIN_EMAIL) {
     return res.status(403).json({ error: 'Bu işlem için yetkiniz yok' });
   }
-
-  // Poz isimleri mapping
-  const poseNames = {
-    1: 'El Buruna',
-    2: 'El Çeneye',
-    3: 'El Alna',
-    4: 'El Kulağa',
-    5: 'El Omza'
-  };
 
   const pending = Array.from(pendingVerifications.entries())
     .filter(([uid, verification]) => verification.status === 'pending')
     .map(([uid, verification]) => {
       const userProfile = users.get(uid);
-      // Poz isimlerini ekle
-      const poseImagesWithNames = (verification.poseImages || []).map((img, index) => {
-        const poseId = verification.poses && verification.poses[index] ? verification.poses[index] : index + 1;
-        return {
-          ...img,
-          poseId: poseId,
-          poseName: poseNames[poseId] || `Poz ${poseId}`
-        };
-      });
-      
       return {
         userId: uid,
         username: userProfile?.username || 'Bilinmeyen',
         email: userProfile?.email || '',
         selfieUrl: verification.selfieUrl, // Eski sistem için
-        poseImages: poseImagesWithNames, // Yeni sistem için (poz isimleri ile)
+        poseImages: verification.poseImages || [], // Yeni sistem için
         poses: verification.poses || [], // Poz ID'leri
         submittedAt: verification.submittedAt
       };
@@ -757,7 +584,7 @@ app.post('/api/admin/verify-user', authenticateToken, async (req, res) => {
   const { targetUserId, action } = req.body; // action: 'approve' or 'reject'
   
   // Superadmin kontrolü
-  if (!isSuperAdmin(profile.email)) {
+  if (profile.email !== SUPERADMIN_EMAIL) {
     return res.status(403).json({ error: 'Bu işlem için yetkiniz yok' });
   }
 
@@ -765,28 +592,24 @@ app.post('/api/admin/verify-user', authenticateToken, async (req, res) => {
     return res.status(400).json({ error: 'Geçersiz parametreler' });
   }
 
+  const verification = pendingVerifications.get(targetUserId);
+  if (!verification) {
+    return res.status(404).json({ error: 'Doğrulama bulunamadı' });
+  }
+
   const targetProfile = users.get(targetUserId);
   if (!targetProfile) {
     return res.status(404).json({ error: 'Kullanıcı bulunamadı' });
   }
 
-  const verification = pendingVerifications.get(targetUserId);
-  
   if (action === 'approve') {
-    // Doğrulama isteği yoksa bile direkt onayla (kullanıcılar tablosundan onaylama)
     targetProfile.verified = true;
-    if (verification) {
-      verification.status = 'approved';
-      await saveVerifications(pendingVerifications);
-    }
+    verification.status = 'approved';
     users.set(targetUserId, targetProfile);
     await saveUsers(users); // Hemen kaydet
+    await saveVerifications(pendingVerifications); // Hemen kaydet
     res.json({ message: 'Kullanıcı onaylandı', verified: true });
   } else {
-    // Reddetme için doğrulama isteği olmalı
-    if (!verification) {
-      return res.status(404).json({ error: 'Doğrulama bulunamadı' });
-    }
     verification.status = 'rejected';
     // Selfie dosyasını sil
     const filePath = path.join(uploadsDir, verification.filename);
@@ -796,128 +619,6 @@ app.post('/api/admin/verify-user', authenticateToken, async (req, res) => {
     await saveVerifications(pendingVerifications); // Hemen kaydet
     res.json({ message: 'Doğrulama reddedildi' });
   }
-});
-
-// Superadmin - Tüm kullanıcıları getir
-app.get('/api/admin/users', authenticateToken, (req, res) => {
-  const userId = req.user.userId;
-  const profile = users.get(userId);
-  
-  // Superadmin kontrolü
-  if (!isSuperAdmin(profile.email)) {
-    return res.status(403).json({ error: 'Bu işlem için yetkiniz yok' });
-  }
-
-  const { sortBy = 'createdAt', order = 'desc' } = req.query;
-  
-  const allUsers = Array.from(users.values()).map(user => ({
-    userId: user.userId,
-    username: user.username,
-    email: user.email,
-    firstName: user.firstName,
-    lastName: user.lastName,
-    verified: user.verified,
-    createdAt: user.createdAt,
-    updatedAt: user.updatedAt,
-    profileViews: user.profileViews || 0
-  }));
-
-  // Sıralama
-  allUsers.sort((a, b) => {
-    const aValue = a[sortBy] || new Date(0);
-    const bValue = b[sortBy] || new Date(0);
-    
-    if (order === 'asc') {
-      return aValue > bValue ? 1 : -1;
-    } else {
-      return aValue < bValue ? 1 : -1;
-    }
-  });
-
-  res.json({ users: allUsers });
-});
-
-// Superadmin - Şikayetler
-app.get('/api/admin/complaints', authenticateToken, (req, res) => {
-  const userId = req.user.userId;
-  const profile = users.get(userId);
-  
-  // Superadmin kontrolü
-  if (!isSuperAdmin(profile.email)) {
-    return res.status(403).json({ error: 'Bu işlem için yetkiniz yok' });
-  }
-
-  // Tüm şikayetleri döndür (en yeni önce)
-  const complaintsList = Array.from(complaints.values())
-    .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
-  
-  res.json({ complaints: complaintsList });
-});
-
-// Superadmin - Kullanıcıyı yasakla
-app.post('/api/admin/ban-user', authenticateToken, async (req, res) => {
-  const userId = req.user.userId;
-  const profile = users.get(userId);
-  const { targetUserId } = req.body;
-  
-  // Superadmin kontrolü
-  if (!isSuperAdmin(profile.email)) {
-    return res.status(403).json({ error: 'Bu işlem için yetkiniz yok' });
-  }
-
-  const targetProfile = users.get(targetUserId);
-  if (!targetProfile) {
-    return res.status(404).json({ error: 'Kullanıcı bulunamadı' });
-  }
-
-  targetProfile.banned = true;
-  targetProfile.bannedAt = new Date();
-  users.set(targetUserId, targetProfile);
-  await saveUsers(users);
-  
-  res.json({ message: 'Kullanıcı yasaklandı' });
-});
-
-// Superadmin - Kullanıcıya uyarı gönder
-app.post('/api/admin/warn-user', authenticateToken, async (req, res) => {
-  const userId = req.user.userId;
-  const profile = users.get(userId);
-  const { targetUserId } = req.body;
-  
-  // Superadmin kontrolü
-  if (!isSuperAdmin(profile.email)) {
-    return res.status(403).json({ error: 'Bu işlem için yetkiniz yok' });
-  }
-
-  const targetProfile = users.get(targetUserId);
-  if (!targetProfile) {
-    return res.status(404).json({ error: 'Kullanıcı bulunamadı' });
-  }
-
-  // Bildirim oluştur
-  const notificationId = uuidv4();
-  const notification = {
-    id: notificationId,
-    userId: targetUserId,
-    type: 'warning',
-    title: 'Uyarı',
-    message: 'Hakkınızda şikayet var. Lütfen kurallara uygun davranın.',
-    read: false,
-    createdAt: new Date()
-  };
-  
-  notifications.set(notificationId, notification);
-  await saveNotifications(notifications);
-  
-  // Kullanıcı online ise bildir
-  for (const [socketId, userInfo] of activeUsers.entries()) {
-    if (userInfo.userId === targetUserId) {
-      io.to(socketId).emit('notification', notification);
-      break;
-    }
-  }
-  
-  res.json({ message: 'Uyarı gönderildi' });
 });
 
 // Mesaj için resim yükleme
@@ -988,38 +689,26 @@ app.post('/api/users/unblock', authenticateToken, async (req, res) => {
 });
 
 // Kullanıcı şikayet etme
-app.post('/api/users/report', authenticateToken, async (req, res) => {
+app.post('/api/users/report', authenticateToken, (req, res) => {
   const userId = req.user.userId;
-  const { targetUserId, reason, reasonType, customReason } = req.body;
+  const { targetUserId, reason } = req.body;
   
-  if (!targetUserId || (!reason && !reasonType)) {
+  if (!targetUserId || !reason) {
     return res.status(400).json({ error: 'Kullanıcı ID ve sebep gereklidir' });
   }
 
-  const targetProfile = users.get(targetUserId);
-  if (!targetProfile) {
-    return res.status(404).json({ error: 'Kullanıcı bulunamadı' });
-  }
-
-  // Şikayeti kaydet
-  const complaintId = uuidv4();
-  const complaint = {
-    id: complaintId,
+  // Şikayeti kaydet (basit bir şekilde, ileride veritabanına taşınabilir)
+  const report = {
     reporterId: userId,
-    reporterUsername: users.get(userId)?.username || 'Bilinmeyen',
     targetUserId,
-    targetUsername: targetProfile.username,
-    reason: reason || reasonType,
-    reasonType: reasonType || 'other',
-    customReason: customReason || null,
-    timestamp: new Date(),
-    status: 'pending' // pending, reviewed, resolved
+    reason,
+    timestamp: new Date()
   };
   
-  complaints.set(complaintId, complaint);
-  console.log('✅ Şikayet kaydedildi:', complaint);
+  // Burada şikayetleri bir dosyaya kaydedebilirsiniz veya veritabanına ekleyebilirsiniz
+  console.log('Kullanıcı şikayeti:', report);
   
-  res.json({ message: 'Şikayet kaydedildi, incelenecektir', complaintId });
+  res.json({ message: 'Şikayet kaydedildi, incelenecektir' });
 });
 
 // İstatistikler
@@ -1129,31 +818,15 @@ app.delete('/api/matches/:matchId', authenticateToken, async (req, res) => {
     const partnerMatchIds = userMatches.get(partnerId) || [];
     const filteredPartnerMatchIds = partnerMatchIds.filter(id => id !== matchId);
     userMatches.set(partnerId, filteredPartnerMatchIds);
-    
-    // Partner'a Socket.IO ile bildir (eğer online ise)
-    for (const [socketId, userInfo] of activeUsers.entries()) {
-      if (userInfo.userId === partnerId) {
-        io.to(socketId).emit('match-ended', { matchId, message: 'Eşleşme sona erdi' });
-        console.log(`✅ Partner'a match-ended event'i gönderildi: ${partnerId}`);
-        break;
-      }
-    }
   }
   
-  // Eşleşmeyi tamamen sil (her iki kullanıcı için de)
+  // Eşleşmeyi sil
   completedMatches.delete(matchId);
   activeMatches.delete(matchId);
   
-  // ÖNEMLİ: Her iki kullanıcının userMatches'inden de silindiğinden emin ol
   await saveMatches(completedMatches, userMatches);
   
-  console.log(`✅ Eşleşme tamamen silindi: ${matchId} (Kullanıcı: ${userId}, Partner: ${partnerId})`);
-  console.log(`✅ userMatches kontrolü:`, {
-    userId: userId,
-    userMatchIds: userMatches.get(userId),
-    partnerId: partnerId,
-    partnerMatchIds: userMatches.get(partnerId)
-  });
+  console.log(`Eşleşme silindi: ${matchId} (Kullanıcı: ${userId})`);
   
   res.json({ success: true, message: 'Eşleşmeden çıkıldı' });
 });
@@ -1179,90 +852,35 @@ app.post('/api/notifications/settings', authenticateToken, async (req, res) => {
 });
 
 // Kullanıcının eşleşmelerini getir
-app.get('/api/matches', authenticateToken, async (req, res) => {
+app.get('/api/matches', authenticateToken, (req, res) => {
   const userId = req.user.userId;
-  
-  // ÖNEMLİ: userMatches Map'ini veritabanından yeniden yükle (sayfa yenilendiğinde güncel olsun)
-  // Eğer userMatches boşsa veya userId için matchId yoksa, veritabanından yükle
-  let matchIds = userMatches.get(userId) || [];
-  
-  // Eğer matchIds boşsa, veritabanından yükle
-  if (matchIds.length === 0) {
-    console.log(`⚠️ userMatches boş, veritabanından yükleniyor: userId=${userId}`);
-    try {
-      const matchesData = await loadMatches();
-      if (matchesData && matchesData.userMatches) {
-        // Global Map'leri güncelle
-        for (const [key, value] of matchesData.userMatches.entries()) {
-          userMatches.set(key, value);
-        }
-        for (const [key, value] of matchesData.completedMatches.entries()) {
-          completedMatches.set(key, value);
-        }
-        matchIds = userMatches.get(userId) || [];
-        console.log(`✅ Veritabanından yüklendi: userId=${userId}, matchIds=${JSON.stringify(matchIds)}`);
-      }
-    } catch (error) {
-      console.error('❌ Veritabanından yükleme hatası:', error);
-    }
-  }
-  
-  console.log(`📋 /api/matches: userId=${userId}, matchIds=${JSON.stringify(matchIds)}`);
-  console.log(`📋 completedMatches size: ${completedMatches.size}`);
+  const matchIds = userMatches.get(userId) || [];
   
   const matches = matchIds.map(matchId => {
     const match = completedMatches.get(matchId);
-    if (!match) {
-      console.log(`⚠️ Match bulunamadı: ${matchId} (userId: ${userId})`);
-      // Eğer match bulunamazsa, userMatches'ten de çıkar (temizlik)
-      const filteredMatchIds = matchIds.filter(id => id !== matchId);
-      userMatches.set(userId, filteredMatchIds);
-      return null;
-    }
+    if (!match) return null;
 
     // Partner bilgisini bul
     const partner = match.user1.userId === userId ? match.user2 : match.user1;
     
-    // Partner bilgisini esnek şekilde al (farklı yapılar için)
-    const partnerProfile = partner.profile || partner;
-    const partnerUserId = partner.userId || partnerProfile?.userId;
-    const partnerUsername = partner.username || partnerProfile?.username || 'Bilinmeyen Kullanıcı';
-    const partnerFirstName = partner.firstName || partnerProfile?.firstName || null;
-    const partnerLastName = partner.lastName || partnerProfile?.lastName || null;
-    const partnerPhotos = partnerProfile?.photos || partner.photos || [];
-    const partnerVerified = partnerProfile?.verified || partner.verified || false;
-    
     return {
       matchId: match.id,
       partner: {
-        userId: partnerUserId,
-        username: partnerUsername,
-        firstName: partnerFirstName,
-        lastName: partnerLastName,
-        photos: partnerPhotos,
-        verified: partnerVerified
+        userId: partner.userId,
+        username: partner.username,
+        photos: partner.profile.photos || [],
+        verified: partner.profile.verified || false
       },
       lastMessage: match.messages.length > 0 ? match.messages[match.messages.length - 1] : null,
       lastMessageAt: match.lastMessageAt,
       messageCount: match.messages.length,
-      messages: match.messages || [], // Mesajları da gönder (arama için)
       startedAt: match.startedAt
     };
   }).filter(m => m !== null).sort((a, b) => {
     // En son mesaj alanı üstte
-    const dateA = a.lastMessageAt ? new Date(a.lastMessageAt) : new Date(0);
-    const dateB = b.lastMessageAt ? new Date(b.lastMessageAt) : new Date(0);
-    return dateB - dateA;
+    return new Date(b.lastMessageAt) - new Date(a.lastMessageAt);
   });
-  
-  // Temizlik yapıldıysa kaydet
-  if (matches.length < matchIds.length) {
-    saveMatches(completedMatches, userMatches);
-    console.log(`🧹 Temizlik yapıldı: ${matchIds.length - matches.length} geçersiz matchId silindi`);
-  }
-  
-  console.log(`✅ /api/matches: ${matches.length} match döndürüldü (userId: ${userId})`);
-  
+
   res.json({ matches });
 });
 
@@ -1305,203 +923,35 @@ app.get('/api/matches/:matchId', authenticateToken, (req, res) => {
     return res.status(403).json({ error: 'Bu eşleşmeye erişim yetkiniz yok' });
   }
 
-  // Partner bilgisini bul - esnek yapı kontrolü
-  const user1Id = match.user1?.userId || match.user1?.user?.userId || match.user1;
-  const user2Id = match.user2?.userId || match.user2?.user?.userId || match.user2;
-  const partner = user1Id === userId ? match.user2 : match.user1;
+  const partner = match.user1.userId === userId ? match.user2 : match.user1;
   
   let partnerInfo = null;
   if (!isActiveMatch) {
     // Completed match - partner bilgisini göster
-    console.log('✅ Completed match - partner bilgisi hazırlanıyor', { partner, userId, user1Id, user2Id });
+    const partnerProfile = users.get(partner.userId);
     
-    // Partner profile'ı bul - esnek yapı kontrolü
-    let partnerProfile = null;
-    if (partner && partner.profile) {
-      // completedMatches'te partner.profile var
-      partnerProfile = partner.profile;
-    } else if (partner && partner.userId) {
-      // users Map'inden al
-      partnerProfile = users.get(partner.userId);
-    } else if (partner && typeof partner === 'object') {
-      // Partner direkt profile olabilir
-      partnerProfile = partner;
-    }
+    // activeMatches'te partner.profile var, completedMatches'te partner direkt profile olabilir
+    const partnerData = partnerProfile || partner.profile || partner;
     
-    if (partnerProfile) {
-      partnerInfo = {
-        userId: partner.userId || partnerProfile.userId,
-        username: partnerProfile.username,
-        firstName: partnerProfile.firstName,
-        lastName: partnerProfile.lastName,
-        age: partnerProfile.age,
-        bio: partnerProfile.bio,
-        interests: partnerProfile.interests || [],
-        photos: partnerProfile.photos || [],
-        verified: partnerProfile.verified || false,
-        gender: partnerProfile.gender
-      };
-      console.log('✅ Partner bilgisi hazırlandı:', partnerInfo);
-    } else {
-      console.log('⚠️ Partner profile bulunamadı');
-    }
-  }
-  
-  console.log('✅ Match detayları döndürülüyor:', { matchId: match.id, isActiveMatch, hasPartner: !!partnerInfo, messageCount: (match.messages || []).length });
-  
-  // Aktif eşleşmede user1 ve user2 bilgilerini anonim tut (sadece userId)
-  let user1Response = null;
-  let user2Response = null;
-  
-  if (isActiveMatch) {
-    // Aktif eşleşme - sadece userId göster, profil bilgilerini gizle
-    user1Response = {
-      userId: user1Id,
-      socketId: match.user1?.socketId || null
+    partnerInfo = {
+      userId: partner.userId,
+      username: partnerData.username || partnerData.profile?.username,
+      age: partnerData.age || partnerData.profile?.age,
+      bio: partnerData.bio || partnerData.profile?.bio,
+      interests: partnerData.interests || partnerData.profile?.interests || [],
+      photos: partnerData.photos || partnerData.profile?.photos || [],
+      verified: partnerData.verified || partnerData.profile?.verified || false
     };
-    user2Response = {
-      userId: user2Id,
-      socketId: match.user2?.socketId || null
-    };
-  } else {
-    // Completed match - tam bilgileri göster
-    user1Response = match.user1;
-    user2Response = match.user2;
   }
   
   res.json({
     match: {
       matchId: match.id,
-      user1: user1Response,
-      user2: user2Response,
       partner: partnerInfo,  // Aktif eşleşmede null, completed'de partner bilgisi
       messages: match.messages || [],
-      startedAt: match.startedAt,
-      isActiveMatch: isActiveMatch  // Frontend'e aktif eşleşme olduğunu bildir
+      startedAt: match.startedAt ? (match.startedAt instanceof Date ? match.startedAt.getTime() : match.startedAt) : null // Timer senkronizasyonu için timestamp
     }
   });
-});
-
-// Bildirimler API
-app.get('/api/notifications', authenticateToken, async (req, res) => {
-  const userId = req.user.userId;
-  
-  if (!pool) {
-    return res.json({ notifications: [] });
-  }
-  
-  try {
-    const result = await pool.query(`
-      SELECT * FROM notifications 
-      WHERE user_id = $1 
-      ORDER BY created_at DESC 
-      LIMIT 50
-    `, [userId]);
-    
-    const notifications = result.rows.map(row => ({
-      id: row.notification_id,
-      type: row.type,
-      title: row.title,
-      message: row.message,
-      matchId: row.match_id,
-      fromUserId: row.from_user_id,
-      read: row.read,
-      createdAt: row.created_at
-    }));
-    
-    res.json({ notifications });
-  } catch (error) {
-    console.error('Bildirim yükleme hatası:', error);
-    res.status(500).json({ error: 'Bildirimler yüklenemedi' });
-  }
-});
-
-// Okunmamış bildirim sayısı
-app.get('/api/notifications/unread-count', authenticateToken, async (req, res) => {
-  const userId = req.user.userId;
-  
-  if (!pool) {
-    return res.json({ count: 0 });
-  }
-  
-  try {
-    const result = await pool.query(`
-      SELECT COUNT(*) as count FROM notifications 
-      WHERE user_id = $1 AND read = false
-    `, [userId]);
-    
-    res.json({ count: parseInt(result.rows[0].count) });
-  } catch (error) {
-    console.error('Okunmamış bildirim sayısı hatası:', error);
-    res.json({ count: 0 });
-  }
-});
-
-// Bildirimi okundu olarak işaretle
-app.post('/api/notifications/:notificationId/read', authenticateToken, async (req, res) => {
-  const userId = req.user.userId;
-  const notificationId = req.params.notificationId;
-  
-  if (!pool) {
-    return res.json({ success: true });
-  }
-  
-  try {
-    await pool.query(`
-      UPDATE notifications 
-      SET read = true 
-      WHERE notification_id = $1 AND user_id = $2
-    `, [notificationId, userId]);
-    
-    res.json({ success: true });
-  } catch (error) {
-    console.error('Bildirim okundu işaretleme hatası:', error);
-    res.status(500).json({ error: 'Bildirim güncellenemedi' });
-  }
-});
-
-// Tüm bildirimleri okundu olarak işaretle
-app.post('/api/notifications/read-all', authenticateToken, async (req, res) => {
-  const userId = req.user.userId;
-  
-  if (!pool) {
-    return res.json({ success: true });
-  }
-  
-  try {
-    await pool.query(`
-      UPDATE notifications 
-      SET read = true 
-      WHERE user_id = $1 AND read = false
-    `, [userId]);
-    
-    res.json({ success: true });
-  } catch (error) {
-    console.error('Tüm bildirimleri okundu işaretleme hatası:', error);
-    res.status(500).json({ error: 'Bildirimler güncellenemedi' });
-  }
-});
-
-// Match'e göre okunmamış mesaj sayısı (badge için)
-app.get('/api/matches/:matchId/unread-count', authenticateToken, async (req, res) => {
-  const userId = req.user.userId;
-  const matchId = req.params.matchId;
-  
-  if (!pool) {
-    return res.json({ count: 0 });
-  }
-  
-  try {
-    const result = await pool.query(`
-      SELECT COUNT(*) as count FROM notifications 
-      WHERE user_id = $1 AND match_id = $2 AND read = false AND type = 'new-message'
-    `, [userId, matchId]);
-    
-    res.json({ count: parseInt(result.rows[0].count) });
-  } catch (error) {
-    console.error('Okunmamış mesaj sayısı hatası:', error);
-    res.json({ count: 0 });
-  }
 });
 
 // Socket.io bağlantıları
@@ -1597,182 +1047,44 @@ io.on('connection', (socket) => {
       return;
     }
 
-    // Kuyruğa ekle (filtreleme bilgisi ile)
+    // Kuyruğa ekle
     if (!matchingQueue.find(u => u.socketId === socket.id)) {
       matchingQueue.push({
         socketId: socket.id,
         userId: userInfo.userId,
-        profile: userInfo.profile,
-        filterInterests: data.filterInterests || null,
-        filterGender: data.filterGender || null // Cinsiyet filtresi eklendi
+        profile: userInfo.profile
       });
       socket.emit('matching-started', { message: 'Eşleşme aranıyor...' });
-      console.log(`${userInfo.profile.username} eşleşme kuyruğuna eklendi`, data.filterInterests ? `(Filtre: ${data.filterInterests.join(', ')})` : '');
+      console.log(`${userInfo.profile.username} eşleşme kuyruğuna eklendi`);
     }
 
-    // Eşleşme kontrolü - İlgi alanlarına göre filtreleme ile
+    // Eşleşme kontrolü
     if (matchingQueue.length >= 2) {
-      // İlgi alanlarına göre eşleşme bul
-      let user1 = null;
-      let user2 = null;
-      let user1Index = -1;
-      let user2Index = -1;
-      
-      // İlk kullanıcıyı al
-      user1 = matchingQueue[0];
-      user1Index = 0;
-      
-      // ÖNCE: Cinsiyet filtresine uygun kullanıcıları bul
-      const genderFilteredCandidates = [];
-      for (let i = 1; i < matchingQueue.length; i++) {
-        const candidate = matchingQueue[i];
-        
-        // Cinsiyet filtresi kontrolü - MUTLAKA cinsiyet filtresine uymalı
-        let genderMatch = true;
-        
-        // user1'in cinsiyet filtresi varsa, candidate'ın cinsiyeti eşleşmeli
-        if (user1.filterGender) {
-          if (candidate.profile.gender !== user1.filterGender) {
-            genderMatch = false;
-            console.log(`❌ Cinsiyet uyuşmazlığı: user1 ${user1.filterGender} arıyor, candidate ${candidate.profile.gender}`);
-          }
-        }
-        
-        // candidate'ın cinsiyet filtresi varsa, user1'in cinsiyeti eşleşmeli
-        if (candidate.filterGender) {
-          if (user1.profile.gender !== candidate.filterGender) {
-            genderMatch = false;
-            console.log(`❌ Cinsiyet uyuşmazlığı: candidate ${candidate.filterGender} arıyor, user1 ${user1.profile.gender}`);
-          }
-        }
-        
-        // Her iki taraf da cinsiyet filtresi belirtmemişse, aynı cinsiyet ile eşleş (erkek-erkek, kadın-kadın)
-        if (!user1.filterGender && !candidate.filterGender) {
-          if (user1.profile.gender && candidate.profile.gender) {
-            if (user1.profile.gender !== candidate.profile.gender) {
-              genderMatch = false;
-              console.log(`❌ Cinsiyet uyuşmazlığı: user1 ${user1.profile.gender}, candidate ${candidate.profile.gender}`);
-            }
-          }
-        }
-        
-        if (genderMatch) {
-          genderFilteredCandidates.push({ candidate, index: i });
-        }
-      }
-      
-      console.log(`🔍 Cinsiyet filtresine uygun ${genderFilteredCandidates.length} aday bulundu`);
-      
-      // Eğer cinsiyet filtresine uygun aday yoksa, cinsiyet filtresini atlamadan eşleşme yapma
-      if (genderFilteredCandidates.length === 0) {
-        console.log('⚠️ Cinsiyet filtresine uygun aday bulunamadı, eşleşme yapılamıyor');
-        // Kullanıcıyı kuyrukta bırak, beklesin
-        return;
-      }
-      
-      // SONRA: İlgi alanlarına göre filtrele (opsiyonel - cinsiyet öncelikli)
-      let foundMatch = false;
-      
-      // Önce ilgi alanlarına göre eşleşme ara
-      for (const { candidate, index } of genderFilteredCandidates) {
-        // Eğer user1'in ilgi alanı filtreleme tercihi varsa
-        if (user1.filterInterests && user1.filterInterests.length > 0) {
-          const candidateInterests = candidate.profile.interests || [];
-          const hasCommonInterest = user1.filterInterests.some(interest => 
-            candidateInterests.includes(interest)
-          );
-          if (hasCommonInterest) {
-            user2 = candidate;
-            user2Index = index;
-            foundMatch = true;
-            console.log('✅ İlgi alanlarına göre eşleşme bulundu');
-            break;
-          }
-        }
-        // Eğer candidate'ın ilgi alanı filtreleme tercihi varsa
-        else if (candidate.filterInterests && candidate.filterInterests.length > 0) {
-          const user1Interests = user1.profile.interests || [];
-          const hasCommonInterest = candidate.filterInterests.some(interest => 
-            user1Interests.includes(interest)
-          );
-          if (hasCommonInterest) {
-            user2 = candidate;
-            user2Index = index;
-            foundMatch = true;
-            console.log('✅ İlgi alanlarına göre eşleşme bulundu');
-            break;
-          }
-        }
-      }
-      
-      // İlgi alanlarına göre eşleşme bulunamazsa, cinsiyet filtresine uygun ilk adayı al (ilgi alanlarına bakmadan)
-      if (!foundMatch && genderFilteredCandidates.length > 0) {
-        console.log('⚠️ İlgi alanlarına göre eşleşme bulunamadı, cinsiyet filtresine uygun ilk aday seçiliyor');
-        user2 = genderFilteredCandidates[0].candidate;
-        user2Index = genderFilteredCandidates[0].index;
-        foundMatch = true;
-      }
-      
-      if (user1 && user2) {
-        // ÖNEMLİ: Önceden eşleşmiş kullanıcıları kontrol et
-        // Eğer bu iki kullanıcı daha önce eşleşmişse ve eşleşme silinmişse, tekrar eşleşebilirler
-        // Ama aktif bir eşleşmeleri varsa, tekrar eşleşemezler
-        const user1MatchIds = userMatches.get(user1.userId) || [];
-        const user2MatchIds = userMatches.get(user2.userId) || [];
-        
-        // Aktif eşleşme kontrolü - eğer her iki kullanıcı da aktif bir eşleşmedeyse, eşleşme yapma
-        // Ama eşleşme silinmişse (userMatches'te yoksa), tekrar eşleşebilirler
-        let hasActiveMatch = false;
-        for (const mid of [...user1MatchIds, ...user2MatchIds]) {
-          const match = completedMatches.get(mid);
-          if (match) {
-            const u1Id = match.user1?.userId;
-            const u2Id = match.user2?.userId;
-            // Bu iki kullanıcı arasında aktif bir eşleşme var mı?
-            if ((u1Id === user1.userId && u2Id === user2.userId) || 
-                (u1Id === user2.userId && u2Id === user1.userId)) {
-              hasActiveMatch = true;
-              console.log(`⚠️ Bu kullanıcılar zaten aktif bir eşleşmede: ${user1.profile.username} & ${user2.profile.username} (matchId: ${mid})`);
-              break;
-            }
-          }
-        }
-        
-        // Eğer aktif bir eşleşme varsa, eşleşme yapma
-        if (hasActiveMatch) {
-          console.log(`❌ Eşleşme yapılamıyor: Aktif eşleşme mevcut`);
-          // Eşleşme yapma, kuyrukta beklesinler
-          return;
-        }
-        
-        console.log(`✅ Eşleşme yapılabilir: ${user1.profile.username} & ${user2.profile.username} (aktif eşleşme yok)`);
-        
-        // Kuyruktan çıkar
-        matchingQueue.splice(user2Index, 1);
-        matchingQueue.splice(user1Index, 1);
+      const user1 = matchingQueue.shift();
+      const user2 = matchingQueue.shift();
 
-        const matchId = uuidv4();
-        // Match yapısını netleştir - user1 ve user2'de userId ve socketId olmalı
-        const match = {
-          id: matchId,
-          user1: {
-            socketId: user1.socketId,
-            userId: user1.userId,
-            profile: user1.profile
-          },
-          user2: {
-            socketId: user2.socketId,
-            userId: user2.userId,
-            profile: user2.profile
-          },
-          startedAt: new Date(),
-          messages: [],
-          user1Decision: null,
-          user2Decision: null,
-          timerStarted: false
-        };
+      const matchId = uuidv4();
+      // Match yapısını netleştir - user1 ve user2'de userId ve socketId olmalı
+      const match = {
+        id: matchId,
+        user1: {
+          socketId: user1.socketId,
+          userId: user1.userId,
+          profile: user1.profile
+        },
+        user2: {
+          socketId: user2.socketId,
+          userId: user2.userId,
+          profile: user2.profile
+        },
+        startedAt: new Date(),
+        messages: [],
+        user1Decision: null,
+        user2Decision: null,
+        timerStarted: false
+      };
 
-        activeMatches.set(matchId, match);
+      activeMatches.set(matchId, match);
       console.log('✅✅✅ MATCH OLUŞTURULDU:', matchId);
       console.log('   user1:', { userId: user1.userId, socketId: user1.socketId, username: user1.profile?.username });
       console.log('   user2:', { userId: user2.userId, socketId: user2.socketId, username: user2.profile?.username });
@@ -1793,14 +1105,18 @@ io.on('connection', (socket) => {
       }
 
       // Her iki kullanıcıya eşleşme bildirimi gönder (anonim)
+      // Timer senkronizasyonu için startedAt zamanını gönder
+      const startedAt = match.startedAt.getTime(); // Unix timestamp (milliseconds)
       io.to(user1.socketId).emit('match-found', {
         matchId: matchId,
-        message: '🎉 Eşleşme başarılı! Anonim sohbet başladı. 30 saniye sonra devam edip etmeyeceğiniz sorulacak.'
+        message: 'Birisiyle eşleştiniz! 30 saniye sonra devam edip etmeyeceğiniz sorulacak.',
+        startedAt: startedAt // Timer senkronizasyonu için
       });
 
       io.to(user2.socketId).emit('match-found', {
         matchId: matchId,
-        message: '🎉 Eşleşme başarılı! Anonim sohbet başladı. 30 saniye sonra devam edip etmeyeceğiniz sorulacak.'
+        message: 'Birisiyle eşleştiniz! 30 saniye sonra devam edip etmeyeceğiniz sorulacak.',
+        startedAt: startedAt // Timer senkronizasyonu için
       });
 
       // 30 saniyelik timer başlat
@@ -1824,7 +1140,6 @@ io.on('connection', (socket) => {
       }, 30000);
 
       console.log(`Eşleşme oluşturuldu: ${matchId} - ${user1.profile.username} & ${user2.profile.username}`);
-      }
     }
   });
 
@@ -1847,492 +1162,125 @@ io.on('connection', (socket) => {
     const { matchId, decision } = data; // decision: 'continue' veya 'leave'
     const userInfo = activeUsers.get(socket.id);
     
-    if (!userInfo) {
-      console.log('❌ match-decision: Kullanıcı bulunamadı', { socketId: socket.id });
-      socket.emit('error', { message: 'Kullanıcı bulunamadı' });
+    if (!userInfo || !userInfo.inMatch || userInfo.matchId !== matchId) {
+      socket.emit('error', { message: 'Geçersiz eşleşme' });
       return;
     }
 
-    console.log(`📥 match-decision event alındı:`, { matchId, decision, userId: userInfo.userId });
-
-    // Önce activeMatches'te kontrol et
-    let match = activeMatches.get(matchId);
-    
-    // Eğer activeMatches'te yoksa, completedMatches'te kontrol et (belki zaten tamamlanmış)
+    const match = activeMatches.get(matchId);
     if (!match) {
-      console.log(`⚠️ Match activeMatches'te bulunamadı, completedMatches'te aranıyor: ${matchId}`);
-      const completedMatch = completedMatches.get(matchId);
-      if (completedMatch) {
-        console.log(`✅ Match completedMatches'te bulundu: ${matchId}`);
-        // Match zaten tamamlanmış, match-continued event'i gönder
-        const isUser1 = completedMatch.user1.userId === userInfo.userId;
-        const isUser2 = completedMatch.user2.userId === userInfo.userId;
-        
-        if (isUser1 || isUser2) {
-          const partnerProfile = isUser1 ? completedMatch.user2.profile : completedMatch.user1.profile;
-          
-          // Güncel socket ID'yi bul
-          let userSocketId = socket.id;
-          for (const [socketId, uInfo] of activeUsers.entries()) {
-            if (uInfo.userId === userInfo.userId) {
-              userSocketId = socketId;
-              break;
-            }
-          }
-          
-          io.to(userSocketId).emit('match-continued', {
-            matchId: matchId,
-            partnerProfile: partnerProfile,
-            message: 'Eşleşme onaylandı! Artık birbirinizin profillerini görebilirsiniz.'
-          });
-          console.log(`✅ match-continued gönderildi (completed match): ${userSocketId}`);
-          return;
-        }
-      }
-      
-      // Match hiçbir yerde bulunamadı - userId ile ara (race condition için)
-      console.log(`⚠️ Match hiçbir yerde bulunamadı, userId ile aranıyor: ${userInfo.userId}`);
-      for (const [mid, m] of activeMatches.entries()) {
-        const u1Id = m.user1?.userId;
-        const u2Id = m.user2?.userId;
-        if ((u1Id === userInfo.userId || u2Id === userInfo.userId) && mid === matchId) {
-          match = m;
-          console.log(`✅ Match userId ile bulundu: ${mid}`);
-          break;
-        }
-      }
-      
-      // Hala bulunamadıysa, completedMatches'te userId ile ara
-      if (!match) {
-        for (const [mid, cm] of completedMatches.entries()) {
-          const u1Id = cm.user1?.userId;
-          const u2Id = cm.user2?.userId;
-          if ((u1Id === userInfo.userId || u2Id === userInfo.userId) && mid === matchId) {
-            // Match completedMatches'te bulundu, match-continued gönder
-            const isUser1 = u1Id === userInfo.userId;
-            const partnerProfile = isUser1 ? cm.user2.profile : cm.user1.profile;
-            
-            let userSocketId = socket.id;
-            for (const [socketId, uInfo] of activeUsers.entries()) {
-              if (uInfo.userId === userInfo.userId) {
-                userSocketId = socketId;
-                break;
-              }
-            }
-            
-            io.to(userSocketId).emit('match-continued', {
-              matchId: matchId,
-              partnerProfile: partnerProfile,
-              message: 'Eşleşme onaylandı! Artık birbirinizin profillerini görebilirsiniz.'
-            });
-            console.log(`✅ match-continued gönderildi (completed match - userId ile bulundu): ${userSocketId}`);
-            return;
-          }
-        }
-      }
-      
-      if (!match) {
-        console.log('❌ match-decision: Eşleşme bulunamadı', { 
-          matchId, 
-          userId: userInfo.userId,
-          activeMatchesSize: activeMatches.size,
-          completedMatchesSize: completedMatches.size,
-          userMatchId: userInfo.matchId,
-          activeMatchesKeys: Array.from(activeMatches.keys()),
-          completedMatchesKeys: Array.from(completedMatches.keys())
-        });
-        socket.emit('error', { message: 'Eşleşme bulunamadı' });
-        return;
-      }
-    }
-    
-    // Match activeMatches'te var, kullanıcının bu match'te olduğunu kontrol et
-    const isUser1 = match.user1.userId === userInfo.userId;
-    const isUser2 = match.user2.userId === userInfo.userId;
-    
-    if (!isUser1 && !isUser2) {
-      console.log('❌ match-decision: Kullanıcı match\'te bulunamadı', { 
-        userId: userInfo.userId, 
-        matchUser1Id: match.user1.userId, 
-        matchUser2Id: match.user2.userId 
-      });
-      socket.emit('error', { message: 'Eşleşmede kullanıcı bulunamadı' });
+      socket.emit('error', { message: 'Eşleşme bulunamadı' });
       return;
     }
 
-    console.log(`✅ match-decision: ${isUser1 ? 'user1' : 'user2'} karar verdi: ${decision}`, { matchId, userId: userInfo.userId });
+    // Hangi kullanıcı olduğunu belirle
+    const isUser1 = match.user1.socketId === socket.id;
     if (isUser1) {
       match.user1Decision = decision;
-      match.user1.socketId = socket.id; // Socket ID'yi güncelle
     } else {
       match.user2Decision = decision;
-      match.user2.socketId = socket.id; // Socket ID'yi güncelle
     }
-    
-    console.log(`📊 match-decision durumu:`, { 
-      matchId, 
-      user1Decision: match.user1Decision, 
-      user2Decision: match.user2Decision 
-    });
 
     // Eğer kullanıcı "continue" dediyse, karşı tarafa bildir
     if (decision === 'continue') {
-      // Partner'ın userId'sini bul
-      const partnerUserId = isUser1 ? match.user2.userId : match.user1.userId;
-      
-      // Güncel socket ID'yi bul (userId ile)
-      let partnerSocketId = null;
-      for (const [socketId, userInfo] of activeUsers.entries()) {
-        if (userInfo.userId === partnerUserId) {
-          partnerSocketId = socketId;
-          break;
-        }
-      }
-      
+      const partnerSocketId = isUser1 ? match.user2.socketId : match.user1.socketId;
       if (partnerSocketId) {
-        console.log(`📤 partner-continued gönderiliyor: ${partnerSocketId} (userId: ${partnerUserId})`);
         io.to(partnerSocketId).emit('partner-continued', {
           matchId: matchId,
           message: 'Karşı taraf devam etmek istiyor, sizin kararınızı bekliyor...'
         });
-      } else {
-        console.log(`❌ partner socket bulunamadı: userId=${partnerUserId}`);
       }
     }
 
-    // Her iki karar da alındı mı? (null check'i daha güvenli yap)
-    const bothDecisionsReceived = match.user1Decision !== null && match.user2Decision !== null && 
-                                  match.user1Decision !== undefined && match.user2Decision !== undefined;
-    
-    if (bothDecisionsReceived) {
+    // Her iki karar da alındı mı?
+    if (match.user1Decision !== null && match.user2Decision !== null) {
       if (match.user1Decision === 'continue' && match.user2Decision === 'continue') {
         // Her iki kullanıcı da devam etmek istiyor - Profilleri göster
         const user1Profile = users.get(match.user1.userId);
         const user2Profile = users.get(match.user2.userId);
-        
-        console.log(`🔍 Profil kontrolü:`, {
-          user1Id: match.user1.userId,
-          user2Id: match.user2.userId,
-          user1ProfileExists: !!user1Profile,
-          user2ProfileExists: !!user2Profile,
-          user1ProfileUsername: user1Profile?.username,
-          user2ProfileUsername: user2Profile?.username
-        });
-        
-        if (!user1Profile || !user2Profile) {
-          console.error(`❌❌❌ KRİTİK HATA: Profil bulunamadı!`, {
-            user1Id: match.user1.userId,
-            user2Id: match.user2.userId,
-            user1Profile: user1Profile,
-            user2Profile: user2Profile,
-            usersMapSize: users.size,
-            usersMapKeys: Array.from(users.keys())
-          });
-        }
 
         // Eşleşmeyi kalıcı olarak kaydet
-        // ÖNEMLİ: Partner profile bilgileri sadece bu eşleşmeye özel olmalı
-        // Eşleşme bittiğinde, partner bilgileri tamamen silinmeli (privacy için)
         const completedMatch = {
           id: matchId,
           user1: {
             userId: match.user1.userId,
             username: user1Profile.username,
-            profile: {
-              ...user1Profile,
-              // Sadece bu eşleşmeye özel bilgiler
-              matchId: matchId,
-              matchedAt: new Date()
-            }
+            profile: user1Profile
           },
           user2: {
             userId: match.user2.userId,
             username: user2Profile.username,
-            profile: {
-              ...user2Profile,
-              // Sadece bu eşleşmeye özel bilgiler
-              matchId: matchId,
-              matchedAt: new Date()
-            }
+            profile: user2Profile
           },
           startedAt: match.startedAt,
           completedAt: new Date(),
-          messages: [...(match.messages || [])], // Mesajları koru
-          lastMessageAt: match.messages && match.messages.length > 0 
+          messages: [...match.messages],
+          lastMessageAt: match.messages.length > 0 
             ? match.messages[match.messages.length - 1].timestamp 
             : match.startedAt
         };
-        
-        console.log(`✅ Completed match'e mesajlar aktarıldı: ${match.messages?.length || 0} mesaj`);
-        console.log(`✅ Completed match kaydediliyor: ${matchId}`, {
-          user1: match.user1.userId,
-          user2: match.user2.userId,
-          messageCount: completedMatch.messages.length
-        });
 
-        // ÖNCE completedMatches'e ekle (match-decision handler'ında bulunabilmesi için)
         completedMatches.set(matchId, completedMatch);
-        console.log(`✅ completedMatches'e eklendi: ${matchId}`);
 
         // Kullanıcıların eşleşme listelerine ekle
-        // ÖNEMLİ: Her iki kullanıcının da userMatches'ine EKLEMEK ZORUNLU
-        const user1Id = match.user1.userId;
-        const user2Id = match.user2.userId;
-        
-        // user1 için ekle
-        let user1Matches = userMatches.get(user1Id) || [];
-        if (!user1Matches.includes(matchId)) {
-          user1Matches.push(matchId);
-          userMatches.set(user1Id, user1Matches);
-          console.log(`✅ user1Matches'e eklendi: ${user1Id} -> ${matchId}`);
-        } else {
-          console.log(`⚠️ user1Matches'te zaten var: ${user1Id} -> ${matchId}`);
+        if (!userMatches.has(match.user1.userId)) {
+          userMatches.set(match.user1.userId, []);
         }
-        
-        // user2 için ekle
-        let user2Matches = userMatches.get(user2Id) || [];
-        if (!user2Matches.includes(matchId)) {
-          user2Matches.push(matchId);
-          userMatches.set(user2Id, user2Matches);
-          console.log(`✅ user2Matches'e eklendi: ${user2Id} -> ${matchId}`);
-        } else {
-          console.log(`⚠️ user2Matches'te zaten var: ${user2Id} -> ${matchId}`);
+        if (!userMatches.has(match.user2.userId)) {
+          userMatches.set(match.user2.userId, []);
         }
-        
-        // VERİTABANINA KAYDET - HEMEN VE ZORUNLU
-        // ÖNCE completedMatch'i kaydet
-        try {
-          await saveMatches(completedMatches, userMatches);
-          console.log(`✅✅✅ saveMatches başarılı: ${matchId}`);
-        } catch (error) {
-          console.error(`❌❌❌ saveMatches HATASI:`, error);
-          // Hata olsa bile devam et, ama logla
-        }
-        
-        // SONRA her iki kullanıcı için de doğrudan veritabanına ekle (race condition'ı önlemek için)
-        if (addUserMatch) {
-          try {
-            await addUserMatch(user1Id, matchId);
-            await addUserMatch(user2Id, matchId);
-            console.log(`✅✅✅ addUserMatch başarılı: ${user1Id} ve ${user2Id} -> ${matchId}`);
-          } catch (error) {
-            console.error(`❌❌❌ addUserMatch HATASI:`, error);
-          }
-        }
-        
-        // DOĞRULAMA: Her iki kullanıcının da userMatches'inde olduğundan emin ol
-        const finalUser1Matches = userMatches.get(user1Id) || [];
-        const finalUser2Matches = userMatches.get(user2Id) || [];
-        const user1HasMatch = finalUser1Matches.includes(matchId);
-        const user2HasMatch = finalUser2Matches.includes(matchId);
-        
-        if (!user1HasMatch || !user2HasMatch) {
-          console.error(`❌❌❌ KRİTİK HATA: userMatches senkronizasyon sorunu!`, {
-            matchId,
-            user1Id,
-            user2Id,
-            user1HasMatch,
-            user2HasMatch,
-            user1Matches: finalUser1Matches,
-            user2Matches: finalUser2Matches
-          });
-          
-          // ZORLA EKLE
-          if (!user1HasMatch) {
-            finalUser1Matches.push(matchId);
-            userMatches.set(user1Id, finalUser1Matches);
-            console.log(`🔧 ZORLA EKLENDİ: user1Matches -> ${user1Id}`);
-          }
-          if (!user2HasMatch) {
-            finalUser2Matches.push(matchId);
-            userMatches.set(user2Id, finalUser2Matches);
-            console.log(`🔧 ZORLA EKLENDİ: user2Matches -> ${user2Id}`);
-          }
-          
-          // Tekrar kaydet
-          try {
-            await saveMatches(completedMatches, userMatches);
-            console.log(`✅ Zorla ekleme sonrası saveMatches başarılı`);
-          } catch (error) {
-            console.error(`❌ Zorla ekleme sonrası saveMatches HATASI:`, error);
-          }
-        }
-        
-        console.log(`✅✅✅ userMatches güncellendi (DOĞRULAMA):`, {
-          user1: user1Id,
-          user2: user2Id,
-          user1Matches: userMatches.get(user1Id),
-          user2Matches: userMatches.get(user2Id),
+        userMatches.get(match.user1.userId).push(matchId);
+        userMatches.get(match.user2.userId).push(matchId);
+        await saveMatches(completedMatches, userMatches); // Hemen kaydet
+
+        io.to(match.user1.socketId).emit('match-continued', {
           matchId: matchId,
-          completedMatchesSize: completedMatches.size,
-          completedMatchExists: !!completedMatches.get(matchId),
-          user1HasMatch: userMatches.get(user1Id)?.includes(matchId),
-          user2HasMatch: userMatches.get(user2Id)?.includes(matchId)
+          partnerProfile: user2Profile,
+          message: 'Eşleşme onaylandı! Artık birbirinizin profillerini görebilirsiniz.'
         });
 
-        // Güncel socket ID'leri bul (userId ile)
-        let user1SocketId = match.user1.socketId;
-        let user2SocketId = match.user2.socketId;
-        
-        // activeUsers'dan güncel socket ID'leri bul
-        for (const [socketId, userInfo] of activeUsers.entries()) {
-          if (userInfo.userId === match.user1.userId) {
-            user1SocketId = socketId;
-          }
-          if (userInfo.userId === match.user2.userId) {
-            user2SocketId = socketId;
-          }
-        }
-
-        console.log(`📤 match-continued gönderiliyor:`, {
-          matchId,
-          user1SocketId,
-          user2SocketId,
-          user1UserId: match.user1.userId,
-          user2UserId: match.user2.userId
+        io.to(match.user2.socketId).emit('match-continued', {
+          matchId: matchId,
+          partnerProfile: user1Profile,
+          message: 'Eşleşme onaylandı! Artık birbirinizin profillerini görebilirsiniz.'
         });
 
-        // Her iki kullanıcıya da match-continued event'ini gönder
-        if (user1SocketId && user2Profile) {
-          console.log(`📤 user1'e match-continued gönderiliyor:`, {
-            socketId: user1SocketId,
-            userId: match.user1.userId,
-            partnerProfile: {
-              userId: user2Profile.userId,
-              username: user2Profile.username,
-              firstName: user2Profile.firstName,
-              lastName: user2Profile.lastName
-            }
-          });
-          io.to(user1SocketId).emit('match-continued', {
-            matchId: matchId,
-            partnerProfile: user2Profile,
-            message: 'Eşleşme onaylandı! Artık birbirinizin profillerini görebilirsiniz.'
-          });
-          // Sohbetler listesini yenilemek için event gönder
-          io.to(user1SocketId).emit('matches-updated', {
-            message: 'Eşleşmeler güncellendi'
-          });
-          console.log(`✅ user1'e match-continued gönderildi: ${user1SocketId}`);
-        } else {
-          console.error(`❌ user1 socket veya profil bulunamadı:`, {
-            socketId: user1SocketId,
-            userId: match.user1.userId,
-            hasProfile: !!user2Profile
-          });
-        }
-
-        if (user2SocketId && user1Profile) {
-          console.log(`📤 user2'ye match-continued gönderiliyor:`, {
-            socketId: user2SocketId,
-            userId: match.user2.userId,
-            partnerProfile: {
-              userId: user1Profile.userId,
-              username: user1Profile.username,
-              firstName: user1Profile.firstName,
-              lastName: user1Profile.lastName
-            }
-          });
-          io.to(user2SocketId).emit('match-continued', {
-            matchId: matchId,
-            partnerProfile: user1Profile,
-            message: 'Eşleşme onaylandı! Artık birbirinizin profillerini görebilirsiniz.'
-          });
-          // Sohbetler listesini yenilemek için event gönder
-          io.to(user2SocketId).emit('matches-updated', {
-            message: 'Eşleşmeler güncellendi'
-          });
-          console.log(`✅ user2'ye match-continued gönderildi: ${user2SocketId}`);
-        } else {
-          console.error(`❌ user2 socket veya profil bulunamadı:`, {
-            socketId: user2SocketId,
-            userId: match.user2.userId,
-            hasProfile: !!user1Profile
-          });
-        }
-
-        // SONRA active match'i temizle (event'ler gönderildikten sonra)
-        activeMatches.delete(matchId);
-        
-        // Kullanıcıların match durumunu güncelle (userId ile bul)
-        for (const [socketId, userInfo] of activeUsers.entries()) {
-          if (userInfo.userId === match.user1.userId || userInfo.userId === match.user2.userId) {
-            userInfo.inMatch = false;
-            userInfo.matchId = null;
-          }
-        }
-
-        console.log(`✅✅✅ Eşleşme onaylandı: ${matchId}`);
-        console.log(`✅✅✅ userMatches'e eklendi:`, {
-          user1: match.user1.userId,
-          user2: match.user2.userId,
-          user1Matches: userMatches.get(match.user1.userId),
-          user2Matches: userMatches.get(match.user2.userId)
-        });
+        console.log(`Eşleşme onaylandı: ${matchId}`);
       } else {
         // Biri veya ikisi de çıkmak istiyor
-        console.log(`❌ Eşleşme sona erdi (birisi çıktı): ${matchId}`, {
-          user1Decision: match.user1Decision,
-          user2Decision: match.user2Decision
+        io.to(match.user1.socketId).emit('match-ended', {
+          matchId: matchId,
+          message: 'Eşleşme sona erdi.'
         });
-        
-        // Güncel socket ID'leri bul (userId ile)
-        let user1SocketId = match.user1.socketId;
-        let user2SocketId = match.user2.socketId;
-        
-        // activeUsers'dan güncel socket ID'leri bul
-        for (const [socketId, userInfo] of activeUsers.entries()) {
-          if (userInfo.userId === match.user1.userId) {
-            user1SocketId = socketId;
-          }
-          if (userInfo.userId === match.user2.userId) {
-            user2SocketId = socketId;
-          }
-        }
-        
-        if (user1SocketId) {
-          io.to(user1SocketId).emit('match-ended', {
-            matchId: matchId,
-            message: 'Eşleşme sona erdi.'
-          });
-        }
-        
-        if (user2SocketId) {
-          io.to(user2SocketId).emit('match-ended', {
-            matchId: matchId,
-            message: 'Eşleşme sona erdi.'
-          });
-        }
 
-        // Active match'i temizle
-        activeMatches.delete(matchId);
-        
-        // Eşleşmeyi temizle (userId ile bul)
-        for (const [socketId, userInfo] of activeUsers.entries()) {
-          if (userInfo.userId === match.user1.userId || userInfo.userId === match.user2.userId) {
-            userInfo.inMatch = false;
-            userInfo.matchId = null;
-          }
+        io.to(match.user2.socketId).emit('match-ended', {
+          matchId: matchId,
+          message: 'Eşleşme sona erdi.'
+        });
+
+        // Eşleşmeyi temizle
+        const user1Info = activeUsers.get(match.user1.socketId);
+        const user2Info = activeUsers.get(match.user2.socketId);
+        if (user1Info) {
+          user1Info.inMatch = false;
+          user1Info.matchId = null;
         }
+        if (user2Info) {
+          user2Info.inMatch = false;
+          user2Info.matchId = null;
+        }
+        activeMatches.delete(matchId);
 
         console.log(`Eşleşme sona erdi: ${matchId}`);
       }
     } else {
       // Diğer kullanıcının kararını bekle
-      // ÖNEMLİ: Timer bitmiş olsa bile, eğer kullanıcı "devam et" butonuna basmışsa, karşı tarafın kararını beklemeli
-      // Timer bitince eşleşme iptal edilmemeli, sadece karar ekranı gösterilmeli
       socket.emit('decision-saved', { message: 'Kararınız kaydedildi, diğer kullanıcının kararını bekliyorsunuz...' });
-      console.log(`⏳ Karar kaydedildi, diğer kullanıcının kararını bekleniyor: ${matchId}`, {
-        user1Decision: match.user1Decision,
-        user2Decision: match.user2Decision,
-        currentUser: isUser1 ? 'user1' : 'user2',
-        decision: decision
-      });
     }
   });
 
   // Mesaj gönderme (eşleşme içinde)
-  socket.on('send-message', async (data) => {
+  socket.on('send-message', (data) => {
     console.log('📨📨📨 MESAJ GÖNDERME İSTEĞİ:', { socketId: socket.id, userId: data.userId, matchId: data.matchId });
     console.log('   activeMatches size:', activeMatches.size);
     console.log('   activeMatches keys:', Array.from(activeMatches.keys()));
@@ -2633,9 +1581,6 @@ io.on('connection', (socket) => {
       completedMatch.messages.push(message);
       completedMatch.lastMessageAt = new Date();
       await saveMatches(completedMatches, userMatches); // Hemen kaydet
-    } else {
-      // activeMatches'teki mesajları da kaydet (completedMatches'e geçerken kaybolmasın)
-      // Mesajlar zaten match.messages'da, completedMatches'e geçerken aktarılacak
     }
 
     // Online status güncelle
@@ -2646,68 +1591,13 @@ io.on('connection', (socket) => {
     }
 
     // Eşleşme partnerine mesajı gönder (bildirim ile)
-    if (partnerSocketId) {
-      io.to(partnerSocketId).emit('new-message', message);
-      io.to(partnerSocketId).emit('notification', {
-        type: 'new-message',
-        matchId: match.id,
-        from: userInfo.profile.username,
-        message: data.text.substring(0, 50)
-      });
-      console.log(`✅ Mesaj partner'e gönderildi: ${partnerSocketId}`);
-    } else {
-      console.log('⚠️ Partner socketId yok, mesaj gönderilemedi. Partner offline olabilir.');
-    }
-    
-    // Partner offline ise bildirim kaydet (bildirim sistemi için)
-    if (!partnerSocketId && partnerUserId && pool) {
-      const notificationId = uuidv4();
-      try {
-        await pool.query(`
-          INSERT INTO notifications (
-            notification_id, user_id, type, title, message, match_id, from_user_id, read, created_at
-          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-        `, [
-          notificationId,
-          partnerUserId,
-          'new-message',
-          'Yeni Mesaj',
-          data.text.substring(0, 100),
-          match.id,
-          userInfo.userId,
-          false,
-          new Date()
-        ]);
-        console.log(`✅ Bildirim kaydedildi (offline): ${partnerUserId}`);
-      } catch (error) {
-        console.error('❌ Bildirim kaydetme hatası:', error);
-      }
-    }
-    
-    // Partner online ise de bildirim kaydet (okunmamış mesaj sayısı için)
-    if (partnerSocketId && partnerUserId && pool) {
-      const notificationId = uuidv4();
-      try {
-        await pool.query(`
-          INSERT INTO notifications (
-            notification_id, user_id, type, title, message, match_id, from_user_id, read, created_at
-          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-        `, [
-          notificationId,
-          partnerUserId,
-          'new-message',
-          'Yeni Mesaj',
-          data.text.substring(0, 100),
-          match.id,
-          userInfo.userId,
-          false,
-          new Date()
-        ]);
-        console.log(`✅ Bildirim kaydedildi (online): ${partnerUserId}`);
-      } catch (error) {
-        console.error('❌ Bildirim kaydetme hatası:', error);
-      }
-    }
+    io.to(partnerSocketId).emit('new-message', message);
+    io.to(partnerSocketId).emit('notification', {
+      type: 'new-message',
+      matchId: match.id,
+      from: userInfo.profile.username,
+      message: data.text.substring(0, 50)
+    });
     
     socket.emit('new-message', message); // Gönderen kişiye de mesajı gönder
     socket.emit('message-sent', message);
@@ -2764,7 +1654,7 @@ io.on('connection', (socket) => {
   });
 
   // Mesaja reaksiyon ekle/kaldır
-  socket.on('react-to-message', async (data) => {
+  socket.on('react-to-message', (data) => {
     const userInfo = activeUsers.get(socket.id);
     if (!userInfo) return;
 
