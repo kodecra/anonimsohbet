@@ -1133,13 +1133,14 @@ io.on('connection', (socket) => {
       match.timerStarted = true;
       const TIMER_DURATION = 30000; // 30 saniye = 30000 ms
       
-      // Timer interval'i - Her saniye güncelle
-      match.timerInterval = setInterval(() => {
+      // Timer güncelleme fonksiyonu
+      const sendTimerUpdate = () => {
         const currentMatch = activeMatches.get(matchId);
         if (!currentMatch) {
           // Match silinmiş, interval'i temizle
           if (match.timerInterval) {
             clearInterval(match.timerInterval);
+            match.timerInterval = null;
           }
           return;
         }
@@ -1188,7 +1189,13 @@ io.on('connection', (socket) => {
 
           console.log(`30 saniye doldu - Match: ${matchId}`);
         }
-      }, 1000); // Her saniye güncelle
+      };
+
+      // İlk güncellemeyi hemen gönder (0ms gecikme ile)
+      sendTimerUpdate();
+      
+      // Sonra her saniye güncelle
+      match.timerInterval = setInterval(sendTimerUpdate, 1000);
 
       console.log(`Eşleşme oluşturuldu: ${matchId} - ${user1.profile.username} & ${user2.profile.username}`);
     }
