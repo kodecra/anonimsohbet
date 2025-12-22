@@ -1979,6 +1979,12 @@ io.on('connection', (socket) => {
         }
 
         console.log(`✅✅✅ Eşleşme onaylandı: ${matchId}`);
+        console.log(`✅✅✅ userMatches'e eklendi:`, {
+          user1: match.user1.userId,
+          user2: match.user2.userId,
+          user1Matches: userMatches.get(match.user1.userId),
+          user2Matches: userMatches.get(match.user2.userId)
+        });
       } else {
         // Biri veya ikisi de çıkmak istiyor
         console.log(`❌ Eşleşme sona erdi (birisi çıktı): ${matchId}`, {

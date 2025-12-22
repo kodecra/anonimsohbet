@@ -499,6 +499,8 @@ function ChatScreen({ userId, profile: currentProfile, matchId, partnerProfile: 
             clearInterval(timerRef.current);
             timerRef.current = null;
             // Timer bittiğinde karar ekranını göster
+            // ÖNEMLİ: Timer bitince eşleşme iptal edilmemeli, sadece karar ekranı gösterilmeli
+            // Kullanıcılar geç de olsa "devam et" butonuna basabilmeli
             setShowDecision(true);
             return 0;
           }
