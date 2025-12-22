@@ -15,6 +15,10 @@ import {
   Divider,
   Dropdown,
   Popover,
+  Modal,
+  Row,
+  Col,
+  Radio,
   message as antdMessage
 } from 'antd';
 import {
@@ -38,6 +42,7 @@ import './ChatScreen.css';
 const { Header, Content, Footer } = Layout;
 const { Title, Text } = Typography;
 const { TextArea } = Input;
+const { Group: RadioGroup } = Radio;
 
 function ChatScreen({ userId, profile: currentProfile, matchId, partnerProfile: initialPartnerProfile, onMatchEnded, onMatchContinued, onGoBack, API_URL }) {
   const { isDarkMode } = React.useContext(ThemeContext);
@@ -71,6 +76,10 @@ function ChatScreen({ userId, profile: currentProfile, matchId, partnerProfile: 
     browserEnabled: true,
     messageEnabled: true
   });
+  const [showPartnerProfileModal, setShowPartnerProfileModal] = useState(false);
+  const [showReportModal, setShowReportModal] = useState(false);
+  const [reportReasonType, setReportReasonType] = useState(null);
+  const [reportCustomReason, setReportCustomReason] = useState('');
   const audioRef = useRef(null);
 
   useEffect(() => {
@@ -812,19 +821,31 @@ function ChatScreen({ userId, profile: currentProfile, matchId, partnerProfile: 
   // Kullanıcı şikayet et
   const handleReportUser = async () => {
     if (!partnerProfile || !partnerProfile.userId) return;
-    
-    const reason = window.prompt('Şikayet nedeni nedir?');
-    if (!reason) return;
-    
+    setShowReportModal(true);
+  };
+
+  const submitReport = async () => {
+    if (!reportReasonType && !reportCustomReason.trim()) {
+      antdMessage.warning('Lütfen bir sebep seçin veya yazın');
+      return;
+    }
+
     try {
       const token = localStorage.getItem('token');
       await axios.post(`${API_URL}/api/users/report`, 
-        { targetUserId: partnerProfile.userId, reason },
+        { 
+          targetUserId: partnerProfile.userId, 
+          reasonType: reportReasonType,
+          customReason: reportCustomReason.trim() || null
+        },
         { headers: { 'Authorization': `Bearer ${token}` } }
       );
       antdMessage.success('Şikayet gönderildi');
+      setShowReportModal(false);
+      setReportReasonType(null);
+      setReportCustomReason('');
     } catch (error) {
-      console.error('Şikayet hatası:', error);
+      console.error('Şikayet gönderme hatası:', error);
       antdMessage.error('Şikayet gönderilemedi');
     }
   };
@@ -900,11 +921,12 @@ function ChatScreen({ userId, profile: currentProfile, matchId, partnerProfile: 
                     ? partnerProfile.photos[0].url
                     : `${API_URL}${partnerProfile.photos[0].url}`)
                 : undefined}
-              style={{ backgroundColor: '#1890ff' }}
+              style={{ backgroundColor: '#1890ff', cursor: 'pointer' }}
+              onClick={() => setShowPartnerProfileModal(true)}
             >
               {partnerProfile.username.charAt(0).toUpperCase()}
             </Avatar>
-            <div>
+            <div style={{ cursor: 'pointer' }} onClick={() => setShowPartnerProfileModal(true)}>
               <Space>
                 <Text strong style={{ color: isDarkMode ? '#fff' : '#000' }}>
                   {formatDisplayName(partnerProfile)}
@@ -1120,10 +1142,10 @@ function ChatScreen({ userId, profile: currentProfile, matchId, partnerProfile: 
             key={message.id}
             style={{
               alignSelf: message.userId === userId ? 'flex-end' : 'flex-start',
-              maxWidth: '70%',
+              maxWidth: window.innerWidth < 768 ? '85%' : '60%',
               display: 'flex',
               flexDirection: message.userId === userId ? 'row-reverse' : 'row',
-              gap: '8px',
+              gap: '6px',
               alignItems: 'flex-end'
             }}
           >
@@ -1156,11 +1178,11 @@ function ChatScreen({ userId, profile: currentProfile, matchId, partnerProfile: 
             
             <Card
               style={{
-                padding: '12px',
+                padding: window.innerWidth < 768 ? '8px 10px' : '10px 12px',
                 backgroundColor: message.userId === userId 
                   ? (isDarkMode ? '#5E72E4' : '#1890ff')
                   : (isDarkMode ? '#2e2e2e' : '#f5f5f5'),
-                borderRadius: '8px',
+                borderRadius: '10px',
                 border: 'none',
                 flex: 1,
                 transition: 'background-color 0.3s ease'
@@ -1515,6 +1537,241 @@ function ChatScreen({ userId, profile: currentProfile, matchId, partnerProfile: 
           </form>
         </Footer>
       )}
+
+      {/* Partner Profile Modal */}
+      <Modal
+        title={
+          <Space>
+            <Avatar
+              src={partnerProfile?.photos && partnerProfile.photos.length > 0 
+                ? (partnerProfile.photos[0].url && partnerProfile.photos[0].url.startsWith('http')
+                    ? partnerProfile.photos[0].url
+                    : `${API_URL}${partnerProfile.photos[0].url}`)
+                : undefined}
+              size={40}
+              style={{ backgroundColor: '#1890ff' }}
+            >
+              {partnerProfile?.username?.charAt(0).toUpperCase()}
+            </Avatar>
+            <div>
+              <Text strong style={{ color: isDarkMode ? '#fff' : '#000' }}>
+                {partnerProfile ? formatDisplayName(partnerProfile) : 'Kullanıcı Profili'}
+              </Text>
+              {partnerProfile?.verified && (
+                <SafetyCertificateOutlined style={{ color: '#52c41a', marginLeft: '8px' }} />
+              )}
+            </div>
+          </Space>
+        }
+        open={showPartnerProfileModal}
+        onCancel={() => setShowPartnerProfileModal(false)}
+        footer={[
+          <Button key="close" onClick={() => setShowPartnerProfileModal(false)}>
+            Kapat
+          </Button>,
+          <Button 
+            key="profile" 
+            type="primary" 
+            onClick={() => {
+              // Profile git - MainScreen'e dön ve profil görüntüle
+              setShowPartnerProfileModal(false);
+              // TODO: Navigate to profile view
+              antdMessage.info('Profil görüntüleme özelliği yakında eklenecek');
+            }}
+          >
+            Profile Git
+          </Button>
+        ]}
+        width={600}
+        style={{
+          top: 20
+        }}
+        styles={{
+          body: {
+            background: isDarkMode ? '#1a1a2e' : '#fff',
+            color: isDarkMode ? '#fff' : '#000'
+          },
+          header: {
+            background: isDarkMode ? '#1a1a2e' : '#fff',
+            borderBottom: isDarkMode ? '1px solid #424242' : '1px solid #f0f0f0'
+          },
+          footer: {
+            background: isDarkMode ? '#1a1a2e' : '#fff',
+            borderTop: isDarkMode ? '1px solid #424242' : '1px solid #f0f0f0'
+          }
+        }}
+      >
+        {partnerProfile && (
+          <div>
+            {/* Fotoğraflar Galerisi */}
+            {partnerProfile.photos && partnerProfile.photos.length > 0 && (
+              <div style={{ marginBottom: '24px' }}>
+                <Title level={5} style={{ color: isDarkMode ? '#fff' : '#000', marginBottom: '12px' }}>
+                  Fotoğraflar
+                </Title>
+                <Image.PreviewGroup>
+                  <Row gutter={[8, 8]}>
+                    {partnerProfile.photos.map((photo, index) => (
+                      <Col key={photo.id || index} span={8}>
+                        <Image
+                          src={photo.url && photo.url.startsWith('http')
+                            ? photo.url
+                            : `${API_URL}${photo.url}`}
+                          alt={`Fotoğraf ${index + 1}`}
+                          style={{
+                            width: '100%',
+                            height: '150px',
+                            objectFit: 'cover',
+                            borderRadius: '8px',
+                            cursor: 'pointer'
+                          }}
+                          preview={{
+                            mask: <div style={{ color: '#fff' }}>Görüntüle</div>
+                          }}
+                        />
+                      </Col>
+                    ))}
+                  </Row>
+                </Image.PreviewGroup>
+              </div>
+            )}
+
+            {/* Bio */}
+            {partnerProfile.bio && (
+              <div style={{ marginBottom: '24px' }}>
+                <Title level={5} style={{ color: isDarkMode ? '#fff' : '#000', marginBottom: '8px' }}>
+                  Hakkında
+                </Title>
+                <Text style={{ color: isDarkMode ? '#b8b8b8' : '#666' }}>
+                  {partnerProfile.bio}
+                </Text>
+              </div>
+            )}
+
+            {/* İlgi Alanları */}
+            {partnerProfile.interests && partnerProfile.interests.length > 0 && (
+              <div style={{ marginBottom: '24px' }}>
+                <Title level={5} style={{ color: isDarkMode ? '#fff' : '#000', marginBottom: '8px' }}>
+                  İlgi Alanları
+                </Title>
+                <Space wrap>
+                  {partnerProfile.interests.map((interest, index) => (
+                    <Tag key={index} color="blue" style={{ marginBottom: '4px' }}>
+                      {interest}
+                    </Tag>
+                  ))}
+                </Space>
+              </div>
+            )}
+
+            {/* Bilgiler */}
+            <div>
+              <Title level={5} style={{ color: isDarkMode ? '#fff' : '#000', marginBottom: '8px' }}>
+                Bilgiler
+              </Title>
+              <Space direction="vertical" style={{ width: '100%' }}>
+                {partnerProfile.age && (
+                  <Text style={{ color: isDarkMode ? '#b8b8b8' : '#666' }}>
+                    <strong>Yaş:</strong> {partnerProfile.age}
+                  </Text>
+                )}
+                {partnerProfile.gender && (
+                  <Text style={{ color: isDarkMode ? '#b8b8b8' : '#666' }}>
+                    <strong>Cinsiyet:</strong> {partnerProfile.gender === 'male' ? 'Erkek' : partnerProfile.gender === 'female' ? 'Kadın' : partnerProfile.gender}
+                  </Text>
+                )}
+                {partnerProfile.isOnline ? (
+                  <Tag color="green">Çevrimiçi</Tag>
+                ) : partnerProfile.lastSeen ? (
+                  <Text style={{ color: isDarkMode ? '#b8b8b8' : '#666' }}>
+                    <strong>Son görülme:</strong> {new Date(partnerProfile.lastSeen).toLocaleString('tr-TR', {
+                      day: '2-digit',
+                      month: '2-digit',
+                      year: 'numeric',
+                      hour: '2-digit',
+                      minute: '2-digit'
+                    })}
+                  </Text>
+                ) : null}
+              </Space>
+            </div>
+          </div>
+        )}
+      </Modal>
+
+      {/* Şikayet Modal */}
+      <Modal
+        title="Şikayet Et"
+        open={showReportModal}
+        onCancel={() => {
+          setShowReportModal(false);
+          setReportReasonType(null);
+          setReportCustomReason('');
+        }}
+        onOk={submitReport}
+        okText="Şikayet Gönder"
+        cancelText="İptal"
+        styles={{
+          body: {
+            background: isDarkMode ? '#1a1a2e' : '#fff',
+            color: isDarkMode ? '#fff' : '#000'
+          },
+          header: {
+            background: isDarkMode ? '#1a1a2e' : '#fff',
+            borderBottom: isDarkMode ? '1px solid #424242' : '1px solid #f0f0f0',
+            color: isDarkMode ? '#fff' : '#000'
+          },
+          footer: {
+            background: isDarkMode ? '#1a1a2e' : '#fff',
+            borderTop: isDarkMode ? '1px solid #424242' : '1px solid #f0f0f0'
+          }
+        }}
+      >
+        <Space direction="vertical" style={{ width: '100%' }} size="large">
+          <div>
+            <Text strong style={{ color: isDarkMode ? '#fff' : '#000', display: 'block', marginBottom: '12px' }}>
+              Şikayet Sebebi
+            </Text>
+            <Radio.Group 
+              value={reportReasonType} 
+              onChange={(e) => setReportReasonType(e.target.value)}
+              style={{ width: '100%' }}
+            >
+              <Space direction="vertical" style={{ width: '100%' }}>
+                <Radio value="fake_account" style={{ color: isDarkMode ? '#fff' : '#000' }}>
+                  Sahte Hesap
+                </Radio>
+                <Radio value="inappropriate_username" style={{ color: isDarkMode ? '#fff' : '#000' }}>
+                  Uygunsuz Kullanıcı Adı
+                </Radio>
+                <Radio value="inappropriate_photo" style={{ color: isDarkMode ? '#fff' : '#000' }}>
+                  Uygunsuz Fotoğraf
+                </Radio>
+                <Radio value="other" style={{ color: isDarkMode ? '#fff' : '#000' }}>
+                  Diğer
+                </Radio>
+              </Space>
+            </Radio.Group>
+          </div>
+          
+          <div>
+            <Text strong style={{ color: isDarkMode ? '#fff' : '#000', display: 'block', marginBottom: '8px' }}>
+              Açıklama (İsteğe Bağlı)
+            </Text>
+            <TextArea
+              rows={4}
+              placeholder="Şikayet sebebinizi detaylı olarak açıklayın..."
+              value={reportCustomReason}
+              onChange={(e) => setReportCustomReason(e.target.value)}
+              style={{
+                background: isDarkMode ? '#2e2e2e' : '#fff',
+                color: isDarkMode ? '#fff' : '#000',
+                border: isDarkMode ? '1px solid #424242' : '1px solid #d9d9d9'
+              }}
+            />
+          </div>
+        </Space>
+      </Modal>
     </Layout>
   );
 }

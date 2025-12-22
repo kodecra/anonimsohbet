@@ -38,6 +38,7 @@ import 'dayjs/locale/tr';
 import trTR from 'antd/locale/tr_TR';
 import customParseFormat from 'dayjs/plugin/customParseFormat';
 import PoseVerification from './PoseVerification';
+import { ThemeContext } from '../App';
 import './ProfileEdit.css';
 
 dayjs.extend(customParseFormat);
@@ -47,6 +48,7 @@ const { TextArea } = Input;
 const { Title, Text } = Typography;
 
 function ProfileEdit({ profile, token, onProfileUpdated, onClose, API_URL }) {
+  const { isDarkMode } = React.useContext(ThemeContext);
   const [form] = Form.useForm();
   const [photos, setPhotos] = useState(profile.photos || []);
   const [loading, setLoading] = useState(false);
@@ -300,6 +302,21 @@ function ProfileEdit({ profile, token, onProfileUpdated, onClose, API_URL }) {
     <ConfigProvider locale={trTR}>
       <Modal
         open={true}
+        styles={{
+          body: {
+            background: isDarkMode ? '#1a1a2e' : '#fff',
+            color: isDarkMode ? '#fff' : '#000'
+          },
+          header: {
+            background: isDarkMode ? '#1a1a2e' : '#fff',
+            borderBottom: isDarkMode ? '1px solid #424242' : '1px solid #f0f0f0',
+            color: isDarkMode ? '#fff' : '#000'
+          },
+          footer: {
+            background: isDarkMode ? '#1a1a2e' : '#fff',
+            borderTop: isDarkMode ? '1px solid #424242' : '1px solid #f0f0f0'
+          }
+        }}
         onCancel={onClose}
         title={
           <Title level={4} style={{ margin: 0 }}>
@@ -452,11 +469,12 @@ function ProfileEdit({ profile, token, onProfileUpdated, onClose, API_URL }) {
             <Card
               style={{
                 marginBottom: '24px',
-                backgroundColor: '#e6f7ff',
-                border: '1px solid #91d5ff'
+                backgroundColor: isDarkMode ? '#2e2e2e' : '#e6f7ff',
+                border: isDarkMode ? '1px solid #424242' : '1px solid #91d5ff',
+                color: isDarkMode ? '#fff' : '#000'
               }}
             >
-              <Title level={5} style={{ marginBottom: '8px' }}>
+              <Title level={5} style={{ marginBottom: '8px', color: isDarkMode ? '#fff' : '#000' }}>
                 Profil Doğrulama
               </Title>
               <Text type="secondary" style={{ display: 'block', marginBottom: '16px' }}>
@@ -576,7 +594,7 @@ function ProfileEdit({ profile, token, onProfileUpdated, onClose, API_URL }) {
                             objectFit: 'cover',
                             borderRadius: '6px',
                             display: 'block',
-                            backgroundColor: '#f0f0f0'
+                            backgroundColor: isDarkMode ? '#2e2e2e' : '#f0f0f0'
                           }}
                           onError={(e) => {
                             e.target.style.display = 'none';
@@ -600,10 +618,10 @@ function ProfileEdit({ profile, token, onProfileUpdated, onClose, API_URL }) {
                         display: photoUrl ? 'none' : 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
-                        backgroundColor: '#f0f0f0',
+                        backgroundColor: isDarkMode ? '#2e2e2e' : '#f0f0f0',
                         borderRadius: '6px'
                       }}>
-                        <UserOutlined style={{ fontSize: '48px', color: '#bfbfbf' }} />
+                        <UserOutlined style={{ fontSize: '48px', color: isDarkMode ? '#666' : '#bfbfbf' }} />
                       </div>
                     <Button
                       type="primary"
@@ -637,10 +655,10 @@ function ProfileEdit({ profile, token, onProfileUpdated, onClose, API_URL }) {
                         alignItems: 'center',
                         justifyContent: 'center',
                         cursor: 'pointer',
-                        backgroundColor: '#fafafa'
+                        backgroundColor: isDarkMode ? '#2e2e2e' : '#fafafa'
                       }}
                     >
-                      <UploadOutlined style={{ fontSize: '32px', color: '#8c8c8c', marginBottom: '8px' }} />
+                      <UploadOutlined style={{ fontSize: '32px', color: isDarkMode ? '#666' : '#8c8c8c', marginBottom: '8px' }} />
                       <Text type="secondary">Fotoğraf Ekle</Text>
                     </div>
                   </Upload>

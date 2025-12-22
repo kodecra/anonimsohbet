@@ -131,6 +131,7 @@ let users, userAuth, completedMatches, userMatches, pendingVerifications;
 const activeUsers = new Map(); // socketId -> user info (geçici)
 const matchingQueue = []; // Eşleşme bekleyen kullanıcılar (geçici)
 const activeMatches = new Map(); // matchId -> match info (geçici)
+const complaints = new Map(); // complaintId -> complaint info
 
 // Superadmin email'leri (virgülle ayrılmış veya array)
 const SUPERADMIN_EMAILS = process.env.SUPERADMIN_EMAILS 
@@ -812,7 +813,7 @@ app.get('/api/admin/users', authenticateToken, (req, res) => {
   res.json({ users: allUsers });
 });
 
-// Superadmin - Şikayetler (şimdilik boş, ileride eklenebilir)
+// Superadmin - Şikayetler
 app.get('/api/admin/complaints', authenticateToken, (req, res) => {
   const userId = req.user.userId;
   const profile = users.get(userId);
@@ -822,8 +823,11 @@ app.get('/api/admin/complaints', authenticateToken, (req, res) => {
     return res.status(403).json({ error: 'Bu işlem için yetkiniz yok' });
   }
 
-  // Şimdilik boş array döndür, ileride şikayet sistemi eklendiğinde doldurulacak
-  res.json({ complaints: [] });
+  // Tüm şikayetleri döndür (en yeni önce)
+  const complaintsList = Array.from(complaints.values())
+    .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+  
+  res.json({ complaints: complaintsList });
 });
 
 // Mesaj için resim yükleme
