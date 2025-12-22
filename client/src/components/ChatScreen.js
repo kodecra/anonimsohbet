@@ -56,6 +56,7 @@ function ChatScreen({ userId, profile: currentProfile, matchId, partnerProfile: 
   const [waitingForPartner, setWaitingForPartner] = useState(false);
   const [waitingTimer, setWaitingTimer] = useState(15);
   const waitingTimerRef = useRef(null);
+  const waitingForPartnerRef = useRef(false);
   const [userAnonymousId, setUserAnonymousId] = useState(null);
   const [partnerAnonymousId, setPartnerAnonymousId] = useState(null);
   const messagesEndRef = useRef(null);
@@ -344,7 +345,8 @@ function ChatScreen({ userId, profile: currentProfile, matchId, partnerProfile: 
     newSocket.on('match-continued', (data) => {
       console.log('✅ ChatScreen: match-continued event alındı', data);
       setShowDecision(false);
-      setWaitingForPartner(false); // Önce bu set edilsin ki timer kontrolü çalışsın
+      waitingForPartnerRef.current = false; // Ref'i önce güncelle ki timer durdursun
+      setWaitingForPartner(false);
       setWaitingTimer(0); // Timer'ı sıfırla
       if (timerRef.current) {
         clearInterval(timerRef.current);
@@ -550,6 +552,7 @@ function ChatScreen({ userId, profile: currentProfile, matchId, partnerProfile: 
         // Karşı tarafın cevabını bekle, ama geri sayım başlatma
         // Backend'den match-continued event'i geldiğinde otomatik geçiş yapılacak
         setWaitingForPartner(true);
+        waitingForPartnerRef.current = true; // Ref'i de güncelle
         setWaitingTimer(30); // Timer'ı 30 saniyeye çıkar
         
         // 30 saniye geri sayım başlat (sadece karşı taraf cevap vermezse)
@@ -558,8 +561,8 @@ function ChatScreen({ userId, profile: currentProfile, matchId, partnerProfile: 
         }
         waitingTimerRef.current = setInterval(() => {
           setWaitingTimer((prev) => {
-            // match-continued event'i geldiyse timer'ı durdur
-            if (!waitingForPartner) {
+            // match-continued event'i geldiyse timer'ı durdur (ref ile kontrol)
+            if (!waitingForPartnerRef.current) {
               clearInterval(waitingTimerRef.current);
               waitingTimerRef.current = null;
               return prev;
@@ -570,6 +573,7 @@ function ChatScreen({ userId, profile: currentProfile, matchId, partnerProfile: 
               // 30 saniye doldu, eşleşmeyi iptal et
               socket.emit('match-decision', { matchId, decision: 'leave' });
               setWaitingForPartner(false);
+              waitingForPartnerRef.current = false;
               onMatchEnded();
               return 0;
             }
