@@ -164,7 +164,7 @@ process.on('SIGINT', async () => {
 
 // Kayıt ol
 app.post('/api/register', async (req, res) => {
-  const { username, firstName, lastName, gender } = req.body;
+  const { username, firstName, lastName, gender, phoneNumber } = req.body;
   
   if (!username || !username.trim()) {
     return res.status(400).json({ error: 'Kullanıcı adı gereklidir' });
@@ -172,6 +172,16 @@ app.post('/api/register', async (req, res) => {
 
   if (!lastName || !lastName.trim()) {
     return res.status(400).json({ error: 'Soyisim zorunludur' });
+  }
+
+  if (!phoneNumber || !phoneNumber.trim()) {
+    return res.status(400).json({ error: 'Cep telefonu numarası gereklidir' });
+  }
+
+  // Telefon numarası format kontrolü (sadece rakam, 10-15 karakter)
+  const phoneRegex = /^[0-9]{10,15}$/;
+  if (!phoneRegex.test(phoneNumber.trim())) {
+    return res.status(400).json({ error: 'Geçerli bir telefon numarası giriniz (10-15 rakam)' });
   }
 
   // Kullanıcı adı kontrolü
@@ -189,6 +199,7 @@ app.post('/api/register', async (req, res) => {
     firstName: firstName ? firstName.trim() : null,
     lastName: lastName.trim(),
     gender: gender || null,
+    phoneNumber: phoneNumber.trim(),
     age: null,
     bio: '',
     interests: [],

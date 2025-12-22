@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import axios from 'axios';
 import { Form, Input, Button, Card, Typography, Alert, Divider, Select, Row, Col } from 'antd';
-import { UserOutlined, LockOutlined, MailOutlined } from '@ant-design/icons';
+import { UserOutlined, PhoneOutlined } from '@ant-design/icons';
 import './Register.css';
 
 const { Title, Text } = Typography;
@@ -12,11 +12,6 @@ function RegisterAntd({ onRegister, onSwitchToLogin, API_URL }) {
   const [form] = Form.useForm();
 
   const handleRegister = async (values) => {
-    if (values.password !== values.confirmPassword) {
-      setError('Şifreler eşleşmiyor');
-      return;
-    }
-
     setError('');
     setLoading(true);
 
@@ -25,7 +20,8 @@ function RegisterAntd({ onRegister, onSwitchToLogin, API_URL }) {
         username: values.username.trim(),
         firstName: values.firstName?.trim() || null,
         lastName: values.lastName.trim(),
-        gender: values.gender || null
+        gender: values.gender || null,
+        phoneNumber: values.phoneNumber?.trim() || null
       });
 
       localStorage.setItem('token', response.data.token);
@@ -144,6 +140,23 @@ function RegisterAntd({ onRegister, onSwitchToLogin, API_URL }) {
             </Select>
           </Form.Item>
 
+          <Form.Item
+            name="phoneNumber"
+            label="Cep Telefonu"
+            rules={[
+              { required: true, message: 'Cep telefonu numarası gereklidir' },
+              { 
+                pattern: /^[0-9]{10,15}$/, 
+                message: 'Geçerli bir telefon numarası giriniz (10-15 rakam)' 
+              }
+            ]}
+          >
+            <Input 
+              prefix={<PhoneOutlined />} 
+              placeholder="5XX XXX XX XX"
+              maxLength={15}
+            />
+          </Form.Item>
 
           <Form.Item>
             <Button 
