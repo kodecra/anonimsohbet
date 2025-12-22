@@ -1239,23 +1239,7 @@ io.on('connection', (socket) => {
       return;
     }
 
-    // Hangi kullanıcı olduğunu belirle (userId ile kontrol et, socket.id değişebilir)
-    const isUser1 = match.user1.userId === userInfo.userId;
-    const isUser2 = match.user2.userId === userInfo.userId;
-    
-    if (!isUser1 && !isUser2) {
-      console.log('❌ match-decision: Kullanıcı match\'te bulunamadı', { 
-        userId: userInfo.userId, 
-        matchUser1Id: match.user1.userId, 
-        matchUser2Id: match.user2.userId 
-      });
-      socket.emit('error', { message: 'Eşleşmede kullanıcı bulunamadı' });
-      return;
-    }
-
     console.log(`✅ match-decision: ${isUser1 ? 'user1' : 'user2'} karar verdi: ${decision}`, { matchId, userId: userInfo.userId });
-    
-    // Hangi kullanıcı olduğunu belirle (userId ile kontrol et, socket.id değişebilir)
     if (isUser1) {
       match.user1Decision = decision;
       match.user1.socketId = socket.id; // Socket ID'yi güncelle
@@ -1758,13 +1742,18 @@ io.on('connection', (socket) => {
     }
 
     // Eşleşme partnerine mesajı gönder (bildirim ile)
-    io.to(partnerSocketId).emit('new-message', message);
-    io.to(partnerSocketId).emit('notification', {
-      type: 'new-message',
-      matchId: match.id,
-      from: userInfo.profile.username,
-      message: data.text.substring(0, 50)
-    });
+    if (partnerSocketId) {
+      io.to(partnerSocketId).emit('new-message', message);
+      io.to(partnerSocketId).emit('notification', {
+        type: 'new-message',
+        matchId: match.id,
+        from: userInfo.profile.username,
+        message: data.text.substring(0, 50)
+      });
+      console.log(`✅ Mesaj partner'e gönderildi: ${partnerSocketId}`);
+    } else {
+      console.log('⚠️ Partner socketId yok, mesaj gönderilemedi. Partner offline olabilir.');
+    }
     
     socket.emit('new-message', message); // Gönderen kişiye de mesajı gönder
     socket.emit('message-sent', message);
