@@ -1178,9 +1178,28 @@ app.post('/api/notifications/settings', authenticateToken, async (req, res) => {
 });
 
 // Kullanıcının eşleşmelerini getir
-app.get('/api/matches', authenticateToken, (req, res) => {
+app.get('/api/matches', authenticateToken, async (req, res) => {
   const userId = req.user.userId;
-  const matchIds = userMatches.get(userId) || [];
+  
+  // ÖNEMLİ: userMatches Map'ini veritabanından yeniden yükle (sayfa yenilendiğinde güncel olsun)
+  // Eğer userMatches boşsa veya userId için matchId yoksa, veritabanından yükle
+  let matchIds = userMatches.get(userId) || [];
+  
+  // Eğer matchIds boşsa, veritabanından yükle
+  if (matchIds.length === 0) {
+    console.log(`⚠️ userMatches boş, veritabanından yükleniyor: userId=${userId}`);
+    try {
+      const matchesData = await loadMatches();
+      if (matchesData && matchesData.userMatches) {
+        userMatches = matchesData.userMatches;
+        completedMatches = matchesData.completedMatches;
+        matchIds = userMatches.get(userId) || [];
+        console.log(`✅ Veritabanından yüklendi: userId=${userId}, matchIds=${JSON.stringify(matchIds)}`);
+      }
+    } catch (error) {
+      console.error('❌ Veritabanından yükleme hatası:', error);
+    }
+  }
   
   console.log(`📋 /api/matches: userId=${userId}, matchIds=${JSON.stringify(matchIds)}`);
   console.log(`📋 completedMatches size: ${completedMatches.size}`);
@@ -2121,6 +2140,10 @@ io.on('connection', (socket) => {
             partnerProfile: user2Profile,
             message: 'Eşleşme onaylandı! Artık birbirinizin profillerini görebilirsiniz.'
           });
+          // Sohbetler listesini yenilemek için event gönder
+          io.to(user1SocketId).emit('matches-updated', {
+            message: 'Eşleşmeler güncellendi'
+          });
           console.log(`✅ user1'e match-continued gönderildi: ${user1SocketId}`);
         } else {
           console.log(`❌ user1 socket bulunamadı: ${match.user1.userId}`);
@@ -2131,6 +2154,10 @@ io.on('connection', (socket) => {
             matchId: matchId,
             partnerProfile: user1Profile,
             message: 'Eşleşme onaylandı! Artık birbirinizin profillerini görebilirsiniz.'
+          });
+          // Sohbetler listesini yenilemek için event gönder
+          io.to(user2SocketId).emit('matches-updated', {
+            message: 'Eşleşmeler güncellendi'
           });
           console.log(`✅ user2'ye match-continued gönderildi: ${user2SocketId}`);
         } else {

@@ -206,8 +206,16 @@ function MainScreen({ userId, profile, token, onMatchFound, onMatchContinued, on
     newSocket.on('match-continued', (data) => {
       // Eşleşme onaylandı, sohbetler listesini yenile
       setChatsRefreshKey(prev => prev + 1); // ChatsList'i yenile
+      loadStatistics(); // İstatistikleri güncelle (eşleşme sayısı dahil)
       setActiveTab('chats'); // Sohbetler sekmesine geç
       onMatchContinued(data.partnerProfile);
+    });
+
+    // Eşleşmeler güncellendi (backend'den gelen event)
+    newSocket.on('matches-updated', () => {
+      console.log('✅ matches-updated event alındı, sohbetler listesi yenileniyor...');
+      setChatsRefreshKey(prev => prev + 1); // ChatsList'i yenile
+      loadStatistics(); // İstatistikleri güncelle
     });
 
     // Bildirim event'ini dinle
