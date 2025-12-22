@@ -1182,13 +1182,17 @@ io.on('connection', (socket) => {
       return;
     }
 
+    console.log(`📥 match-decision event alındı:`, { matchId, decision, userId: userInfo.userId });
+
     // Önce activeMatches'te kontrol et
     let match = activeMatches.get(matchId);
     
     // Eğer activeMatches'te yoksa, completedMatches'te kontrol et (belki zaten tamamlanmış)
     if (!match) {
+      console.log(`⚠️ Match activeMatches'te bulunamadı, completedMatches'te aranıyor: ${matchId}`);
       const completedMatch = completedMatches.get(matchId);
       if (completedMatch) {
+        console.log(`✅ Match completedMatches'te bulundu: ${matchId}`);
         // Match zaten tamamlanmış, match-continued event'i gönder
         const isUser1 = completedMatch.user1.userId === userInfo.userId;
         const isUser2 = completedMatch.user2.userId === userInfo.userId;
@@ -1215,14 +1219,30 @@ io.on('connection', (socket) => {
         }
       }
       
-      console.log('❌ match-decision: Eşleşme bulunamadı', { 
-        matchId, 
-        activeMatchesSize: activeMatches.size,
-        completedMatchesSize: completedMatches.size,
-        userMatchId: userInfo.matchId
-      });
-      socket.emit('error', { message: 'Eşleşme bulunamadı' });
-      return;
+      // Match hiçbir yerde bulunamadı - userId ile ara
+      console.log(`⚠️ Match hiçbir yerde bulunamadı, userId ile aranıyor: ${userInfo.userId}`);
+      for (const [mid, m] of activeMatches.entries()) {
+        const u1Id = m.user1?.userId;
+        const u2Id = m.user2?.userId;
+        if ((u1Id === userInfo.userId || u2Id === userInfo.userId) && mid === matchId) {
+          match = m;
+          console.log(`✅ Match userId ile bulundu: ${mid}`);
+          break;
+        }
+      }
+      
+      if (!match) {
+        console.log('❌ match-decision: Eşleşme bulunamadı', { 
+          matchId, 
+          activeMatchesSize: activeMatches.size,
+          completedMatchesSize: completedMatches.size,
+          userMatchId: userInfo.matchId,
+          activeMatchesKeys: Array.from(activeMatches.keys()),
+          completedMatchesKeys: Array.from(completedMatches.keys())
+        });
+        socket.emit('error', { message: 'Eşleşme bulunamadı' });
+        return;
+      }
     }
     
     // Match activeMatches'te var, kullanıcının bu match'te olduğunu kontrol et
