@@ -1143,9 +1143,16 @@ app.delete('/api/matches/:matchId', authenticateToken, async (req, res) => {
   completedMatches.delete(matchId);
   activeMatches.delete(matchId);
   
+  // ÖNEMLİ: Her iki kullanıcının userMatches'inden de silindiğinden emin ol
   await saveMatches(completedMatches, userMatches);
   
   console.log(`✅ Eşleşme tamamen silindi: ${matchId} (Kullanıcı: ${userId}, Partner: ${partnerId})`);
+  console.log(`✅ userMatches kontrolü:`, {
+    userId: userId,
+    userMatchIds: userMatches.get(userId),
+    partnerId: partnerId,
+    partnerMatchIds: userMatches.get(partnerId)
+  });
   
   res.json({ success: true, message: 'Eşleşmeden çıkıldı' });
 });

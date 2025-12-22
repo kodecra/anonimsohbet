@@ -17,7 +17,8 @@ import {
   Layout,
   Table,
   Select,
-  Input
+  Input,
+  Modal
 } from 'antd';
 import {
   SafetyCertificateOutlined,
