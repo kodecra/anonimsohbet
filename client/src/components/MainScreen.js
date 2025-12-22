@@ -397,7 +397,12 @@ function MainScreen({ userId, profile, token, onMatchFound, onMatchContinued, on
 
             {/* Tab Content */}
             {activeTab === 'chats' && (
-              <div style={{ flex: 1, overflow: 'auto' }}>
+              <div style={{ 
+                flex: 1, 
+                overflow: 'auto',
+                backgroundColor: '#fff',
+                minHeight: '400px'
+              }}>
                 <ChatsList 
                   key={chatsRefreshKey} // Key değiştiğinde component yeniden render olur
                   token={token}
