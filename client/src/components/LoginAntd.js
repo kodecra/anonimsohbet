@@ -47,30 +47,7 @@ function LoginAntd({ onLogin, onSwitchToRegister, API_URL }) {
   };
 
   return (
-    <>
-      <style>{`
-        .login-container input::placeholder {
-          color: #71767b !important;
-          opacity: 1 !important;
-        }
-        .login-container input::-webkit-input-placeholder {
-          color: #71767b !important;
-          opacity: 1 !important;
-        }
-        .login-container input::-moz-placeholder {
-          color: #71767b !important;
-          opacity: 1 !important;
-        }
-        .login-container input:-ms-input-placeholder {
-          color: #71767b !important;
-          opacity: 1 !important;
-        }
-        .login-container .ant-input-password input::placeholder {
-          color: #71767b !important;
-          opacity: 1 !important;
-        }
-      `}</style>
-      <div className="login-container" style={{ 
+    <div className="login-container" style={{ 
         minHeight: '100vh', 
         display: 'flex',
         flexDirection: windowWidth < 768 ? 'column' : 'row',
