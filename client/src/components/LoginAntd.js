@@ -47,13 +47,36 @@ function LoginAntd({ onLogin, onSwitchToRegister, API_URL }) {
   };
 
   return (
-    <div className="login-container" style={{ 
-      minHeight: '100vh', 
-      display: 'flex',
-      flexDirection: windowWidth < 768 ? 'column' : 'row',
-      background: '#000000',
-      color: '#ffffff'
-    }}>
+    <>
+      <style>{`
+        .login-container input::placeholder {
+          color: #71767b !important;
+          opacity: 1 !important;
+        }
+        .login-container input::-webkit-input-placeholder {
+          color: #71767b !important;
+          opacity: 1 !important;
+        }
+        .login-container input::-moz-placeholder {
+          color: #71767b !important;
+          opacity: 1 !important;
+        }
+        .login-container input:-ms-input-placeholder {
+          color: #71767b !important;
+          opacity: 1 !important;
+        }
+        .login-container .ant-input-password input::placeholder {
+          color: #71767b !important;
+          opacity: 1 !important;
+        }
+      `}</style>
+      <div className="login-container" style={{ 
+        minHeight: '100vh', 
+        display: 'flex',
+        flexDirection: windowWidth < 768 ? 'column' : 'row',
+        background: '#000000',
+        color: '#ffffff'
+      }}>
       {/* Left Side - Logo */}
       <div style={{
         flex: windowWidth < 768 ? 'none' : 1,
@@ -214,7 +237,7 @@ function LoginAntd({ onLogin, onSwitchToRegister, API_URL }) {
                 color: '#000000',
                 border: 'none',
                 borderRadius: '26px',
-                marginBottom: '24px'
+                marginBottom: '12px'
               }}
             >
               Giriş yap
@@ -222,7 +245,7 @@ function LoginAntd({ onLogin, onSwitchToRegister, API_URL }) {
           </Form.Item>
         </Form>
 
-        <div style={{ marginTop: '16px' }}>
+        <div style={{ marginTop: '8px' }}>
           <Text style={{ color: '#71767b', fontSize: '15px', display: 'block', marginBottom: '12px' }}>
             Zaten bir hesabın var mı?
           </Text>
@@ -244,6 +267,7 @@ function LoginAntd({ onLogin, onSwitchToRegister, API_URL }) {
         </div>
       </div>
     </div>
+    </>
   );
 }
 
