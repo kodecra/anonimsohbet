@@ -315,6 +315,7 @@ function ChatScreen({ userId, profile: currentProfile, matchId, partnerProfile: 
     });
 
     newSocket.on('match-continued', (data) => {
+      console.log('✅ ChatScreen: match-continued event alındı', data);
       setShowDecision(false);
       setWaitingForPartner(false);
       setWaitingTimer(15); // Reset timer
@@ -323,8 +324,11 @@ function ChatScreen({ userId, profile: currentProfile, matchId, partnerProfile: 
       }
       if (waitingTimerRef.current) {
         clearInterval(waitingTimerRef.current);
+        waitingTimerRef.current = null;
       }
       setPartnerProfile(data.partnerProfile);
+      setIsCompletedMatch(true);
+      setTimer(null);
       // Partner için random ID oluştur
       if (!partnerAnonymousId) {
         const randomId = Math.floor(100000 + Math.random() * 900000);
@@ -332,12 +336,14 @@ function ChatScreen({ userId, profile: currentProfile, matchId, partnerProfile: 
       }
       // Hemen sohbet ekranına geç, geri sayım bekleme
       if (onMatchContinued) {
+        console.log('✅ ChatScreen: onMatchContinued çağrılıyor', data.partnerProfile);
         onMatchContinued(data.partnerProfile);
       }
       
       // Completed match oldu, mesaj geçmişini yükle
-      if (matchId) {
-        fetch(`${API_URL}/api/matches/${matchId}`, {
+      const currentMatchId = data.matchId || matchId;
+      if (currentMatchId) {
+        fetch(`${API_URL}/api/matches/${currentMatchId}`, {
           headers: {
             'Authorization': `Bearer ${localStorage.getItem('token')}`
           }

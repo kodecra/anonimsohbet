@@ -1195,23 +1195,53 @@ io.on('connection', (socket) => {
     const userInfo = activeUsers.get(socket.id);
     
     if (!userInfo || !userInfo.inMatch || userInfo.matchId !== matchId) {
+      console.log('❌ match-decision: Geçersiz eşleşme', { 
+        socketId: socket.id, 
+        userInfo: !!userInfo, 
+        inMatch: userInfo?.inMatch, 
+        matchId: userInfo?.matchId,
+        requestedMatchId: matchId 
+      });
       socket.emit('error', { message: 'Geçersiz eşleşme' });
       return;
     }
 
     const match = activeMatches.get(matchId);
     if (!match) {
+      console.log('❌ match-decision: Eşleşme bulunamadı', { matchId, activeMatchesSize: activeMatches.size });
       socket.emit('error', { message: 'Eşleşme bulunamadı' });
       return;
     }
 
-    // Hangi kullanıcı olduğunu belirle
-    const isUser1 = match.user1.socketId === socket.id;
+    // Hangi kullanıcı olduğunu belirle (userId ile kontrol et, socket.id değişebilir)
+    const isUser1 = match.user1.userId === userInfo.userId;
+    const isUser2 = match.user2.userId === userInfo.userId;
+    
+    if (!isUser1 && !isUser2) {
+      console.log('❌ match-decision: Kullanıcı match\'te bulunamadı', { 
+        userId: userInfo.userId, 
+        matchUser1Id: match.user1.userId, 
+        matchUser2Id: match.user2.userId 
+      });
+      socket.emit('error', { message: 'Eşleşmede kullanıcı bulunamadı' });
+      return;
+    }
+
+    console.log(`✅ match-decision: ${isUser1 ? 'user1' : 'user2'} karar verdi: ${decision}`, { matchId, userId: userInfo.userId });
+    
     if (isUser1) {
       match.user1Decision = decision;
+      match.user1.socketId = socket.id; // Socket ID'yi güncelle
     } else {
       match.user2Decision = decision;
+      match.user2.socketId = socket.id; // Socket ID'yi güncelle
     }
+    
+    console.log(`📊 match-decision durumu:`, { 
+      matchId, 
+      user1Decision: match.user1Decision, 
+      user2Decision: match.user2Decision 
+    });
 
     // Eğer kullanıcı "continue" dediyse, karşı tarafa bildir
     if (decision === 'continue') {
@@ -1277,9 +1307,29 @@ io.on('connection', (socket) => {
           message: 'Eşleşme onaylandı! Artık birbirinizin profillerini görebilirsiniz.'
         });
 
-        console.log(`Eşleşme onaylandı: ${matchId}`);
+        // Active match'i temizle
+        activeMatches.delete(matchId);
+        
+        // Kullanıcıların match durumunu güncelle
+        const user1Info = activeUsers.get(match.user1.socketId);
+        const user2Info = activeUsers.get(match.user2.socketId);
+        if (user1Info) {
+          user1Info.inMatch = false;
+          user1Info.matchId = null;
+        }
+        if (user2Info) {
+          user2Info.inMatch = false;
+          user2Info.matchId = null;
+        }
+
+        console.log(`✅✅✅ Eşleşme onaylandı: ${matchId}`);
       } else {
         // Biri veya ikisi de çıkmak istiyor
+        console.log(`❌ Eşleşme sona erdi (birisi çıktı): ${matchId}`, {
+          user1Decision: match.user1Decision,
+          user2Decision: match.user2Decision
+        });
+        
         io.to(match.user1.socketId).emit('match-ended', {
           matchId: matchId,
           message: 'Eşleşme sona erdi.'
@@ -1290,6 +1340,9 @@ io.on('connection', (socket) => {
           message: 'Eşleşme sona erdi.'
         });
 
+        // Active match'i temizle
+        activeMatches.delete(matchId);
+        
         // Eşleşmeyi temizle
         const user1Info = activeUsers.get(match.user1.socketId);
         const user2Info = activeUsers.get(match.user2.socketId);
