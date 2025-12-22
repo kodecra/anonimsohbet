@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { Form, Input, Button, Card, Typography, Alert, Divider, Space } from 'antd';
 import { UserOutlined, LockOutlined, GoogleOutlined } from '@ant-design/icons';
@@ -10,6 +10,15 @@ function LoginAntd({ onLogin, onSwitchToRegister, API_URL }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [form] = Form.useForm();
+  const [windowWidth, setWindowWidth] = useState(window.innerWidth);
+
+  useEffect(() => {
+    const handleResize = () => {
+      setWindowWidth(window.innerWidth);
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   const handleLogin = async (values) => {
     setError('');
