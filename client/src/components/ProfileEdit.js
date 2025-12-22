@@ -444,6 +444,21 @@ function ProfileEdit({ profile, token, onProfileUpdated, onClose, API_URL }) {
 
           {/* Fotoğraf Yükleme */}
           <Form.Item label={`Fotoğraflar (${photos.length}/5)`}>
+            {isUploading && (
+              <div style={{ marginBottom: '16px' }}>
+                <Progress 
+                  percent={uploadProgress} 
+                  status="active"
+                  strokeColor={{
+                    '0%': '#108ee9',
+                    '100%': '#87d068',
+                  }}
+                />
+                <Text type="secondary" style={{ fontSize: '12px', display: 'block', marginTop: '4px' }}>
+                  Fotoğraf yükleniyor... %{uploadProgress}
+                </Text>
+              </div>
+            )}
             <Row gutter={[16, 16]}>
               {photos.map((photo, index) => {
                 // URL formatını düzelt
