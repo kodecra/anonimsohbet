@@ -188,7 +188,7 @@ app.post('/api/register', async (req, res) => {
 
   const userProfile = {
     userId,
-    email: email.toLowerCase(),
+    email: `${username.trim()}@anonimsohbet.local`, // Dummy email
     username: username.trim(),
     firstName: firstName ? firstName.trim() : null,
     lastName: lastName.trim(),
@@ -205,13 +205,12 @@ app.post('/api/register', async (req, res) => {
   users.set(userId, userProfile);
   await saveUsers(users); // Hemen kaydet
 
-  const token = jwt.sign({ userId, email: email.toLowerCase() }, JWT_SECRET, { expiresIn: '7d' });
+  const token = jwt.sign({ userId, username: username.trim() }, JWT_SECRET, { expiresIn: '7d' });
 
   res.json({ 
     token,
     user: {
       userId,
-      email: userProfile.email,
       username: userProfile.username
     }
   });
