@@ -474,7 +474,7 @@ function ProfileEdit({ profile, token, onProfileUpdated, onClose, API_URL }) {
           API_URL={API_URL}
         />
       )}
-    </>
+    </ConfigProvider>
   );
 }
 
