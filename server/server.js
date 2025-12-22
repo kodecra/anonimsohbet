@@ -1738,11 +1738,18 @@ io.on('connection', (socket) => {
           },
           startedAt: match.startedAt,
           completedAt: new Date(),
-          messages: [...match.messages],
-          lastMessageAt: match.messages.length > 0 
+          messages: [...(match.messages || [])], // Mesajları koru
+          lastMessageAt: match.messages && match.messages.length > 0 
             ? match.messages[match.messages.length - 1].timestamp 
             : match.startedAt
         };
+        
+        console.log(`✅ Completed match'e mesajlar aktarıldı: ${match.messages?.length || 0} mesaj`);
+        console.log(`✅ Completed match kaydediliyor: ${matchId}`, {
+          user1: match.user1.userId,
+          user2: match.user2.userId,
+          messageCount: completedMatch.messages.length
+        });
 
         // ÖNCE completedMatches'e ekle (match-decision handler'ında bulunabilmesi için)
         completedMatches.set(matchId, completedMatch);

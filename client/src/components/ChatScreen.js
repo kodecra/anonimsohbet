@@ -384,6 +384,7 @@ function ChatScreen({ userId, profile: currentProfile, matchId, partnerProfile: 
       // Completed match oldu, mesaj geçmişini yükle
       const currentMatchId = data.matchId || matchId;
       if (currentMatchId) {
+        console.log('✅ match-continued: Mesaj geçmişi yükleniyor...', currentMatchId);
         fetch(`${API_URL}/api/matches/${currentMatchId}`, {
           headers: {
             'Authorization': `Bearer ${localStorage.getItem('token')}`
@@ -393,14 +394,20 @@ function ChatScreen({ userId, profile: currentProfile, matchId, partnerProfile: 
           if (response.ok) {
             return response.json();
           }
+          throw new Error('Mesaj geçmişi yüklenemedi');
         })
-        .then(data => {
-          if (data && data.match && data.match.messages && data.match.messages.length > 0) {
-            setMessages(data.match.messages);
+        .then(responseData => {
+          console.log('✅ match-continued: Mesaj geçmişi yüklendi', responseData);
+          if (responseData && responseData.match && responseData.match.messages && responseData.match.messages.length > 0) {
+            console.log(`✅ ${responseData.match.messages.length} mesaj yüklendi`);
+            setMessages(responseData.match.messages);
+          } else {
+            console.log('⚠️ Mesaj geçmişi boş');
+            // Mesajlar boşsa bile setMessages([]) yapma, mevcut mesajları koru
           }
         })
         .catch(err => {
-          // Sessizce geç
+          console.error('❌ Mesaj geçmişi yüklenemedi:', err);
         });
       }
     });
@@ -985,30 +992,76 @@ function ChatScreen({ userId, profile: currentProfile, matchId, partnerProfile: 
         )}
       </Header>
 
-      {partnerProfile && (
+      {partnerProfile && isCompletedMatch && (
         <div style={{ 
           background: isDarkMode ? '#1a1a2e' : '#fff', 
-          padding: '12px 24px',
+          padding: '16px 24px',
           borderBottom: isDarkMode ? '1px solid #424242' : '1px solid #f0f0f0',
           transition: 'background 0.3s ease, border-color 0.3s ease'
         }}>
-          {partnerProfile.bio && (
-            <Text type="secondary" style={{ display: 'block', marginBottom: '8px', color: isDarkMode ? '#b8b8b8' : '#999' }}>
-              {partnerProfile.bio}
-            </Text>
+          {/* Fotoğraflar */}
+          {partnerProfile.photos && partnerProfile.photos.length > 0 && (
+            <div style={{ marginBottom: '16px' }}>
+              <Text strong style={{ display: 'block', marginBottom: '8px', color: isDarkMode ? '#fff' : '#000' }}>
+                Fotoğraflar
+              </Text>
+              <Space wrap>
+                {partnerProfile.photos.map((photo, index) => (
+                  <img
+                    key={index}
+                    src={photo.url && photo.url.startsWith('http')
+                      ? photo.url
+                      : `${API_URL}${photo.url}`}
+                    alt={`Fotoğraf ${index + 1}`}
+                    style={{
+                      width: '80px',
+                      height: '80px',
+                      objectFit: 'cover',
+                      borderRadius: '8px',
+                      border: index === 0 ? '2px solid #1890ff' : '1px solid #d9d9d9'
+                    }}
+                    onError={(e) => {
+                      if (e && e.target) {
+                        e.target.src = 'https://via.placeholder.com/80';
+                      }
+                    }}
+                  />
+                ))}
+              </Space>
+            </div>
           )}
+          
+          {/* Bio */}
+          {partnerProfile.bio && (
+            <div style={{ marginBottom: '12px' }}>
+              <Text strong style={{ display: 'block', marginBottom: '4px', color: isDarkMode ? '#fff' : '#000' }}>
+                Hakkında
+              </Text>
+              <Text type="secondary" style={{ display: 'block', color: isDarkMode ? '#b8b8b8' : '#999' }}>
+                {partnerProfile.bio}
+              </Text>
+            </div>
+          )}
+          
+          {/* İlgi Alanları */}
           {partnerProfile.interests && partnerProfile.interests.length > 0 && (
-            <Space wrap>
-              {partnerProfile.interests.map((interest, index) => (
-                <Tag key={index} style={{ 
-                  background: isDarkMode ? '#2e2e2e' : undefined,
-                  color: isDarkMode ? '#fff' : undefined,
-                  borderColor: isDarkMode ? '#424242' : undefined
-                }}>
-                  {interest}
-                </Tag>
-              ))}
-            </Space>
+            <div>
+              <Text strong style={{ display: 'block', marginBottom: '8px', color: isDarkMode ? '#fff' : '#000' }}>
+                İlgi Alanları
+              </Text>
+              <Space wrap>
+                {partnerProfile.interests.map((interest, index) => (
+                  <Tag key={index} style={{ 
+                    marginBottom: '4px',
+                    background: isDarkMode ? '#2e2e2e' : undefined,
+                    color: isDarkMode ? '#fff' : undefined,
+                    borderColor: isDarkMode ? '#424242' : undefined
+                  }}>
+                    {interest}
+                  </Tag>
+                ))}
+              </Space>
+            </div>
           )}
         </div>
       )}
