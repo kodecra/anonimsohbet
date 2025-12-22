@@ -16,12 +16,14 @@ function LoginAntd({ onLogin, onSwitchToRegister, API_URL }) {
     setLoading(true);
 
     try {
+      const usernameOrPhone = values.username.trim();
+      
       // Kullanıcı adı mı telefon numarası mı kontrol et
-      const isPhone = /^[0-9]{10,15}$/.test(values.username.trim());
+      const isPhone = /^[0-9]{10,15}$/.test(usernameOrPhone);
       
       const response = await axios.post(`${API_URL}/api/login`, {
-        username: isPhone ? null : values.username.trim(),
-        phoneNumber: isPhone ? values.username.trim() : null,
+        username: isPhone ? null : usernameOrPhone,
+        phoneNumber: isPhone ? usernameOrPhone : null,
         password: values.password
       });
 

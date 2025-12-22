@@ -273,7 +273,11 @@ app.post('/api/login', async (req, res) => {
   // Kullanıcıyı bul (kullanıcı adı veya telefon numarası ile)
   let profile = null;
   if (username) {
-    profile = Array.from(users.values()).find(u => u.username === username.trim());
+    const usernameLower = username.trim().toLowerCase();
+    profile = Array.from(users.values()).find(u => 
+      u.username.toLowerCase() === usernameLower || 
+      u.username === username.trim()
+    );
   } else if (phoneNumber) {
     profile = Array.from(users.values()).find(u => u.phoneNumber === phoneNumber.trim());
   }
@@ -282,9 +286,16 @@ app.post('/api/login', async (req, res) => {
     return res.status(401).json({ error: 'Kullanıcı adı/telefon veya şifre hatalı' });
   }
 
-  // Auth bilgisini bul
+  // Auth bilgisini bul - email ile veya kullanıcı adı ile
   const email = profile.email;
-  const auth = userAuth.get(email.toLowerCase());
+  let auth = userAuth.get(email.toLowerCase());
+  
+  // Eğer email ile bulunamazsa, kullanıcı adı ile dene (admin gibi özel durumlar için)
+  if (!auth && username) {
+    const possibleEmail = `${username.trim()}@anonimsohbet.local`;
+    auth = userAuth.get(possibleEmail.toLowerCase());
+  }
+  
   if (!auth) {
     return res.status(401).json({ error: 'Kullanıcı adı/telefon veya şifre hatalı' });
   }
