@@ -898,26 +898,38 @@ app.post('/api/users/unblock', authenticateToken, async (req, res) => {
 });
 
 // Kullanıcı şikayet etme
-app.post('/api/users/report', authenticateToken, (req, res) => {
+app.post('/api/users/report', authenticateToken, async (req, res) => {
   const userId = req.user.userId;
-  const { targetUserId, reason } = req.body;
+  const { targetUserId, reason, reasonType, customReason } = req.body;
   
-  if (!targetUserId || !reason) {
+  if (!targetUserId || (!reason && !reasonType)) {
     return res.status(400).json({ error: 'Kullanıcı ID ve sebep gereklidir' });
   }
 
-  // Şikayeti kaydet (basit bir şekilde, ileride veritabanına taşınabilir)
-  const report = {
+  const targetProfile = users.get(targetUserId);
+  if (!targetProfile) {
+    return res.status(404).json({ error: 'Kullanıcı bulunamadı' });
+  }
+
+  // Şikayeti kaydet
+  const complaintId = uuidv4();
+  const complaint = {
+    id: complaintId,
     reporterId: userId,
+    reporterUsername: users.get(userId)?.username || 'Bilinmeyen',
     targetUserId,
-    reason,
-    timestamp: new Date()
+    targetUsername: targetProfile.username,
+    reason: reason || reasonType,
+    reasonType: reasonType || 'other',
+    customReason: customReason || null,
+    timestamp: new Date(),
+    status: 'pending' // pending, reviewed, resolved
   };
   
-  // Burada şikayetleri bir dosyaya kaydedebilirsiniz veya veritabanına ekleyebilirsiniz
-  console.log('Kullanıcı şikayeti:', report);
+  complaints.set(complaintId, complaint);
+  console.log('✅ Şikayet kaydedildi:', complaint);
   
-  res.json({ message: 'Şikayet kaydedildi, incelenecektir' });
+  res.json({ message: 'Şikayet kaydedildi, incelenecektir', complaintId });
 });
 
 // İstatistikler
