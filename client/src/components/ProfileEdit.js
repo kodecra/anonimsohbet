@@ -54,6 +54,17 @@ function ProfileEdit({ profile, token, onProfileUpdated, onClose, API_URL }) {
   const [showPoseVerification, setShowPoseVerification] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [isUploading, setIsUploading] = useState(false);
+  const [windowWidth, setWindowWidth] = useState(typeof window !== 'undefined' ? window.innerWidth : 1024);
+
+  useEffect(() => {
+    const handleResize = () => {
+      setWindowWidth(window.innerWidth);
+    };
+    if (typeof window !== 'undefined') {
+      window.addEventListener('resize', handleResize);
+      return () => window.removeEventListener('resize', handleResize);
+    }
+  }, []);
 
   // Temel ilgi alanları listesi
   const interestOptions = [
@@ -270,7 +281,7 @@ function ProfileEdit({ profile, token, onProfileUpdated, onClose, API_URL }) {
             Profil Düzenle
           </Title>
         }
-        width={window.innerWidth < 768 ? '95%' : '90%'}
+        width={windowWidth < 768 ? '95%' : windowWidth < 1024 ? '90%' : 800}
         style={{ top: 20 }}
         bodyStyle={{
           maxHeight: 'calc(100vh - 200px)',
