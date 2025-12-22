@@ -184,7 +184,8 @@ function ChatScreen({ userId, profile: currentProfile, matchId, partnerProfile: 
       newSocket.emit('set-profile', { userId, matchId });
       
       // Socket bağlandığında mesajları tekrar yükle (kaybolma sorununu önlemek için)
-      if (matchId && isCompletedMatch) {
+      if (matchId && (isCompletedMatch || partnerProfile)) {
+        console.log('✅ Socket bağlandı - mesaj geçmişi yükleniyor...', { matchId, isCompletedMatch, partnerProfile: !!partnerProfile });
         fetch(`${API_URL}/api/matches/${matchId}`, {
           headers: {
             'Authorization': `Bearer ${localStorage.getItem('token')}`
@@ -194,17 +195,21 @@ function ChatScreen({ userId, profile: currentProfile, matchId, partnerProfile: 
           if (response.ok) {
             return response.json();
           }
+          throw new Error('Mesaj geçmişi yüklenemedi');
         })
         .then(data => {
+          console.log('✅ Socket bağlandı - mesaj geçmişi yüklendi', data);
           if (data && data.match && data.match.messages && data.match.messages.length > 0) {
-            console.log('✅ Socket bağlandığında mesaj geçmişi yüklendi:', data.match.messages.length, 'mesaj');
+            console.log(`✅ ${data.match.messages.length} mesaj yüklendi`);
             setMessages(data.match.messages);
           } else {
             console.log('⚠️ Socket bağlandığında mesaj geçmişi boş');
+            // Mevcut mesajları koru, boş array set etme
           }
         })
         .catch(err => {
-          console.error('Mesaj geçmişi yüklenemedi:', err);
+          console.error('❌ Socket bağlandığında mesaj geçmişi yüklenemedi:', err);
+          // Hata durumunda mevcut mesajları koru
         });
       }
     });
