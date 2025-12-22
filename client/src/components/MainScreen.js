@@ -216,7 +216,9 @@ function MainScreen({ userId, profile, token, onMatchFound, onMatchContinued, on
               borderRadius: '16px',
               height: '100%',
               display: 'flex',
-              flexDirection: 'column'
+              flexDirection: 'column',
+              overflow: 'hidden',
+              background: isDarkMode ? '#1a1a2e' : '#fff'
             }}
             styles={{ 
               body: { 
@@ -227,167 +229,259 @@ function MainScreen({ userId, profile, token, onMatchFound, onMatchContinued, on
               }
             }}
           >
-            {/* Header */}
-            <div style={{ 
-              padding: '20px', 
-              borderBottom: '1px solid #f0f0f0', 
-              display: 'flex', 
-              justifyContent: 'space-between', 
-              alignItems: 'center' 
+            {/* Banner Image */}
+            <div style={{
+              height: '180px',
+              background: isDarkMode 
+                ? 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)'
+                : 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+              position: 'relative',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center'
             }}>
-              <img 
-                src="/logo.png" 
-                alt="Soulbate Logo" 
-                style={{ 
-                  height: '50px', 
-                  width: 'auto',
-                  objectFit: 'contain'
-                }} 
-              />
-              <Space>
-                <Switch
-                  checked={isDarkMode}
-                  onChange={toggleDarkMode}
-                  checkedChildren={<MoonOutlined />}
-                  unCheckedChildren={<SunOutlined />}
-                />
-                {currentProfile && (
-                  <Button
-                    type="text"
-                    icon={<EditOutlined />}
-                    onClick={() => setShowProfileEdit(true)}
+              {/* Profile Picture - Banner üzerine bindirilmiş */}
+              {currentProfile && (
+                <div style={{
+                  position: 'absolute',
+                  bottom: '-50px',
+                  left: '50%',
+                  transform: 'translateX(-50%)',
+                  zIndex: 10
+                }}>
+                  <Avatar
+                    src={currentProfile.photos && currentProfile.photos.length > 0 
+                      ? (currentProfile.photos[0].url.startsWith('http') 
+                          ? currentProfile.photos[0].url 
+                          : `${API_URL}${currentProfile.photos[0].url}`)
+                      : undefined}
+                    size={100}
+                    style={{ 
+                      backgroundColor: '#1890ff', 
+                      border: '4px solid #fff',
+                      boxShadow: '0 4px 12px rgba(0,0,0,0.15)'
+                    }}
+                  >
+                    {currentProfile.username.charAt(0).toUpperCase()}
+                  </Avatar>
+                </div>
+              )}
+              {/* Header Controls - Sağ üstte */}
+              <div style={{
+                position: 'absolute',
+                top: '16px',
+                right: '16px',
+                zIndex: 11
+              }}>
+                <Space>
+                  <Switch
+                    checked={isDarkMode}
+                    onChange={toggleDarkMode}
+                    checkedChildren={<MoonOutlined />}
+                    unCheckedChildren={<SunOutlined />}
                   />
-                )}
-              </Space>
+                  {currentProfile && (
+                    <Button
+                      type="text"
+                      icon={<EditOutlined />}
+                      onClick={() => setShowProfileEdit(true)}
+                      style={{ color: '#fff' }}
+                    />
+                  )}
+                </Space>
+              </div>
             </div>
 
-            {/* Profile Info */}
+            {/* Profile Info - Banner altında */}
             {currentProfile && (
               <div style={{ 
-                padding: '20px', 
-                borderBottom: '1px solid #f0f0f0', 
-                display: 'flex', 
-                alignItems: 'center', 
-                gap: '12px' 
+                padding: '60px 20px 20px 20px', 
+                textAlign: 'center',
+                borderBottom: `1px solid ${isDarkMode ? '#2d3748' : '#f0f0f0'}`
               }}>
-                <Avatar
-                  src={currentProfile.photos && currentProfile.photos.length > 0 
-                    ? (currentProfile.photos[0].url.startsWith('http') 
-                        ? currentProfile.photos[0].url 
-                        : `${API_URL}${currentProfile.photos[0].url}`)
-                    : undefined}
-                  size={60}
-                  style={{ backgroundColor: '#1890ff', flexShrink: 0 }}
-                >
-                  {currentProfile.username.charAt(0).toUpperCase()}
-                </Avatar>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <Space>
-                    <Text strong>
-                      {(() => {
-                        const firstName = currentProfile.firstName || '';
-                        const lastName = currentProfile.lastName || '';
-                        const username = currentProfile.username || '';
-                        if (firstName || lastName) {
-                          const fullName = `${firstName} ${lastName}`.trim();
-                          return username ? `${fullName} (@${username})` : fullName;
-                        }
-                        return username ? `@${username}` : 'Bilinmeyen Kullanıcı';
-                      })()}
-                    </Text>
-                    {currentProfile.verified && (
-                      <Tag 
-                        icon={<SafetyCertificateOutlined />}
-                        color="success"
-                        style={{ margin: 0 }}
-                      >
-                        Onaylandı
-                      </Tag>
-                    )}
-                  </Space>
-                </div>
+                <Title level={4} style={{ 
+                  margin: '0 0 4px 0',
+                  color: isDarkMode ? '#e2e8f0' : '#32325d'
+                }}>
+                  {(() => {
+                    const firstName = currentProfile.firstName || '';
+                    const lastName = currentProfile.lastName || '';
+                    if (firstName || lastName) {
+                      return `${firstName} ${lastName}`.trim();
+                    }
+                    return currentProfile.username || 'Bilinmeyen Kullanıcı';
+                  })()}
+                </Title>
+                <Text type="secondary" style={{ 
+                  display: 'block',
+                  marginBottom: '8px',
+                  color: isDarkMode ? '#a0aec0' : '#8898aa'
+                }}>
+                  @{currentProfile.username}
+                  {currentProfile.verified && (
+                    <Tag 
+                      icon={<SafetyCertificateOutlined />}
+                      color="success"
+                      style={{ marginLeft: '8px' }}
+                    >
+                      Onaylandı
+                    </Tag>
+                  )}
+                </Text>
+                {currentProfile.bio && (
+                  <Text style={{ 
+                    display: 'block',
+                    marginTop: '8px',
+                    fontStyle: 'italic',
+                    color: isDarkMode ? '#a0aec0' : '#8898aa'
+                  }}>
+                    "{currentProfile.bio}"
+                  </Text>
+                )}
               </div>
             )}
 
-            {/* İstatistikler */}
+            {/* İstatistikler - Modern 3 sütunlu tasarım */}
             {statistics && (
               <div style={{ 
-                padding: '16px', 
-                borderBottom: '1px solid #f0f0f0',
-                background: '#f8f9fa'
+                padding: '20px', 
+                borderBottom: `1px solid ${isDarkMode ? '#2d3748' : '#e9ecef'}`,
+                background: isDarkMode ? '#1a202c' : '#f8f9fe'
               }}>
-                <Row gutter={[8, 8]}>
-                  <Col span={12}>
-                    <Statistic
-                      title="Toplam Mesaj"
-                      value={statistics.totalMessages}
-                      valueStyle={{ fontSize: '18px', color: '#1890ff' }}
-                    />
+                <Row gutter={[0, 0]} style={{ textAlign: 'center' }}>
+                  <Col span={8} style={{ 
+                    borderRight: `1px solid ${isDarkMode ? '#2d3748' : '#e9ecef'}`,
+                    padding: '8px'
+                  }}>
+                    <div style={{ 
+                      fontSize: '20px', 
+                      fontWeight: 700,
+                      color: isDarkMode ? '#e2e8f0' : '#32325d',
+                      marginBottom: '4px'
+                    }}>
+                      {statistics.totalMessages || 0}
+                    </div>
+                    <div style={{ 
+                      fontSize: '12px',
+                      color: isDarkMode ? '#a0aec0' : '#8898aa'
+                    }}>
+                      Mesaj
+                    </div>
                   </Col>
-                  <Col span={12}>
-                    <Statistic
-                      title="Aktif Sohbet"
-                      value={statistics.activeChats}
-                      valueStyle={{ fontSize: '18px', color: '#52c41a' }}
-                    />
+                  <Col span={8} style={{ 
+                    borderRight: `1px solid ${isDarkMode ? '#2d3748' : '#e9ecef'}`,
+                    padding: '8px'
+                  }}>
+                    <div style={{ 
+                      fontSize: '20px', 
+                      fontWeight: 700,
+                      color: isDarkMode ? '#e2e8f0' : '#32325d',
+                      marginBottom: '4px'
+                    }}>
+                      {statistics.activeChats || 0}
+                    </div>
+                    <div style={{ 
+                      fontSize: '12px',
+                      color: isDarkMode ? '#a0aec0' : '#8898aa'
+                    }}>
+                      Sohbet
+                    </div>
                   </Col>
-                  <Col span={12}>
-                    <Statistic
-                      title="Toplam Eşleşme"
-                      value={statistics.totalMatches}
-                      valueStyle={{ fontSize: '18px', color: '#722ed1' }}
-                    />
-                  </Col>
-                  <Col span={12}>
-                    <Statistic
-                      title="Profil Görüntüleme"
-                      value={statistics.profileViews}
-                      valueStyle={{ fontSize: '18px', color: '#fa8c16' }}
-                    />
+                  <Col span={8} style={{ padding: '8px' }}>
+                    <div style={{ 
+                      fontSize: '20px', 
+                      fontWeight: 700,
+                      color: isDarkMode ? '#e2e8f0' : '#32325d',
+                      marginBottom: '4px'
+                    }}>
+                      {statistics.totalMatches || 0}
+                    </div>
+                    <div style={{ 
+                      fontSize: '12px',
+                      color: isDarkMode ? '#a0aec0' : '#8898aa'
+                    }}>
+                      Eşleşme
+                    </div>
                   </Col>
                 </Row>
               </div>
             )}
 
-            {/* Tabs */}
-            <Tabs 
-              activeKey={activeTab}
-              onChange={handleTabChange}
-              style={{ borderBottom: '1px solid #f0f0f0', marginLeft: '16px' }}
-              size="large"
-              items={[
-                {
-                  key: 'match',
-                  label: (
-                    <span style={{ 
-                      display: 'flex', 
-                      alignItems: 'center', 
-                      gap: '8px',
-                      fontWeight: 500,
-                      fontSize: '15px'
-                    }}>
-                      <SearchOutlined style={{ fontSize: '16px' }} />
-                      Eşleşmeler
-                    </span>
-                  )
-                },
-                {
-                  key: 'chats',
-                  label: (
-                    <span style={{ 
-                      display: 'flex', 
-                      alignItems: 'center', 
-                      gap: '8px',
-                      fontWeight: 500,
-                      fontSize: '15px'
-                    }}>
-                      <MessageOutlined style={{ fontSize: '16px' }} />
-                      Sohbetlerim
-                    </span>
-                  )
-                }
-              ]}
-            />
+            {/* Navigation Menu - Modern sidebar menü */}
+            <div style={{ 
+              flex: 1,
+              padding: '12px 0',
+              borderBottom: `1px solid ${isDarkMode ? '#2d3748' : '#e9ecef'}`
+            }}>
+              <div
+                onClick={() => setActiveTab('match')}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  padding: '12px 20px',
+                  cursor: 'pointer',
+                  background: activeTab === 'match' 
+                    ? (isDarkMode ? 'rgba(94, 114, 228, 0.2)' : 'rgba(94, 114, 228, 0.1)')
+                    : 'transparent',
+                  color: activeTab === 'match' 
+                    ? (isDarkMode ? '#8293F9' : '#5E72E4')
+                    : (isDarkMode ? '#a0aec0' : '#8898aa'),
+                  transition: 'all 0.2s',
+                  borderLeft: activeTab === 'match' 
+                    ? `3px solid ${isDarkMode ? '#8293F9' : '#5E72E4'}`
+                    : '3px solid transparent'
+                }}
+                onMouseEnter={(e) => {
+                  if (activeTab !== 'match') {
+                    e.currentTarget.style.background = isDarkMode ? 'rgba(94, 114, 228, 0.1)' : 'rgba(94, 114, 228, 0.05)';
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  if (activeTab !== 'match') {
+                    e.currentTarget.style.background = 'transparent';
+                  }
+                }}
+              >
+                <SearchOutlined style={{ fontSize: '18px', marginRight: '12px' }} />
+                <span style={{ fontSize: '15px', fontWeight: activeTab === 'match' ? 600 : 400 }}>
+                  Eşleşmeler
+                </span>
+              </div>
+              <div
+                onClick={() => setActiveTab('chats')}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  padding: '12px 20px',
+                  cursor: 'pointer',
+                  background: activeTab === 'chats' 
+                    ? (isDarkMode ? 'rgba(94, 114, 228, 0.2)' : 'rgba(94, 114, 228, 0.1)')
+                    : 'transparent',
+                  color: activeTab === 'chats' 
+                    ? (isDarkMode ? '#8293F9' : '#5E72E4')
+                    : (isDarkMode ? '#a0aec0' : '#8898aa'),
+                  transition: 'all 0.2s',
+                  borderLeft: activeTab === 'chats' 
+                    ? `3px solid ${isDarkMode ? '#8293F9' : '#5E72E4'}`
+                    : '3px solid transparent'
+                }}
+                onMouseEnter={(e) => {
+                  if (activeTab !== 'chats') {
+                    e.currentTarget.style.background = isDarkMode ? 'rgba(94, 114, 228, 0.1)' : 'rgba(94, 114, 228, 0.05)';
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  if (activeTab !== 'chats') {
+                    e.currentTarget.style.background = 'transparent';
+                  }
+                }}
+              >
+                <MessageOutlined style={{ fontSize: '18px', marginRight: '12px' }} />
+                <span style={{ fontSize: '15px', fontWeight: activeTab === 'chats' ? 600 : 400 }}>
+                  Sohbetlerim
+                </span>
+              </div>
+            </div>
 
             {/* Admin Panel Button */}
             {currentProfile && isSuperAdmin(currentProfile.email) && (
@@ -441,17 +535,36 @@ function MainScreen({ userId, profile, token, onMatchFound, onMatchContinued, on
               </div>
             )}
 
-            {/* Çıkış Yap Butonu */}
+            {/* View Profile & Logout Buttons */}
             <div style={{ 
               padding: '16px', 
               marginTop: 'auto', 
-              borderTop: '1px solid #f0f0f0' 
+              borderTop: `1px solid ${isDarkMode ? '#2d3748' : '#e9ecef'}`,
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '8px'
             }}>
+              <Button
+                block
+                type="primary"
+                onClick={() => setShowProfileEdit(true)}
+                style={{
+                  background: isDarkMode ? '#5E72E4' : '#5E72E4',
+                  borderColor: isDarkMode ? '#5E72E4' : '#5E72E4',
+                  height: '40px',
+                  fontWeight: 600
+                }}
+              >
+                Profili Görüntüle
+              </Button>
               <Button
                 block
                 danger
                 icon={<LogoutOutlined />}
                 onClick={onLogout}
+                style={{
+                  height: '40px'
+                }}
               >
                 Çıkış Yap
               </Button>
