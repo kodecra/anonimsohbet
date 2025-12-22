@@ -117,7 +117,10 @@ function ChatScreen({ userId, profile: currentProfile, matchId, partnerProfile: 
       })
       .catch(err => {
         // Match bulunamadı veya hata, yeni eşleşme olarak kabul et
-        console.error('Match kontrolü hatası:', err);
+        // Sadece debug için log, kullanıcıya gösterme
+        if (err.message !== 'Match bulunamadı') {
+          console.error('Match kontrolü hatası:', err);
+        }
         setIsCompletedMatch(false);
       });
     } else if (initialPartnerProfile && matchId) {
