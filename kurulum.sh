@@ -149,3 +149,4 @@ echo "✅ Kurulum tamamlandı!"
 echo "🌐 Tarayıcınızda şu adresi açın: http://72.62.146.220"
 echo "📊 Backend logları: pm2 logs anonimsohbet-backend"
 
+

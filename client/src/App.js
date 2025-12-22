@@ -9,6 +9,7 @@ import AdminPanel from './components/AdminPanel';
 import './App.css';
 import './theme.css';
 import './dating-theme.css';
+import './social-media-theme.css';
 
 const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000';
 

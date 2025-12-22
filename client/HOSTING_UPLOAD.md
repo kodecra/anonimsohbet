@@ -147,3 +147,4 @@ REACT_APP_API_URL=https://anonimsohbet-backend.onrender.com
 
 Bu URL'yi `.env` dosyasına eklemeyi unutmayın!
 
+

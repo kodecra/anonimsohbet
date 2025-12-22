@@ -245,3 +245,4 @@ sudo -u postgres psql -c "SELECT version();"
 
 Artık backend PostgreSQL kullanarak çalışacak! 🎉
 
+
