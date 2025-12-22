@@ -166,7 +166,7 @@ function LoginAntd({ onLogin, onSwitchToRegister, API_URL }) {
           >
             <Input 
               prefix={<UserOutlined />} 
-              placeholder="Kullanıcı adı"
+              placeholder="Kullanıcı adı, e-posta veya telefon"
               style={{
                 height: '56px',
                 fontSize: '17px',
@@ -221,7 +221,7 @@ function LoginAntd({ onLogin, onSwitchToRegister, API_URL }) {
           </Form.Item>
         </Form>
 
-        <div style={{ marginTop: '24px' }}>
+        <div style={{ marginTop: '16px' }}>
           <Text style={{ color: '#71767b', fontSize: '15px', display: 'block', marginBottom: '12px' }}>
             Zaten bir hesabın var mı?
           </Text>

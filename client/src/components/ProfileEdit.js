@@ -128,6 +128,7 @@ function ProfileEdit({ profile, token, onProfileUpdated, onClose, API_URL }) {
         if (onProfileUpdated) {
           onProfileUpdated(response.data.profile);
         }
+        // Modal kapanmayacak - kullanıcı kendisi kapatacak
       }, 500);
     } catch (err) {
       clearInterval(progressInterval);
@@ -152,6 +153,7 @@ function ProfileEdit({ profile, token, onProfileUpdated, onClose, API_URL }) {
       if (onProfileUpdated) {
         onProfileUpdated(response.data.profile);
       }
+      // Modal kapanmayacak - kullanıcı kendisi kapatacak
     } catch (err) {
       message.error('Fotoğraf silinemedi');
     }
@@ -240,6 +242,7 @@ function ProfileEdit({ profile, token, onProfileUpdated, onClose, API_URL }) {
         onProfileUpdated(response.data.profile);
       }
       
+      // Profil kaydedildiğinde modal kapanacak (sadece kaydet butonuna basınca)
       if (onClose) {
         onClose();
       }
@@ -267,6 +270,13 @@ function ProfileEdit({ profile, token, onProfileUpdated, onClose, API_URL }) {
             Profil Düzenle
           </Title>
         }
+        width={window.innerWidth < 768 ? '95%' : '90%'}
+        style={{ top: 20 }}
+        bodyStyle={{
+          maxHeight: 'calc(100vh - 200px)',
+          overflowY: 'auto',
+          padding: '24px'
+        }}
         footer={null}
         width={800}
         closeIcon={<CloseOutlined />}
