@@ -1245,12 +1245,26 @@ io.on('connection', (socket) => {
 
     // Eğer kullanıcı "continue" dediyse, karşı tarafa bildir
     if (decision === 'continue') {
-      const partnerSocketId = isUser1 ? match.user2.socketId : match.user1.socketId;
+      // Partner'ın userId'sini bul
+      const partnerUserId = isUser1 ? match.user2.userId : match.user1.userId;
+      
+      // Güncel socket ID'yi bul (userId ile)
+      let partnerSocketId = null;
+      for (const [socketId, userInfo] of activeUsers.entries()) {
+        if (userInfo.userId === partnerUserId) {
+          partnerSocketId = socketId;
+          break;
+        }
+      }
+      
       if (partnerSocketId) {
+        console.log(`📤 partner-continued gönderiliyor: ${partnerSocketId} (userId: ${partnerUserId})`);
         io.to(partnerSocketId).emit('partner-continued', {
           matchId: matchId,
           message: 'Karşı taraf devam etmek istiyor, sizin kararınızı bekliyor...'
         });
+      } else {
+        console.log(`❌ partner socket bulunamadı: userId=${partnerUserId}`);
       }
     }
 

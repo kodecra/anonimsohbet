@@ -376,12 +376,11 @@ function ChatScreen({ userId, profile: currentProfile, matchId, partnerProfile: 
       }
     });
     
-    // Partner devam ettiğinde
-    newSocket.on('partner-continued', () => {
-      setWaitingForPartner(false);
-      if (waitingTimerRef.current) {
-        clearInterval(waitingTimerRef.current);
-      }
+    // Partner devam ettiğinde (sadece bilgilendirme, timer devam eder)
+    newSocket.on('partner-continued', (data) => {
+      console.log('✅ ChatScreen: partner-continued event alındı', data);
+      // Timer'ı durdurma, sadece bilgilendirme yap
+      // match-continued event'i geldiğinde timer otomatik durdurulacak
     });
 
     return () => {
