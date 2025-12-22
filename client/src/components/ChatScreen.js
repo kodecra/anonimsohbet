@@ -246,6 +246,18 @@ function ChatScreen({ userId, profile: currentProfile, matchId, partnerProfile: 
 
     newSocket.on('error', (error) => {
       console.error('Socket error:', error);
+      // "Eşleşme bulunamadı" hatası geldiğinde timer'ı durdur ve eşleşmeyi sonlandır
+      if (error.message && error.message.includes('Eşleşme bulunamadı')) {
+        console.log('❌ Eşleşme bulunamadı hatası alındı, timer durduruluyor');
+        if (waitingTimerRef.current) {
+          clearInterval(waitingTimerRef.current);
+          waitingTimerRef.current = null;
+        }
+        setWaitingForPartner(false);
+        setShowDecision(false);
+        onMatchEnded();
+        return;
+      }
       // Hata mesajı göster
       setMessages((prev) => [...prev, {
         id: `error-${Date.now()}`,
