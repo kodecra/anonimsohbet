@@ -334,6 +334,23 @@ async function saveMatches(completedMatches, userMatches) {
   }
 }
 
+// Sadece yeni bir eşleşmeyi ekle (race condition'ı önlemek için)
+async function addUserMatch(userId, matchId) {
+  if (!pool) return false;
+  
+  try {
+    await pool.query(`
+      INSERT INTO user_matches (user_id, match_id)
+      VALUES ($1, $2)
+      ON CONFLICT DO NOTHING
+    `, [userId, matchId]);
+    return true;
+  } catch (error) {
+    console.error('addUserMatch hatası:', error);
+    return false;
+  }
+}
+
 // Matches yükle
 async function loadMatches() {
   if (!pool) {
