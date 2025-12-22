@@ -1912,15 +1912,28 @@ io.on('connection', (socket) => {
         completedMatches.set(matchId, completedMatch);
 
         // Kullanıcıların eşleşme listelerine ekle
-        if (!userMatches.has(match.user1.userId)) {
-          userMatches.set(match.user1.userId, []);
+        // ÖNEMLİ: Eğer matchId zaten userMatches'te varsa, tekrar ekleme (duplicate önleme)
+        const user1Matches = userMatches.get(match.user1.userId) || [];
+        const user2Matches = userMatches.get(match.user2.userId) || [];
+        
+        if (!user1Matches.includes(matchId)) {
+          user1Matches.push(matchId);
+          userMatches.set(match.user1.userId, user1Matches);
         }
-        if (!userMatches.has(match.user2.userId)) {
-          userMatches.set(match.user2.userId, []);
+        if (!user2Matches.includes(matchId)) {
+          user2Matches.push(matchId);
+          userMatches.set(match.user2.userId, user2Matches);
         }
-        userMatches.get(match.user1.userId).push(matchId);
-        userMatches.get(match.user2.userId).push(matchId);
+        
         await saveMatches(completedMatches, userMatches); // Hemen kaydet
+        
+        console.log(`✅✅✅ userMatches güncellendi:`, {
+          user1: match.user1.userId,
+          user2: match.user2.userId,
+          user1Matches: userMatches.get(match.user1.userId),
+          user2Matches: userMatches.get(match.user2.userId),
+          matchId: matchId
+        });
 
         // Güncel socket ID'leri bul (userId ile)
         let user1SocketId = match.user1.socketId;
