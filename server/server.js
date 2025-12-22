@@ -572,6 +572,47 @@ app.delete('/api/profile/photos/:photoId', authenticateToken, async (req, res) =
   res.json({ profile: updatedProfile, message: 'Fotoğraf silindi' });
 });
 
+// Fotoğraf sıralama güncelleme
+app.post('/api/profile/photos/reorder', authenticateToken, async (req, res) => {
+  const userId = req.user.userId;
+  const profile = users.get(userId);
+  
+  if (!profile) {
+    return res.status(404).json({ error: 'Profil bulunamadı' });
+  }
+
+  const { photoIds } = req.body;
+  
+  if (!Array.isArray(photoIds)) {
+    return res.status(400).json({ error: 'Geçersiz fotoğraf ID listesi' });
+  }
+
+  const currentPhotos = profile.photos || [];
+  
+  // Yeni sıraya göre fotoğrafları yeniden düzenle
+  const reorderedPhotos = photoIds.map(id => {
+    return currentPhotos.find(p => p.id === id);
+  }).filter(Boolean); // undefined'ları filtrele
+
+  // Eğer bazı fotoğraflar bulunamadıysa, mevcut fotoğrafları koru
+  if (reorderedPhotos.length !== currentPhotos.length) {
+    // Bulunamayan fotoğrafları sona ekle
+    const foundIds = new Set(reorderedPhotos.map(p => p.id));
+    const missingPhotos = currentPhotos.filter(p => !foundIds.has(p.id));
+    reorderedPhotos.push(...missingPhotos);
+  }
+
+  const updatedProfile = {
+    ...profile,
+    photos: reorderedPhotos,
+    updatedAt: new Date()
+  };
+
+  users.set(userId, updatedProfile);
+  await saveUsers(users); // Hemen kaydet
+  res.json({ profile: updatedProfile, message: 'Fotoğraf sırası güncellendi' });
+});
+
 // Profil oluşturma/güncelleme (artık authenticated)
 app.post('/api/profile', authenticateToken, async (req, res) => {
   const { username, firstName, lastName, gender, age, bio, interests, phoneNumber, birthDate } = req.body;

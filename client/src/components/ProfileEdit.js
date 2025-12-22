@@ -124,6 +124,36 @@ function ProfileEdit({ profile, token, onProfileUpdated, onClose, API_URL }) {
     }
   };
 
+  const handleReorderPhotos = async (fromIndex, toIndex) => {
+    const newPhotos = [...photos];
+    const [removed] = newPhotos.splice(fromIndex, 1);
+    newPhotos.splice(toIndex, 0, removed);
+    
+    setPhotos(newPhotos);
+    
+    // Backend'e yeni sırayı kaydet
+    try {
+      const response = await axios.post(`${API_URL}/api/profile/photos/reorder`, {
+        photoIds: newPhotos.map(p => p.id)
+      }, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      
+      setPhotos(response.data.profile.photos);
+      message.success('Fotoğraf sırası güncellendi');
+      
+      if (onProfileUpdated) {
+        onProfileUpdated(response.data.profile);
+      }
+    } catch (err) {
+      // Hata durumunda eski sıraya geri dön
+      setPhotos(photos);
+      message.error('Fotoğraf sırası güncellenemedi');
+    }
+  };
+
   const handleSave = async (values) => {
     setLoading(true);
     setError('');
@@ -382,37 +412,105 @@ function ProfileEdit({ profile, token, onProfileUpdated, onClose, API_URL }) {
           {/* Fotoğraf Yükleme */}
           <Form.Item label={`Fotoğraflar (${photos.length}/5)`}>
             <Row gutter={[16, 16]}>
-              {photos.map((photo) => (
-                <Col xs={12} sm={8} md={6} key={photo.id}>
-                  <div style={{ position: 'relative' }}>
-                    <img
-                      src={photo.url && photo.url.startsWith('http') 
-                        ? photo.url 
-                        : `${API_URL}${photo.url}`}
-                      alt="Profile photo"
+              {photos.map((photo, index) => {
+                // URL formatını düzelt
+                let photoUrl = '';
+                if (photo.url) {
+                  if (photo.url.startsWith('http://') || photo.url.startsWith('https://')) {
+                    photoUrl = photo.url;
+                  } else {
+                    // URL başında / varsa kaldır, yoksa ekle
+                    const cleanUrl = photo.url.startsWith('/') ? photo.url : `/${photo.url}`;
+                    const cleanApiUrl = API_URL.endsWith('/') ? API_URL.slice(0, -1) : API_URL;
+                    photoUrl = `${cleanApiUrl}${cleanUrl}`;
+                  }
+                }
+                
+                return (
+                  <Col xs={12} sm={8} md={6} key={photo.id || index}>
+                    <div 
                       style={{ 
-                        width: '100%', 
-                        height: 150, 
-                        objectFit: 'cover',
+                        position: 'relative',
+                        cursor: 'move',
+                        border: index === 0 ? '3px solid #1890ff' : '1px solid #d9d9d9',
                         borderRadius: '8px',
-                        display: 'block'
+                        padding: index === 0 ? '2px' : '4px'
                       }}
-                      onError={(e) => {
-                        e.target.style.display = 'none';
-                        e.target.nextSibling.style.display = 'block';
+                      draggable
+                      onDragStart={(e) => {
+                        e.dataTransfer.setData('text/plain', index.toString());
                       }}
-                    />
-                    <Avatar
-                      shape="square"
-                      size={120}
-                      icon={<UserOutlined />}
-                      style={{ 
-                        width: '100%', 
-                        height: 150, 
-                        display: 'none',
-                        borderRadius: '8px'
+                      onDragOver={(e) => {
+                        e.preventDefault();
+                        e.currentTarget.style.opacity = '0.5';
                       }}
-                    />
+                      onDragLeave={(e) => {
+                        e.currentTarget.style.opacity = '1';
+                      }}
+                      onDrop={(e) => {
+                        e.preventDefault();
+                        e.currentTarget.style.opacity = '1';
+                        const draggedIndex = parseInt(e.dataTransfer.getData('text/plain'));
+                        if (draggedIndex !== index) {
+                          handleReorderPhotos(draggedIndex, index);
+                        }
+                      }}
+                    >
+                      {index === 0 && (
+                        <div style={{
+                          position: 'absolute',
+                          top: 4,
+                          left: 4,
+                          backgroundColor: '#1890ff',
+                          color: '#fff',
+                          padding: '2px 6px',
+                          borderRadius: '4px',
+                          fontSize: '10px',
+                          fontWeight: 'bold',
+                          zIndex: 10
+                        }}>
+                          Profil
+                        </div>
+                      )}
+                      {photoUrl ? (
+                        <img
+                          src={photoUrl}
+                          alt="Profile photo"
+                          style={{ 
+                            width: '100%', 
+                            height: 150, 
+                            objectFit: 'cover',
+                            borderRadius: '6px',
+                            display: 'block',
+                            backgroundColor: '#f0f0f0'
+                          }}
+                          onError={(e) => {
+                            e.target.style.display = 'none';
+                            const placeholder = e.target.nextElementSibling;
+                            if (placeholder) {
+                              placeholder.style.display = 'flex';
+                            }
+                          }}
+                          onLoad={(e) => {
+                            // Fotoğraf yüklendiğinde placeholder'ı gizle
+                            const placeholder = e.target.nextElementSibling;
+                            if (placeholder) {
+                              placeholder.style.display = 'none';
+                            }
+                          }}
+                        />
+                      ) : null}
+                      <div style={{
+                        width: '100%',
+                        height: 150,
+                        display: photoUrl ? 'none' : 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        backgroundColor: '#f0f0f0',
+                        borderRadius: '6px'
+                      }}>
+                        <UserOutlined style={{ fontSize: '48px', color: '#bfbfbf' }} />
+                      </div>
                     <Button
                       type="primary"
                       danger
@@ -421,13 +519,15 @@ function ProfileEdit({ profile, token, onProfileUpdated, onClose, API_URL }) {
                       style={{
                         position: 'absolute',
                         top: 4,
-                        right: 4
+                        right: 4,
+                        zIndex: 10
                       }}
                       onClick={() => handleDeletePhoto(photo.id)}
                     />
                   </div>
                 </Col>
-              ))}
+              );
+              })}
               
               {photos.length < 5 && (
                 <Col xs={12} sm={8} md={6}>
