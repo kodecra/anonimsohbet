@@ -252,6 +252,11 @@ app.post('/api/login', async (req, res) => {
 
 // Token doğrulama middleware
 const authenticateToken = (req, res, next) => {
+  // DELETE route'ları için özel log
+  if (req.method === 'DELETE' && req.path.includes('/api/matches/')) {
+    console.log('🔵 DELETE route authenticateToken middleware çalıştı:', req.path);
+  }
+  
   const authHeader = req.headers['authorization'];
   const token = authHeader && authHeader.split(' ')[1];
 
@@ -765,7 +770,9 @@ app.get('/api/notifications/settings', authenticateToken, (req, res) => {
 
 // Completed match'ten çıkma (eşleşmeyi silme) - GET'den ÖNCE olmalı!
 app.delete('/api/matches/:matchId', authenticateToken, async (req, res) => {
-  console.log('🔴 DELETE /api/matches/:matchId route çalıştı!');
+  console.log('🔴🔴🔴 DELETE /api/matches/:matchId route çalıştı!');
+  console.log('🔴 Request params:', req.params);
+  console.log('🔴 Request user:', req.user);
   const userId = req.user.userId;
   const matchId = req.params.matchId;
   
