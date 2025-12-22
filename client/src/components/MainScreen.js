@@ -231,7 +231,7 @@ function MainScreen({ userId, profile, token, onMatchFound, onMatchContinued, on
                 src="/logo.png" 
                 alt="Soulbate Logo" 
                 style={{ 
-                  height: '48px', 
+                  height: '50px', 
                   width: 'auto',
                   objectFit: 'contain'
                 }} 
