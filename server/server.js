@@ -130,7 +130,15 @@ const activeUsers = new Map(); // socketId -> user info (geçici)
 const matchingQueue = []; // Eşleşme bekleyen kullanıcılar (geçici)
 const activeMatches = new Map(); // matchId -> match info (geçici)
 
-const SUPERADMIN_EMAIL = process.env.SUPERADMIN_EMAIL || 'admin@admin.com'; // Superadmin email
+// Superadmin email'leri (virgülle ayrılmış veya array)
+const SUPERADMIN_EMAILS = process.env.SUPERADMIN_EMAILS 
+  ? process.env.SUPERADMIN_EMAILS.split(',').map(e => e.trim().toLowerCase())
+  : ['admin@admin.com', 'oguzhancakar@anonimsohbet.local'].map(e => e.toLowerCase());
+
+// Helper function to check if user is superadmin
+function isSuperAdmin(email) {
+  return SUPERADMIN_EMAILS.includes(email.toLowerCase());
+}
 
 // Veritabanını başlat (eğer PostgreSQL kullanılıyorsa)
 if (useDatabase && initDatabase) {
@@ -647,7 +655,7 @@ app.get('/api/admin/pending-verifications', authenticateToken, (req, res) => {
   const profile = users.get(userId);
   
   // Superadmin kontrolü (email ile)
-  if (profile.email !== SUPERADMIN_EMAIL) {
+  if (!isSuperAdmin(profile.email)) {
     return res.status(403).json({ error: 'Bu işlem için yetkiniz yok' });
   }
 
@@ -676,7 +684,7 @@ app.post('/api/admin/verify-user', authenticateToken, async (req, res) => {
   const { targetUserId, action } = req.body; // action: 'approve' or 'reject'
   
   // Superadmin kontrolü
-  if (profile.email !== SUPERADMIN_EMAIL) {
+  if (!isSuperAdmin(profile.email)) {
     return res.status(403).json({ error: 'Bu işlem için yetkiniz yok' });
   }
 
