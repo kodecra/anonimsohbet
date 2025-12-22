@@ -78,6 +78,8 @@ function ChatScreen({ userId, profile: currentProfile, matchId, partnerProfile: 
     messageEnabled: true
   });
   const [showPartnerProfileModal, setShowPartnerProfileModal] = useState(false);
+  const [showViewProfileModal, setShowViewProfileModal] = useState(false);
+  const [viewProfileData, setViewProfileData] = useState(null);
   const [showReportModal, setShowReportModal] = useState(false);
   const [reportReasonType, setReportReasonType] = useState(null);
   const [reportCustomReason, setReportCustomReason] = useState('');
