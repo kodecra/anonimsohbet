@@ -1219,7 +1219,7 @@ io.on('connection', (socket) => {
         }
       }
       
-      // Match hiçbir yerde bulunamadı - userId ile ara
+      // Match hiçbir yerde bulunamadı - userId ile ara (race condition için)
       console.log(`⚠️ Match hiçbir yerde bulunamadı, userId ile aranıyor: ${userInfo.userId}`);
       for (const [mid, m] of activeMatches.entries()) {
         const u1Id = m.user1?.userId;
@@ -1231,9 +1231,39 @@ io.on('connection', (socket) => {
         }
       }
       
+      // Hala bulunamadıysa, completedMatches'te userId ile ara
+      if (!match) {
+        for (const [mid, cm] of completedMatches.entries()) {
+          const u1Id = cm.user1?.userId;
+          const u2Id = cm.user2?.userId;
+          if ((u1Id === userInfo.userId || u2Id === userInfo.userId) && mid === matchId) {
+            // Match completedMatches'te bulundu, match-continued gönder
+            const isUser1 = u1Id === userInfo.userId;
+            const partnerProfile = isUser1 ? cm.user2.profile : cm.user1.profile;
+            
+            let userSocketId = socket.id;
+            for (const [socketId, uInfo] of activeUsers.entries()) {
+              if (uInfo.userId === userInfo.userId) {
+                userSocketId = socketId;
+                break;
+              }
+            }
+            
+            io.to(userSocketId).emit('match-continued', {
+              matchId: matchId,
+              partnerProfile: partnerProfile,
+              message: 'Eşleşme onaylandı! Artık birbirinizin profillerini görebilirsiniz.'
+            });
+            console.log(`✅ match-continued gönderildi (completed match - userId ile bulundu): ${userSocketId}`);
+            return;
+          }
+        }
+      }
+      
       if (!match) {
         console.log('❌ match-decision: Eşleşme bulunamadı', { 
           matchId, 
+          userId: userInfo.userId,
           activeMatchesSize: activeMatches.size,
           completedMatchesSize: completedMatches.size,
           userMatchId: userInfo.matchId,
@@ -1299,8 +1329,11 @@ io.on('connection', (socket) => {
       }
     }
 
-    // Her iki karar da alındı mı?
-    if (match.user1Decision !== null && match.user2Decision !== null) {
+    // Her iki karar da alındı mı? (null check'i daha güvenli yap)
+    const bothDecisionsReceived = match.user1Decision !== null && match.user2Decision !== null && 
+                                  match.user1Decision !== undefined && match.user2Decision !== undefined;
+    
+    if (bothDecisionsReceived) {
       if (match.user1Decision === 'continue' && match.user2Decision === 'continue') {
         // Her iki kullanıcı da devam etmek istiyor - Profilleri göster
         const user1Profile = users.get(match.user1.userId);
@@ -1327,6 +1360,7 @@ io.on('connection', (socket) => {
             : match.startedAt
         };
 
+        // ÖNCE completedMatches'e ekle (match-decision handler'ında bulunabilmesi için)
         completedMatches.set(matchId, completedMatch);
 
         // Kullanıcıların eşleşme listelerine ekle
@@ -1362,6 +1396,7 @@ io.on('connection', (socket) => {
           user2UserId: match.user2.userId
         });
 
+        // Her iki kullanıcıya da match-continued event'ini gönder
         if (user1SocketId) {
           io.to(user1SocketId).emit('match-continued', {
             matchId: matchId,
@@ -1384,7 +1419,7 @@ io.on('connection', (socket) => {
           console.log(`❌ user2 socket bulunamadı: ${match.user2.userId}`);
         }
 
-        // Active match'i temizle
+        // SONRA active match'i temizle (event'ler gönderildikten sonra)
         activeMatches.delete(matchId);
         
         // Kullanıcıların match durumunu güncelle (userId ile bul)

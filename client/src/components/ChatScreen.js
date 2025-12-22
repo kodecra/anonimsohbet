@@ -397,8 +397,9 @@ function ChatScreen({ userId, profile: currentProfile, matchId, partnerProfile: 
     // Partner devam ettiğinde (sadece bilgilendirme, timer devam eder)
     newSocket.on('partner-continued', (data) => {
       console.log('✅ ChatScreen: partner-continued event alındı', data);
-      // Timer'ı durdurma, sadece bilgilendirme yap
-      // match-continued event'i geldiğinde timer otomatik durdurulacak
+      // Partner devam etmek istiyor, match-continued event'i yakında gelecek
+      // Timer'ı durdurmuyoruz çünkü match-continued event'i geldiğinde durdurulacak
+      // Ama eğer match-continued gelmezse timer devam edecek ve eşleşme iptal olacak
     });
 
     return () => {
