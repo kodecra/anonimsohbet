@@ -378,6 +378,12 @@ app.post('/api/profile/photos', authenticateToken, upload.array('photos', 5), as
     return res.status(400).json({ error: 'Fotoğraf seçilmedi' });
   }
 
+  // Dosya boyutu kontrolü
+  const oversizedFiles = req.files.filter(file => file.size > 10 * 1024 * 1024);
+  if (oversizedFiles.length > 0) {
+    return res.status(413).json({ error: 'Dosya boyutu çok büyük. Maksimum 10MB olmalıdır.' });
+  }
+
   // Mevcut fotoğrafları kontrol et (max 5)
   const currentPhotos = profile.photos || [];
   
