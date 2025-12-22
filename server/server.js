@@ -1836,17 +1836,29 @@ io.on('connection', (socket) => {
         const user2Profile = users.get(match.user2.userId);
 
         // Eşleşmeyi kalıcı olarak kaydet
+        // ÖNEMLİ: Partner profile bilgileri sadece bu eşleşmeye özel olmalı
+        // Eşleşme bittiğinde, partner bilgileri tamamen silinmeli (privacy için)
         const completedMatch = {
           id: matchId,
           user1: {
             userId: match.user1.userId,
             username: user1Profile.username,
-            profile: user1Profile
+            profile: {
+              ...user1Profile,
+              // Sadece bu eşleşmeye özel bilgiler
+              matchId: matchId,
+              matchedAt: new Date()
+            }
           },
           user2: {
             userId: match.user2.userId,
             username: user2Profile.username,
-            profile: user2Profile
+            profile: {
+              ...user2Profile,
+              // Sadece bu eşleşmeye özel bilgiler
+              matchId: matchId,
+              matchedAt: new Date()
+            }
           },
           startedAt: match.startedAt,
           completedAt: new Date(),

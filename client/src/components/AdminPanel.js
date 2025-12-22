@@ -514,14 +514,20 @@ function AdminPanel({ token, API_URL, onGoToProfile }) {
         : 'linear-gradient(135deg, #40a9ff 0%, #1890ff 100%)',
     }}>
       <Sider
-        width={250}
+        width={windowWidth < 768 ? 200 : 250}
+        breakpoint="lg"
+        collapsedWidth={windowWidth < 768 ? 0 : 80}
         style={{
           background: isDarkMode ? '#1a202c' : '#fff',
           boxShadow: '2px 0 8px rgba(0,0,0,0.1)'
         }}
       >
-        <div style={{ padding: '24px' }}>
-          <Title level={4} style={{ marginBottom: '24px', color: isDarkMode ? '#e2e8f0' : '#32325d' }}>
+        <div style={{ padding: windowWidth < 768 ? '16px' : '24px' }}>
+          <Title level={4} style={{ 
+            marginBottom: '24px', 
+            color: isDarkMode ? '#e2e8f0' : '#32325d',
+            fontSize: windowWidth < 768 ? '16px' : '20px'
+          }}>
             🛡️ Admin Panel
           </Title>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
@@ -530,7 +536,13 @@ function AdminPanel({ token, API_URL, onGoToProfile }) {
               icon={<CheckCircleOutlined />}
               onClick={() => setActiveTab('verifications')}
               block
-              style={{ textAlign: 'left' }}
+              style={{ 
+                textAlign: 'left',
+                marginBottom: '8px',
+                background: activeTab === 'verifications' && isDarkMode ? '#2e2e2e' : undefined,
+                borderColor: isDarkMode ? '#424242' : undefined,
+                color: isDarkMode ? '#fff' : undefined
+              }}
             >
               Doğrulama İstekleri
             </Button>
@@ -539,7 +551,13 @@ function AdminPanel({ token, API_URL, onGoToProfile }) {
               icon={<UserOutlined />}
               onClick={() => setActiveTab('users')}
               block
-              style={{ textAlign: 'left' }}
+              style={{ 
+                textAlign: 'left',
+                marginBottom: '8px',
+                background: activeTab === 'users' && isDarkMode ? '#2e2e2e' : undefined,
+                borderColor: isDarkMode ? '#424242' : undefined,
+                color: isDarkMode ? '#fff' : undefined
+              }}
             >
               Kullanıcılar
             </Button>
@@ -548,7 +566,13 @@ function AdminPanel({ token, API_URL, onGoToProfile }) {
               icon={<ExclamationCircleOutlined />}
               onClick={() => setActiveTab('complaints')}
               block
-              style={{ textAlign: 'left' }}
+              style={{ 
+                textAlign: 'left',
+                marginBottom: '8px',
+                background: activeTab === 'complaints' && isDarkMode ? '#2e2e2e' : undefined,
+                borderColor: isDarkMode ? '#424242' : undefined,
+                color: isDarkMode ? '#fff' : undefined
+              }}
             >
               Şikayetler
             </Button>
@@ -566,8 +590,16 @@ function AdminPanel({ token, API_URL, onGoToProfile }) {
           )}
         </div>
       </Sider>
-      <Content style={{ padding: '24px' }}>
-        <Card style={{ borderRadius: '16px', minHeight: 'calc(100vh - 48px)' }}>
+      <Content style={{ 
+        padding: windowWidth < 768 ? '16px' : '24px',
+        background: isDarkMode ? '#1a202c' : '#fff'
+      }}>
+        <Card style={{ 
+          borderRadius: '16px', 
+          minHeight: 'calc(100vh - 48px)',
+          background: isDarkMode ? '#2e2e2e' : '#fff',
+          border: isDarkMode ? '1px solid #424242' : 'none'
+        }}>
           <div style={{ marginBottom: '24px' }}>
             <Title level={2} style={{ margin: 0, color: '#1890ff' }}>
               {activeTab === 'verifications' && 'Bekleyen Doğrulamalar'}
