@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import axios from 'axios';
-import { Form, Input, Button, Card, Typography, Alert, Divider } from 'antd';
+import { Form, Input, Button, Card, Typography, Alert, Divider, Select, Row, Col } from 'antd';
 import { UserOutlined, LockOutlined, MailOutlined } from '@ant-design/icons';
 import './Register.css';
 
@@ -23,7 +23,11 @@ function RegisterAntd({ onRegister, onSwitchToLogin, API_URL }) {
     try {
       const response = await axios.post(`${API_URL}/api/register`, {
         email: values.email.trim(),
-        password: values.password
+        password: values.password,
+        username: values.username.trim(),
+        firstName: values.firstName?.trim() || null,
+        lastName: values.lastName.trim(),
+        gender: values.gender || null
       });
 
       localStorage.setItem('token', response.data.token);
@@ -87,6 +91,61 @@ function RegisterAntd({ onRegister, onSwitchToLogin, API_URL }) {
           size="large"
           autoComplete="off"
         >
+          <Form.Item
+            name="username"
+            label="Kullanıcı Adı"
+            rules={[
+              { required: true, message: 'Kullanıcı adı gereklidir' },
+              { max: 50, message: 'En fazla 50 karakter olabilir' }
+            ]}
+          >
+            <Input 
+              prefix={<UserOutlined />} 
+              placeholder="kullaniciadi"
+            />
+          </Form.Item>
+
+          <Row gutter={16}>
+            <Col span={12}>
+              <Form.Item
+                name="firstName"
+                label="İsim"
+                rules={[
+                  { max: 50, message: 'En fazla 50 karakter olabilir' }
+                ]}
+              >
+                <Input placeholder="İsminiz" />
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item
+                name="lastName"
+                label="Soyisim"
+                rules={[
+                  { required: true, message: 'Soyisim zorunludur' },
+                  { max: 50, message: 'En fazla 50 karakter olabilir' }
+                ]}
+              >
+                <Input placeholder="Soyisminiz" />
+              </Form.Item>
+            </Col>
+          </Row>
+
+          <Form.Item
+            name="gender"
+            label="Cinsiyet"
+            rules={[
+              { required: false }
+            ]}
+          >
+            <Select placeholder="Cinsiyet seçin (isteğe bağlı)">
+              <Select.Option value="male">Erkek</Select.Option>
+              <Select.Option value="female">Kadın</Select.Option>
+              <Select.Option value="other">Diğer</Select.Option>
+              <Select.Option value="prefer_not_to_say">Belirtmek istemiyorum</Select.Option>
+            </Select>
+          </Form.Item>
+
           <Form.Item
             name="email"
             label="Email"

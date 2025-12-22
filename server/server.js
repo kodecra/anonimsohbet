@@ -164,10 +164,18 @@ process.on('SIGINT', async () => {
 
 // Kayıt ol
 app.post('/api/register', async (req, res) => {
-  const { email, password } = req.body;
+  const { email, password, username, firstName, lastName, gender } = req.body;
   
   if (!email || !password) {
     return res.status(400).json({ error: 'Email ve şifre gereklidir' });
+  }
+
+  if (!username || !username.trim()) {
+    return res.status(400).json({ error: 'Kullanıcı adı gereklidir' });
+  }
+
+  if (!lastName || !lastName.trim()) {
+    return res.status(400).json({ error: 'Soyisim zorunludur' });
   }
 
   if (password.length < 6) {
@@ -179,6 +187,12 @@ app.post('/api/register', async (req, res) => {
     return res.status(400).json({ error: 'Bu email zaten kayıtlı' });
   }
 
+  // Kullanıcı adı kontrolü
+  const existingUser = Array.from(users.values()).find(u => u.username === username.trim());
+  if (existingUser) {
+    return res.status(400).json({ error: 'Bu kullanıcı adı zaten kullanılıyor' });
+  }
+
   const userId = uuidv4();
   const passwordHash = await bcrypt.hash(password, 10);
 
@@ -188,9 +202,10 @@ app.post('/api/register', async (req, res) => {
   const userProfile = {
     userId,
     email: email.toLowerCase(),
-    username: email.split('@')[0], // Varsayılan kullanıcı adı
-    firstName: null,
-    lastName: null,
+    username: username.trim(),
+    firstName: firstName ? firstName.trim() : null,
+    lastName: lastName.trim(),
+    gender: gender || null,
     age: null,
     bio: '',
     interests: [],

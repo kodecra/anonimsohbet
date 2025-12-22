@@ -43,6 +43,7 @@ function ProfileEdit({ profile, token, onProfileUpdated, onClose, API_URL }) {
       username: profile.username || '',
       firstName: profile.firstName || '',
       lastName: profile.lastName || '',
+      gender: profile.gender || undefined,
       age: profile.age || undefined,
       bio: profile.bio || '',
       interests: (profile.interests || []).join(', ')
@@ -120,6 +121,7 @@ function ProfileEdit({ profile, token, onProfileUpdated, onClose, API_URL }) {
         username: values.username.trim(),
         firstName: values.firstName?.trim() || null,
         lastName: values.lastName.trim(),
+        gender: values.gender || null,
         age: values.age || null,
         bio: values.bio?.trim() || '',
         interests: interestsArray
@@ -219,6 +221,21 @@ function ProfileEdit({ profile, token, onProfileUpdated, onClose, API_URL }) {
               </Form.Item>
             </Col>
           </Row>
+
+          <Form.Item
+            name="gender"
+            label="Cinsiyet"
+            rules={[
+              { required: false }
+            ]}
+          >
+            <Select placeholder="Cinsiyet seçin (isteğe bağlı)">
+              <Select.Option value="male">Erkek</Select.Option>
+              <Select.Option value="female">Kadın</Select.Option>
+              <Select.Option value="other">Diğer</Select.Option>
+              <Select.Option value="prefer_not_to_say">Belirtmek istemiyorum</Select.Option>
+            </Select>
+          </Form.Item>
 
           <Form.Item
             name="age"
