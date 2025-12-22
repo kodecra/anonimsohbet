@@ -1996,10 +1996,16 @@ io.on('connection', (socket) => {
         if (!user1Matches.includes(matchId)) {
           user1Matches.push(matchId);
           userMatches.set(match.user1.userId, user1Matches);
+          console.log(`✅ user1Matches'e eklendi: ${match.user1.userId} -> ${matchId}`);
+        } else {
+          console.log(`⚠️ user1Matches'te zaten var: ${match.user1.userId} -> ${matchId}`);
         }
         if (!user2Matches.includes(matchId)) {
           user2Matches.push(matchId);
           userMatches.set(match.user2.userId, user2Matches);
+          console.log(`✅ user2Matches'e eklendi: ${match.user2.userId} -> ${matchId}`);
+        } else {
+          console.log(`⚠️ user2Matches'te zaten var: ${match.user2.userId} -> ${matchId}`);
         }
         
         await saveMatches(completedMatches, userMatches); // Hemen kaydet
@@ -2009,7 +2015,8 @@ io.on('connection', (socket) => {
           user2: match.user2.userId,
           user1Matches: userMatches.get(match.user1.userId),
           user2Matches: userMatches.get(match.user2.userId),
-          matchId: matchId
+          matchId: matchId,
+          completedMatchesSize: completedMatches.size
         });
 
         // Güncel socket ID'leri bul (userId ile)
