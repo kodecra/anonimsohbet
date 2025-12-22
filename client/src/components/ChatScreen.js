@@ -501,7 +501,7 @@ function ChatScreen({ userId, profile: currentProfile, matchId, partnerProfile: 
     // Önceki timer'ı temizle
     if (timerRef.current) {
       console.log('⏹️ Önceki timer durduruluyor');
-      clearInterval(timerRef.current);
+      clearTimeout(timerRef.current);
       timerRef.current = null;
     }
 
@@ -512,7 +512,7 @@ function ChatScreen({ userId, profile: currentProfile, matchId, partnerProfile: 
       setTimer(null);
       setShowDecision(false);
       if (timerRef.current) {
-        clearInterval(timerRef.current);
+        clearTimeout(timerRef.current);
         timerRef.current = null;
       }
       return;
@@ -533,6 +533,44 @@ function ChatScreen({ userId, profile: currentProfile, matchId, partnerProfile: 
         return 30;
       };
 
+      const updateTimer = () => {
+        if (matchStartedAt) {
+          // Server zamanına göre hesapla (senkronize)
+          const now = Date.now();
+          const elapsed = now - matchStartedAt;
+          const remaining = Math.max(0, 30000 - elapsed);
+          const remainingSeconds = Math.ceil(remaining / 1000);
+          
+          if (remainingSeconds <= 0) {
+            if (timerRef.current) {
+              clearTimeout(timerRef.current);
+              timerRef.current = null;
+            }
+            setShowDecision(true);
+            setTimer(0);
+          } else {
+            setTimer(remainingSeconds);
+            // Her saniye güncelle (setTimeout ile)
+            timerRef.current = setTimeout(updateTimer, 1000);
+          }
+        } else {
+          // Fallback: Normal geri sayım (startedAt yoksa)
+          setTimer((prev) => {
+            if (prev === null || prev <= 1) {
+              if (timerRef.current) {
+                clearTimeout(timerRef.current);
+                timerRef.current = null;
+              }
+              setShowDecision(true);
+              return 0;
+            }
+            const next = prev - 1;
+            timerRef.current = setTimeout(updateTimer, 1000);
+            return next;
+          });
+        }
+      };
+
       const initialTime = calculateRemainingTime();
       console.log('⏱️ Yeni eşleşme - timer başlatılıyor:', { initialTime, matchStartedAt });
       
@@ -544,44 +582,64 @@ function ChatScreen({ userId, profile: currentProfile, matchId, partnerProfile: 
       }
 
       setTimer(initialTime);
-      timerRef.current = setInterval(() => {
-        if (matchStartedAt) {
-          // Server zamanına göre hesapla (senkronize)
-          const now = Date.now();
-          const elapsed = now - matchStartedAt;
-          const remaining = Math.max(0, 30000 - elapsed);
-          const remainingSeconds = Math.ceil(remaining / 1000);
-          
-          if (remainingSeconds <= 0) {
-            clearInterval(timerRef.current);
-            timerRef.current = null;
-            setShowDecision(true);
-            setTimer(0);
-          } else {
-            setTimer(remainingSeconds);
-          }
-        } else {
-          // Fallback: Normal geri sayım (startedAt yoksa)
-          setTimer((prev) => {
-            if (prev === null || prev <= 1) {
-              clearInterval(timerRef.current);
-              timerRef.current = null;
-              setShowDecision(true);
-              return 0;
-            }
-            return prev - 1;
-          });
-        }
-      }, 1000);
+      // İlk güncellemeyi başlat
+      timerRef.current = setTimeout(updateTimer, 1000);
     } else {
       console.log('⏸️ Timer başlatılmıyor:', { isCompletedMatch, partnerProfile: !!partnerProfile, showDecision, waitingForPartner, matchId, matchStartedAt });
     }
 
+    // Sekme görünürlük değişikliğini dinle - sekme tekrar aktif olduğunda timer'ı yeniden hesapla
+    const handleVisibilityChange = () => {
+      if (!document.hidden && !isCompletedMatch && !partnerProfile && !showDecision && !waitingForPartner && matchId && matchStartedAt) {
+        console.log('👁️ Sekme tekrar aktif - timer yeniden hesaplanıyor');
+        // Timer'ı durdur
+        if (timerRef.current) {
+          clearTimeout(timerRef.current);
+          timerRef.current = null;
+        }
+        // Yeniden hesapla ve başlat
+        const now = Date.now();
+        const elapsed = now - matchStartedAt;
+        const remaining = Math.max(0, 30000 - elapsed);
+        const remainingSeconds = Math.ceil(remaining / 1000);
+        
+        if (remainingSeconds <= 0) {
+          setShowDecision(true);
+          setTimer(0);
+        } else {
+          setTimer(remainingSeconds);
+          // Timer'ı yeniden başlat
+          const updateTimer = () => {
+            const now = Date.now();
+            const elapsed = now - matchStartedAt;
+            const remaining = Math.max(0, 30000 - elapsed);
+            const remainingSeconds = Math.ceil(remaining / 1000);
+            
+            if (remainingSeconds <= 0) {
+              if (timerRef.current) {
+                clearTimeout(timerRef.current);
+                timerRef.current = null;
+              }
+              setShowDecision(true);
+              setTimer(0);
+            } else {
+              setTimer(remainingSeconds);
+              timerRef.current = setTimeout(updateTimer, 1000);
+            }
+          };
+          timerRef.current = setTimeout(updateTimer, 1000);
+        }
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
     return () => {
       if (timerRef.current) {
-        clearInterval(timerRef.current);
+        clearTimeout(timerRef.current);
         timerRef.current = null;
       }
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
   }, [isCompletedMatch, showDecision, waitingForPartner, matchId, partnerProfile, matchStartedAt]); // matchStartedAt eklendi
 
