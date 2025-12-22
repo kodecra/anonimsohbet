@@ -41,22 +41,24 @@ function LoginAntd({ onLogin, onSwitchToRegister, API_URL }) {
     <div className="login-container" style={{ 
       minHeight: '100vh', 
       display: 'flex',
+      flexDirection: windowWidth < 768 ? 'column' : 'row',
       background: '#000000',
       color: '#ffffff'
     }}>
       {/* Left Side - Logo */}
       <div style={{
-        flex: 1,
+        flex: windowWidth < 768 ? 'none' : 1,
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        padding: '40px'
+        padding: windowWidth < 768 ? '40px 20px' : '40px',
+        minHeight: windowWidth < 768 ? '200px' : 'auto'
       }}>
         <img 
           src="/logo.png" 
           alt="Soulbate Logo" 
           style={{ 
-            height: '200px', 
+            height: windowWidth < 768 ? '120px' : windowWidth < 1024 ? '160px' : '200px', 
             width: 'auto',
             objectFit: 'contain',
             filter: 'brightness(0) invert(1)'
@@ -66,19 +68,31 @@ function LoginAntd({ onLogin, onSwitchToRegister, API_URL }) {
 
       {/* Right Side - Login Form */}
       <div style={{
-        flex: 1,
+        flex: windowWidth < 768 ? 'none' : 1,
         display: 'flex',
         flexDirection: 'column',
         justifyContent: 'center',
-        padding: '40px',
-        maxWidth: '600px'
+        padding: windowWidth < 768 ? '20px' : '40px',
+        maxWidth: windowWidth < 768 ? '100%' : '600px',
+        width: '100%'
       }}>
-        <div style={{ marginBottom: '48px' }}>
-          <Title level={1} style={{ color: '#ffffff', marginBottom: '16px', fontSize: '64px', fontWeight: 700 }}>
-            Şu anda olup bitenler
+        <div style={{ marginBottom: windowWidth < 768 ? '32px' : '48px' }}>
+          <Title level={1} style={{ 
+            color: '#ffffff', 
+            marginBottom: '16px', 
+            fontSize: windowWidth < 768 ? '36px' : windowWidth < 1024 ? '48px' : '64px', 
+            fontWeight: 700,
+            lineHeight: 1.2
+          }}>
+            Ruh Eşinizi Bulun
           </Title>
-          <Title level={2} style={{ color: '#ffffff', fontSize: '31px', fontWeight: 700 }}>
-            Hemen katıl.
+          <Title level={2} style={{ 
+            color: '#ffffff', 
+            fontSize: windowWidth < 768 ? '20px' : windowWidth < 1024 ? '24px' : '31px', 
+            fontWeight: 700,
+            lineHeight: 1.3
+          }}>
+            Anonim sohbet ile gerçek bağlantılar kurun.
           </Title>
         </div>
 
