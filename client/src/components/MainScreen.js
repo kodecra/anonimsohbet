@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import io from 'socket.io-client';
+import axios from 'axios';
 import {
   Layout,
   Card,
@@ -14,7 +15,9 @@ import {
   Col,
   Flex,
   Divider,
-  Switch
+  Switch,
+  Modal,
+  Statistic
 } from 'antd';
 import {
   EditOutlined,
@@ -48,11 +51,34 @@ function MainScreen({ userId, profile, token, onMatchFound, onMatchContinued, on
   const [activeTab, setActiveTab] = useState('match'); // 'match' or 'chats'
   const [showMatchAnimation, setShowMatchAnimation] = useState(false);
   const [pendingMatchId, setPendingMatchId] = useState(null);
+  const [chatsRefreshKey, setChatsRefreshKey] = useState(0); // ChatsList'i yenilemek için
+  const [statistics, setStatistics] = useState(null);
+  const [showSettings, setShowSettings] = useState(false);
   const timerRef = useRef(null);
 
   useEffect(() => {
     setCurrentProfile(profile);
   }, [profile]);
+
+  // İstatistikleri yükle
+  useEffect(() => {
+    if (token) {
+      loadStatistics();
+    }
+  }, [token]);
+
+  const loadStatistics = async () => {
+    try {
+      const response = await axios.get(`${API_URL}/api/statistics`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      setStatistics(response.data);
+    } catch (error) {
+      console.error('İstatistikler yüklenemedi:', error);
+    }
+  };
 
   useEffect(() => {
     const newSocket = io(API_URL);
@@ -89,6 +115,9 @@ function MainScreen({ userId, profile, token, onMatchFound, onMatchContinued, on
 
     // Eşleşme onaylandı
     newSocket.on('match-continued', (data) => {
+      // Eşleşme onaylandı, sohbetler listesini yenile
+      setChatsRefreshKey(prev => prev + 1); // ChatsList'i yenile
+      setActiveTab('chats'); // Sohbetler sekmesine geç
       onMatchContinued(data.partnerProfile);
     });
 
@@ -251,11 +280,51 @@ function MainScreen({ userId, profile, token, onMatchFound, onMatchContinued, on
               </div>
             )}
 
+            {/* İstatistikler */}
+            {statistics && (
+              <div style={{ 
+                padding: '16px', 
+                borderBottom: '1px solid #f0f0f0',
+                background: '#f8f9fa'
+              }}>
+                <Row gutter={[8, 8]}>
+                  <Col span={12}>
+                    <Statistic
+                      title="Toplam Mesaj"
+                      value={statistics.totalMessages}
+                      valueStyle={{ fontSize: '18px', color: '#1890ff' }}
+                    />
+                  </Col>
+                  <Col span={12}>
+                    <Statistic
+                      title="Aktif Sohbet"
+                      value={statistics.activeChats}
+                      valueStyle={{ fontSize: '18px', color: '#52c41a' }}
+                    />
+                  </Col>
+                  <Col span={12}>
+                    <Statistic
+                      title="Toplam Eşleşme"
+                      value={statistics.totalMatches}
+                      valueStyle={{ fontSize: '18px', color: '#722ed1' }}
+                    />
+                  </Col>
+                  <Col span={12}>
+                    <Statistic
+                      title="Profil Görüntüleme"
+                      value={statistics.profileViews}
+                      valueStyle={{ fontSize: '18px', color: '#fa8c16' }}
+                    />
+                  </Col>
+                </Row>
+              </div>
+            )}
+
             {/* Tabs */}
             <Tabs 
               activeKey={activeTab}
               onChange={handleTabChange}
-              style={{ borderBottom: '1px solid #f0f0f0' }}
+              style={{ borderBottom: '1px solid #f0f0f0', marginLeft: '16px' }}
               size="large"
               items={[
                 {
@@ -269,7 +338,7 @@ function MainScreen({ userId, profile, token, onMatchFound, onMatchContinued, on
                       fontSize: '15px'
                     }}>
                       <SearchOutlined style={{ fontSize: '16px' }} />
-                      Eşleş
+                      Eşleşmeler
                     </span>
                   )
                 },
@@ -293,7 +362,19 @@ function MainScreen({ userId, profile, token, onMatchFound, onMatchContinued, on
 
             {/* Admin Panel Button */}
             {currentProfile && currentProfile.email === 'admin@admin.com' && (
-              <div style={{ padding: '12px' }}>
+              <div style={{ padding: '12px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                <Button
+                  block
+                  icon={<SettingOutlined />}
+                  onClick={() => setShowSettings(true)}
+                  style={{ 
+                    backgroundColor: '#1890ff', 
+                    color: '#fff',
+                    borderColor: '#1890ff'
+                  }}
+                >
+                  Ayarlar
+                </Button>
                 <Button
                   block
                   icon={<SettingOutlined />}
@@ -318,6 +399,7 @@ function MainScreen({ userId, profile, token, onMatchFound, onMatchContinued, on
             {activeTab === 'chats' && (
               <div style={{ flex: 1, overflow: 'auto' }}>
                 <ChatsList 
+                  key={chatsRefreshKey} // Key değiştiğinde component yeniden render olur
                   token={token}
                   onSelectChat={handleSelectChat}
                   API_URL={API_URL}
@@ -537,6 +619,38 @@ function MainScreen({ userId, profile, token, onMatchFound, onMatchContinued, on
           </div>
         </div>
       )}
+
+      {/* Ayarlar Modal */}
+      <Modal
+        title="Bildirim Ayarları"
+        open={showSettings}
+        onCancel={() => setShowSettings(false)}
+        footer={null}
+      >
+        <Space direction="vertical" style={{ width: '100%' }} size="large">
+          <div>
+            <Text strong>Ses Bildirimleri</Text>
+            <Switch 
+              defaultChecked 
+              style={{ marginLeft: '16px' }}
+            />
+          </div>
+          <div>
+            <Text strong>Tarayıcı Bildirimleri</Text>
+            <Switch 
+              defaultChecked 
+              style={{ marginLeft: '16px' }}
+            />
+          </div>
+          <div>
+            <Text strong>Mesaj Bildirimleri</Text>
+            <Switch 
+              defaultChecked 
+              style={{ marginLeft: '16px' }}
+            />
+          </div>
+        </Space>
+      </Modal>
     </div>
   );
 }

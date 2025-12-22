@@ -763,6 +763,67 @@ app.get('/api/notifications/settings', authenticateToken, (req, res) => {
   });
 });
 
+// Completed match'ten çıkma (eşleşmeyi silme) - GET'den ÖNCE olmalı!
+app.delete('/api/matches/:matchId', authenticateToken, async (req, res) => {
+  console.log('🔴 DELETE /api/matches/:matchId route çalıştı!');
+  const userId = req.user.userId;
+  const matchId = req.params.matchId;
+  
+  console.log(`Eşleşme silme isteği: ${matchId}, Kullanıcı: ${userId}`);
+  
+  // Önce completedMatches'te ara
+  let match = completedMatches.get(matchId);
+  
+  // Bulunamazsa activeMatches'te ara (henüz tamamlanmamış ama listede görünen)
+  if (!match) {
+    match = activeMatches.get(matchId);
+    console.log(`Completed match'te bulunamadı, activeMatches'te aranıyor: ${matchId}`);
+  }
+  
+  if (!match) {
+    console.log(`Match bulunamadı: ${matchId}`);
+    // Match bulunamadı ama kullanıcının listesinden çıkar
+    const userMatchIds = userMatches.get(userId) || [];
+    const filteredMatchIds = userMatchIds.filter(id => id !== matchId);
+    userMatches.set(userId, filteredMatchIds);
+    await saveMatches(completedMatches, userMatches);
+    return res.json({ success: true, message: 'Eşleşme listeden çıkarıldı' });
+  }
+  
+  // Kullanıcının bu eşleşmede olup olmadığını kontrol et - esnek yapı kontrolü
+  const user1Id = match.user1?.userId || match.user1?.user?.userId || (typeof match.user1 === 'string' ? match.user1 : null);
+  const user2Id = match.user2?.userId || match.user2?.user?.userId || (typeof match.user2 === 'string' ? match.user2 : null);
+  
+  console.log(`Match kullanıcıları: user1Id=${user1Id}, user2Id=${user2Id}, currentUserId=${userId}`);
+  
+  if (user1Id !== userId && user2Id !== userId) {
+    return res.status(403).json({ error: 'Bu eşleşmede değilsiniz' });
+  }
+  
+  // Eşleşmeyi kullanıcının listesinden çıkar
+  const userMatchIds = userMatches.get(userId) || [];
+  const filteredMatchIds = userMatchIds.filter(id => id !== matchId);
+  userMatches.set(userId, filteredMatchIds);
+  
+  // Partner'ın listesinden de çıkar (eğer partnerId varsa)
+  const partnerId = user1Id === userId ? user2Id : user1Id;
+  if (partnerId) {
+    const partnerMatchIds = userMatches.get(partnerId) || [];
+    const filteredPartnerMatchIds = partnerMatchIds.filter(id => id !== matchId);
+    userMatches.set(partnerId, filteredPartnerMatchIds);
+  }
+  
+  // Eşleşmeyi sil
+  completedMatches.delete(matchId);
+  activeMatches.delete(matchId);
+  
+  await saveMatches(completedMatches, userMatches);
+  
+  console.log(`Eşleşme silindi: ${matchId} (Kullanıcı: ${userId})`);
+  
+  res.json({ success: true, message: 'Eşleşmeden çıkıldı' });
+});
+
 app.post('/api/notifications/settings', authenticateToken, async (req, res) => {
   const userId = req.user.userId;
   const profile = users.get(userId);
@@ -816,7 +877,7 @@ app.get('/api/matches', authenticateToken, (req, res) => {
   res.json({ matches });
 });
 
-// Belirli bir eşleşmenin detaylarını getir
+// Belirli bir eşleşmenin detaylarını getir - DELETE'den SONRA olmalı!
 app.get('/api/matches/:matchId', authenticateToken, (req, res) => {
   const userId = req.user.userId;
   const matchId = req.params.matchId;
@@ -1107,6 +1168,17 @@ io.on('connection', (socket) => {
       match.user1Decision = decision;
     } else {
       match.user2Decision = decision;
+    }
+
+    // Eğer kullanıcı "continue" dediyse, karşı tarafa bildir
+    if (decision === 'continue') {
+      const partnerSocketId = isUser1 ? match.user2.socketId : match.user1.socketId;
+      if (partnerSocketId) {
+        io.to(partnerSocketId).emit('partner-continued', {
+          matchId: matchId,
+          message: 'Karşı taraf devam etmek istiyor, sizin kararınızı bekliyor...'
+        });
+      }
     }
 
     // Her iki karar da alındı mı?
@@ -1490,6 +1562,15 @@ io.on('connection', (socket) => {
     };
 
     match.messages.push(message);
+    
+    // Eğer completed match ise, mesajı kaydet
+    const isCompletedMatch = completedMatches.has(match.id);
+    if (isCompletedMatch) {
+      const completedMatch = completedMatches.get(match.id);
+      completedMatch.messages.push(message);
+      completedMatch.lastMessageAt = new Date();
+      await saveMatches(completedMatches, userMatches); // Hemen kaydet
+    }
 
     // Online status güncelle
     const profile = users.get(userInfo.userId);
@@ -1586,6 +1667,17 @@ io.on('connection', (socket) => {
     } else {
       // Reaksiyon ekle
       message.reactions[reaction].push(userInfo.userId);
+    }
+
+    // Completed match ise kaydet
+    const isCompletedMatch = completedMatches.has(matchId);
+    if (isCompletedMatch) {
+      const completedMatch = completedMatches.get(matchId);
+      const completedMessage = completedMatch.messages.find(m => m.id === messageId);
+      if (completedMessage) {
+        completedMessage.reactions = message.reactions;
+        await saveMatches(completedMatches, userMatches);
+      }
     }
 
     // Partner'e bildir

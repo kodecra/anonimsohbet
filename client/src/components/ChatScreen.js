@@ -38,16 +38,25 @@ const { Header, Content, Footer } = Layout;
 const { Title, Text } = Typography;
 const { TextArea } = Input;
 
-function ChatScreen({ userId, profile: currentProfile, matchId, partnerProfile: initialPartnerProfile, onMatchEnded, onMatchContinued, API_URL }) {
+function ChatScreen({ userId, profile: currentProfile, matchId, partnerProfile: initialPartnerProfile, onMatchEnded, onMatchContinued, onGoBack, API_URL }) {
   const { isDarkMode } = React.useContext(ThemeContext);
   const [socket, setSocket] = useState(null);
   const [messages, setMessages] = useState([]);
   const [messageText, setMessageText] = useState('');
   const [typingUsers, setTypingUsers] = useState(new Set());
   const [isTyping, setIsTyping] = useState(false);
-  const [timer, setTimer] = useState(30);
+  // Timer sadece yeni eşleşmelerde (initialPartnerProfile yoksa) başlatılacak
+  // initialPartnerProfile varsa completed match'tir, timer olmamalı
+  // initialPartnerProfile null ise ve matchId varsa, completed match kontrolü yap
+  const [isCompletedMatch, setIsCompletedMatch] = useState(!!initialPartnerProfile);
+  const [timer, setTimer] = useState(initialPartnerProfile ? null : 30);
   const [showDecision, setShowDecision] = useState(false);
   const [partnerProfile, setPartnerProfile] = useState(initialPartnerProfile);
+  const [waitingForPartner, setWaitingForPartner] = useState(false);
+  const [waitingTimer, setWaitingTimer] = useState(15);
+  const waitingTimerRef = useRef(null);
+  const [userAnonymousId, setUserAnonymousId] = useState(null);
+  const [partnerAnonymousId, setPartnerAnonymousId] = useState(null);
   const messagesEndRef = useRef(null);
   const typingTimeoutRef = useRef(null);
   const timerRef = useRef(null);
@@ -63,9 +72,77 @@ function ChatScreen({ userId, profile: currentProfile, matchId, partnerProfile: 
   const audioRef = useRef(null);
 
   useEffect(() => {
-    // Sadece completed match için API'den mesaj geçmişini yükle
-    // initialPartnerProfile varsa completed match'tir ve mesaj geçmişi yüklenebilir
-    // Aktif eşleşmede (initialPartnerProfile null) API çağrısı YAPMA
+    // Random 6 haneli anonim ID oluştur
+    if (!userAnonymousId) {
+      const randomId = Math.floor(100000 + Math.random() * 900000);
+      setUserAnonymousId(randomId);
+    }
+    
+    // Completed match kontrolü: initialPartnerProfile yoksa ama matchId varsa API'den kontrol et
+    if (!initialPartnerProfile && matchId) {
+      fetch(`${API_URL}/api/matches/${matchId}`, {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        }
+      })
+      .then(response => {
+        if (response.ok) {
+          return response.json();
+        }
+        throw new Error('Match bulunamadı');
+      })
+      .then(data => {
+        if (data && data.match) {
+          // Partner bilgisini bul
+          const partner = data.match.user1.userId === userId 
+            ? data.match.user2 
+            : data.match.user1;
+          
+          // Partner profile varsa completed match'tir
+          if (partner && partner.profile) {
+            setIsCompletedMatch(true);
+            setPartnerProfile(partner.profile);
+            setTimer(null);
+            
+            // Mesaj geçmişini yükle
+            if (data.match.messages && data.match.messages.length > 0) {
+              setMessages(data.match.messages);
+            }
+          } else {
+            // Yeni eşleşme
+            setIsCompletedMatch(false);
+          }
+        }
+      })
+      .catch(err => {
+        // Match bulunamadı veya hata, yeni eşleşme olarak kabul et
+        console.error('Match kontrolü hatası:', err);
+        setIsCompletedMatch(false);
+      });
+    } else if (initialPartnerProfile && matchId) {
+      // initialPartnerProfile varsa zaten completed match
+      setIsCompletedMatch(true);
+      
+      // Mesaj geçmişini yükle
+      fetch(`${API_URL}/api/matches/${matchId}`, {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        }
+      })
+      .then(response => {
+        if (response.ok) {
+          return response.json();
+        }
+      })
+      .then(data => {
+        if (data && data.match && data.match.messages && data.match.messages.length > 0) {
+          setMessages(data.match.messages);
+        }
+      })
+      .catch(err => {
+        console.error('Mesaj geçmişi yüklenemedi:', err);
+      });
+    }
     
     const newSocket = io(API_URL);
     setSocket(newSocket);
@@ -216,10 +293,21 @@ function ChatScreen({ userId, profile: currentProfile, matchId, partnerProfile: 
 
     newSocket.on('match-continued', (data) => {
       setShowDecision(false);
+      setWaitingForPartner(false);
+      setWaitingTimer(15); // Reset timer
       if (timerRef.current) {
         clearInterval(timerRef.current);
       }
+      if (waitingTimerRef.current) {
+        clearInterval(waitingTimerRef.current);
+      }
       setPartnerProfile(data.partnerProfile);
+      // Partner için random ID oluştur
+      if (!partnerAnonymousId) {
+        const randomId = Math.floor(100000 + Math.random() * 900000);
+        setPartnerAnonymousId(randomId);
+      }
+      // Hemen sohbet ekranına geç, geri sayım bekleme
       if (onMatchContinued) {
         onMatchContinued(data.partnerProfile);
       }
@@ -246,10 +334,21 @@ function ChatScreen({ userId, profile: currentProfile, matchId, partnerProfile: 
         });
       }
     });
+    
+    // Partner devam ettiğinde
+    newSocket.on('partner-continued', () => {
+      setWaitingForPartner(false);
+      if (waitingTimerRef.current) {
+        clearInterval(waitingTimerRef.current);
+      }
+    });
 
     return () => {
       if (timerRef.current) {
         clearInterval(timerRef.current);
+      }
+      if (waitingTimerRef.current) {
+        clearInterval(waitingTimerRef.current);
       }
       newSocket.close();
     };
@@ -263,11 +362,24 @@ function ChatScreen({ userId, profile: currentProfile, matchId, partnerProfile: 
       timerRef.current = null;
     }
 
-    if (!partnerProfile && !showDecision && matchId) {
+    // Completed match kontrolü: isCompletedMatch true ise timer başlatma
+    if (isCompletedMatch) {
+      // Completed match'te timer'ı temizle
+      setTimer(null);
+      setShowDecision(false);
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+        timerRef.current = null;
+      }
+      return;
+    }
+
+    // Sadece yeni eşleşmelerde timer başlat (isCompletedMatch false ise)
+    if (!isCompletedMatch && !partnerProfile && !showDecision && !waitingForPartner && matchId) {
       setTimer(30);
       timerRef.current = setInterval(() => {
         setTimer((prev) => {
-          if (prev <= 1) {
+          if (prev === null || prev <= 1) {
             clearInterval(timerRef.current);
             timerRef.current = null;
             // Timer bittiğinde karar ekranını göster
@@ -285,7 +397,7 @@ function ChatScreen({ userId, profile: currentProfile, matchId, partnerProfile: 
         timerRef.current = null;
       }
     };
-  }, [partnerProfile, showDecision, matchId]);
+  }, [isCompletedMatch, initialPartnerProfile, partnerProfile, showDecision, waitingForPartner, matchId, userId, API_URL]);
 
   // Mesajlar değiştiğinde scroll
   useEffect(() => {
@@ -327,7 +439,9 @@ function ChatScreen({ userId, profile: currentProfile, matchId, partnerProfile: 
       const tempMessage = {
         id: `temp-${Date.now()}`,
         userId: userId,
-        username: currentProfile?.username || 'Sen',
+        username: partnerProfile 
+          ? (currentProfile?.username || 'Sen')
+          : `Anonim-${userAnonymousId || '000000'}`,
         text: messageText.trim(),
         timestamp: new Date(),
         matchId: matchId,
@@ -374,8 +488,37 @@ function ChatScreen({ userId, profile: currentProfile, matchId, partnerProfile: 
 
   const handleDecision = (decision) => {
     if (socket && matchId) {
-      socket.emit('match-decision', { matchId, decision });
-      setShowDecision(false);
+      if (decision === 'continue') {
+        socket.emit('match-decision', { matchId, decision });
+        setShowDecision(false);
+        // Karşı tarafın cevabını bekle, ama geri sayım başlatma
+        // Backend'den match-continued event'i geldiğinde otomatik geçiş yapılacak
+        setWaitingForPartner(true);
+        setWaitingTimer(15);
+        
+        // 15 saniye geri sayım başlat (sadece karşı taraf cevap vermezse)
+        if (waitingTimerRef.current) {
+          clearInterval(waitingTimerRef.current);
+        }
+        waitingTimerRef.current = setInterval(() => {
+          setWaitingTimer((prev) => {
+            if (prev <= 1) {
+              clearInterval(waitingTimerRef.current);
+              waitingTimerRef.current = null;
+              // 15 saniye doldu, eşleşmeyi iptal et
+              socket.emit('match-decision', { matchId, decision: 'leave' });
+              setWaitingForPartner(false);
+              onMatchEnded();
+              return 0;
+            }
+            return prev - 1;
+          });
+        }, 1000);
+      } else {
+        socket.emit('match-decision', { matchId, decision });
+        setShowDecision(false);
+        onMatchEnded();
+      }
     }
   };
 
@@ -402,12 +545,33 @@ function ChatScreen({ userId, profile: currentProfile, matchId, partnerProfile: 
       }
     }
     
-    // Ses bildirimi
+    // Ses bildirimi - Modern ve profesyonel bildirim sesi
     if (notificationSettings.soundEnabled) {
       try {
-        const audio = new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBS2BzvLYijcIGWi77+efTRAMUKfj8LZjHAY4kdfyzHksBSR3x/DejkAKFF606euoVRQKRp/g8r5sIQ==');
-        audio.volume = 0.3;
-        audio.play().catch(() => {});
+        const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        
+        // İki tonlu modern bildirim sesi (yüksek-düşük)
+        const frequencies = [880, 660]; // A5 ve E5 notaları (uyumlu akor)
+        const duration = 0.15;
+        
+        frequencies.forEach((freq, index) => {
+          const oscillator = audioContext.createOscillator();
+          const gainNode = audioContext.createGain();
+          
+          oscillator.connect(gainNode);
+          gainNode.connect(audioContext.destination);
+          
+          oscillator.frequency.value = freq;
+          oscillator.type = 'sine';
+          
+          const startTime = audioContext.currentTime + (index * 0.05);
+          gainNode.gain.setValueAtTime(0, startTime);
+          gainNode.gain.linearRampToValueAtTime(0.25, startTime + 0.02);
+          gainNode.gain.exponentialRampToValueAtTime(0.01, startTime + duration);
+          
+          oscillator.start(startTime);
+          oscillator.stop(startTime + duration);
+        });
       } catch (e) {
         console.error('Ses çalınamadı:', e);
       }
@@ -432,8 +596,11 @@ function ChatScreen({ userId, profile: currentProfile, matchId, partnerProfile: 
 
   // Mesaja reaksiyon ekle/kaldır
   const reactToMessage = (messageId, reaction) => {
-    if (socket && matchId) {
+    if (socket && matchId && socket.connected) {
+      console.log('Reaksiyon gönderiliyor:', { matchId, messageId, reaction });
       socket.emit('react-to-message', { matchId, messageId, reaction });
+    } else {
+      console.warn('Reaksiyon gönderilemedi:', { socket: !!socket, matchId, connected: socket?.connected });
     }
   };
 
@@ -484,7 +651,9 @@ function ChatScreen({ userId, profile: currentProfile, matchId, partnerProfile: 
       const tempMessage = {
         id: `temp-${Date.now()}`,
         userId,
-        username: currentProfile?.username || 'Sen',
+        username: partnerProfile 
+          ? (currentProfile?.username || 'Sen')
+          : `Anonim-${userAnonymousId || '000000'}`,
         text: messageText.trim() || '',
         timestamp: new Date(),
         matchId,
@@ -570,9 +739,22 @@ function ChatScreen({ userId, profile: currentProfile, matchId, partnerProfile: 
         alignItems: 'center',
         justifyContent: 'space-between'
       }}>
-        <Title level={4} style={{ margin: 0 }}>
-          💬 Sohbet
-        </Title>
+        <Space>
+          {onGoBack && (
+            <Button
+              type="text"
+              icon={<ArrowLeftOutlined />}
+              onClick={onGoBack}
+              style={{ 
+                fontSize: '18px',
+                marginRight: '8px'
+              }}
+            />
+          )}
+          <Title level={4} style={{ margin: 0 }}>
+            💬 Sohbet
+          </Title>
+        </Space>
         {partnerProfile && (
           <Space>
             <Avatar
@@ -616,6 +798,43 @@ function ChatScreen({ userId, profile: currentProfile, matchId, partnerProfile: 
               menu={{
                 items: [
                   {
+                    key: 'leave',
+                    label: 'Eşleşmeden Çık',
+                    icon: <CloseOutlined />,
+                    danger: true,
+                    onClick: async () => {
+                      if (matchId) {
+                        try {
+                          // Completed match ise API ile sil, aktif eşleşme ise socket ile
+                          if (isCompletedMatch || partnerProfile) {
+                            const token = localStorage.getItem('token');
+                            await axios.delete(`${API_URL}/api/matches/${matchId}`, {
+                              headers: {
+                                'Authorization': `Bearer ${token}`
+                              }
+                            });
+                            antdMessage.success('Eşleşmeden çıkıldı');
+                            if (onMatchEnded) {
+                              onMatchEnded();
+                            }
+                            if (onGoBack) {
+                              onGoBack();
+                            }
+                          } else if (socket) {
+                            // Aktif eşleşme
+                            socket.emit('match-decision', { matchId, decision: 'leave' });
+                            if (onMatchEnded) {
+                              onMatchEnded();
+                            }
+                          }
+                        } catch (error) {
+                          console.error('Eşleşmeden çıkma hatası:', error);
+                          antdMessage.error('Eşleşmeden çıkılamadı');
+                        }
+                      }
+                    }
+                  },
+                  {
                     key: 'block',
                     label: 'Kullanıcıyı Engelle',
                     icon: <BlockOutlined />,
@@ -640,13 +859,23 @@ function ChatScreen({ userId, profile: currentProfile, matchId, partnerProfile: 
             </Dropdown>
           </Space>
         )}
-        {!partnerProfile && !showDecision && (
-          <div style={{ textAlign: 'center' }}>
-            <Title level={3} style={{ margin: 0, color: '#1890ff' }}>
+        {!isCompletedMatch && !partnerProfile && !showDecision && !waitingForPartner && timer !== null && timer > 0 && (
+          <div style={{ textAlign: 'right', marginLeft: 'auto' }}>
+            <Title level={3} style={{ margin: 0, color: '#1890ff', fontSize: '24px', fontWeight: 'bold' }}>
               {timer}
             </Title>
-            <Text type="secondary" style={{ fontSize: '12px' }}>
+            <Text type="secondary" style={{ fontSize: '11px', display: 'block' }}>
               30 saniye sonra karar verilecek
+            </Text>
+          </div>
+        )}
+        {waitingForPartner && (
+          <div style={{ textAlign: 'right', marginLeft: 'auto' }}>
+            <Title level={3} style={{ margin: 0, color: '#ff9800', fontSize: '24px', fontWeight: 'bold' }}>
+              {waitingTimer}
+            </Title>
+            <Text type="secondary" style={{ fontSize: '11px', display: 'block' }}>
+              Karşı taraftan yanıt bekleniyor...
             </Text>
           </div>
         )}
@@ -712,7 +941,12 @@ function ChatScreen({ userId, profile: currentProfile, matchId, partnerProfile: 
                       fontSize: '12px'
                     }}
                   >
-                    {message.username}
+                    {partnerProfile 
+                      ? message.username 
+                      : message.userId === userId 
+                        ? `Anonim-${userAnonymousId || '000000'}` 
+                        : `Anonim-${partnerAnonymousId || '000000'}`
+                    }
                   </Text>
                   <Text 
                     style={{ 
@@ -899,6 +1133,19 @@ function ChatScreen({ userId, profile: currentProfile, matchId, partnerProfile: 
             </Button>
           </Space>
         </Footer>
+      ) : waitingForPartner ? (
+        <Footer style={{ 
+          background: '#fff', 
+          padding: '24px',
+          borderTop: '1px solid #f0f0f0'
+        }}>
+          <Title level={4} style={{ textAlign: 'center', marginBottom: '16px', color: '#ff9800' }}>
+            Karşı taraftan yanıt bekleniyor...
+          </Title>
+          <Text type="secondary" style={{ textAlign: 'center', display: 'block' }}>
+            {waitingTimer} saniye içinde yanıt gelmezse eşleşme iptal edilecek
+          </Text>
+        </Footer>
       ) : (
         <Footer style={{ 
           background: '#fff', 
@@ -948,13 +1195,15 @@ function ChatScreen({ userId, profile: currentProfile, matchId, partnerProfile: 
                 if (e.target.files[0]) handleMediaSelect(e.target.files[0]);
               }}
             />
-            <Button
-              type="text"
-              icon={<PictureOutlined />}
-              onClick={() => fileInputRef.current?.click()}
-              style={{ fontSize: '20px' }}
-              disabled={uploadingMedia}
-            />
+            {partnerProfile && (
+              <Button
+                type="text"
+                icon={<PictureOutlined />}
+                onClick={() => fileInputRef.current?.click()}
+                style={{ fontSize: '20px' }}
+                disabled={uploadingMedia}
+              />
+            )}
             <Popover
               content={
                 <div style={{ width: '280px', maxHeight: '200px', overflowY: 'auto' }}>

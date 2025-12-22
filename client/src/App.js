@@ -132,8 +132,33 @@ function App() {
     }
   };
 
-  const handleMatchFound = (newMatchId) => {
+  const handleMatchFound = async (newMatchId) => {
     setMatchId(newMatchId);
+    // Partner profilini API'den yükle - Completed match kontrolü için
+    let partnerProfileData = null;
+    try {
+      const response = await axios.get(`${API_URL}/api/matches/${newMatchId}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      if (response.data && response.data.match) {
+        // Partner bilgisini bul
+        const partner = response.data.match.user1.userId === userId 
+          ? response.data.match.user2 
+          : response.data.match.user1;
+        // Partner profile varsa completed match'tir
+        if (partner && partner.profile) {
+          partnerProfileData = partner.profile;
+        }
+      }
+    } catch (error) {
+      console.error('Partner profil yüklenemedi:', error);
+      // Hata durumunda yeni eşleşme olarak kabul et (partnerProfileData null kalır)
+    }
+    
+    // Partner profile'ı set et ve sonra chat ekranına geç
+    setPartnerProfile(partnerProfileData);
     setScreen('chat');
   };
 
@@ -230,6 +255,7 @@ function App() {
             partnerProfile={partnerProfile}
             onMatchEnded={handleMatchEnded}
             onMatchContinued={handleMatchContinued}
+            onGoBack={() => setScreen('main')}
             API_URL={API_URL}
           />
         )}
