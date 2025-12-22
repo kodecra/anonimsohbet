@@ -26,6 +26,9 @@ async function initDatabase() {
         user_id VARCHAR(255) PRIMARY KEY,
         email VARCHAR(255) UNIQUE NOT NULL,
         username VARCHAR(255) NOT NULL,
+        first_name VARCHAR(255),
+        last_name VARCHAR(255),
+        gender VARCHAR(50),
         age INTEGER,
         bio TEXT,
         interests TEXT[],
@@ -37,6 +40,13 @@ async function initDatabase() {
         created_at TIMESTAMP DEFAULT NOW(),
         updated_at TIMESTAMP DEFAULT NOW()
       )
+    `);
+    
+    // Eksik kolonları ekle (migration için)
+    await pool.query(`
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS first_name VARCHAR(255);
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS last_name VARCHAR(255);
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS gender VARCHAR(50);
     `);
 
     // Auth tablosu
