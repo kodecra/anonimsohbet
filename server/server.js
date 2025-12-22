@@ -236,11 +236,13 @@ app.post('/api/register', async (req, res) => {
 
   // Auth bilgisini kaydet
   if (useDatabase) {
-    await saveAuth(new Map([[email, { userId, passwordHash }]]));
+    // userAuth Map'ini de güncelle
+    userAuth.set(email.toLowerCase(), { userId, passwordHash });
+    await saveAuth(new Map([[email.toLowerCase(), { userId, passwordHash }]]));
   } else {
-    if (!auth.has(email)) {
-      auth.set(email, { userId, passwordHash });
-      await saveAuth(auth);
+    if (!userAuth.has(email.toLowerCase())) {
+      userAuth.set(email.toLowerCase(), { userId, passwordHash });
+      await saveAuth(userAuth);
     }
   }
 
