@@ -114,12 +114,16 @@ async function saveUsers(usersMap) {
     for (const [userId, profile] of usersMap.entries()) {
       await client.query(`
         INSERT INTO users (
-          user_id, email, username, age, bio, interests, photos,
+          user_id, email, username, first_name, last_name, gender, phone_number, age, bio, interests, photos,
           verified, profile_views, notification_settings, blocked_users,
           created_at, updated_at
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
         ON CONFLICT (user_id) DO UPDATE SET
           username = EXCLUDED.username,
+          first_name = EXCLUDED.first_name,
+          last_name = EXCLUDED.last_name,
+          gender = EXCLUDED.gender,
+          phone_number = EXCLUDED.phone_number,
           age = EXCLUDED.age,
           bio = EXCLUDED.bio,
           interests = EXCLUDED.interests,
@@ -133,6 +137,10 @@ async function saveUsers(usersMap) {
         userId,
         profile.email,
         profile.username,
+        profile.firstName || null,
+        profile.lastName || null,
+        profile.gender || null,
+        profile.phoneNumber || null,
         profile.age || null,
         profile.bio || null,
         profile.interests || [],
@@ -170,6 +178,10 @@ async function loadUsers() {
         userId: row.user_id,
         email: row.email,
         username: row.username,
+        firstName: row.first_name || null,
+        lastName: row.last_name || null,
+        gender: row.gender || null,
+        phoneNumber: row.phone_number || null,
         age: row.age,
         bio: row.bio,
         interests: row.interests || [],
