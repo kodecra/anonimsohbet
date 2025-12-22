@@ -190,6 +190,12 @@ app.post('/api/register', async (req, res) => {
     return res.status(400).json({ error: 'Bu kullanıcı adı zaten kullanılıyor' });
   }
 
+  // Telefon numarası kontrolü
+  const existingPhone = Array.from(users.values()).find(u => u.phoneNumber === phoneNumber.trim());
+  if (existingPhone) {
+    return res.status(400).json({ error: 'Bu telefon numarası zaten kayıtlı' });
+  }
+
   const userId = uuidv4();
 
   const userProfile = {
