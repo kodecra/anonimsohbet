@@ -18,7 +18,8 @@ import {
   Switch,
   Modal,
   Statistic,
-  Checkbox
+  Checkbox,
+  Radio
 } from 'antd';
 import {
   EditOutlined,
@@ -65,6 +66,7 @@ function MainScreen({ userId, profile, token, onMatchFound, onMatchContinued, on
   const [showSettings, setShowSettings] = useState(false);
   const [showMatchFilters, setShowMatchFilters] = useState(false);
   const [selectedInterests, setSelectedInterests] = useState([]);
+  const [selectedGender, setSelectedGender] = useState(null); // Cinsiyet filtresi
   const timerRef = useRef(null);
 
   // Temel ilgi alanları listesi (ProfileEdit ile aynı)
@@ -177,7 +179,8 @@ function MainScreen({ userId, profile, token, onMatchFound, onMatchContinued, on
           setTimer(30);
           socket.emit('start-matching', { 
             userId,
-            filterInterests: selectedInterests.length > 0 ? selectedInterests : null
+            filterInterests: selectedInterests.length > 0 ? selectedInterests : null,
+            filterGender: selectedGender || null // Cinsiyet filtresi eklendi
           });
         }, 200);
       } else {
@@ -681,30 +684,80 @@ function MainScreen({ userId, profile, token, onMatchFound, onMatchContinued, on
                     </Button>
                     
                     {showMatchFilters && (
-                      <Card style={{ marginBottom: '16px', borderRadius: '12px' }}>
-                        <Title level={5} style={{ marginBottom: '12px' }}>
-                          İlgi Alanlarına Göre Filtrele
+                      <Card style={{ 
+                        marginBottom: '16px', 
+                        borderRadius: '12px',
+                        background: isDarkMode ? '#1a1a2e' : '#fff'
+                      }}>
+                        <Title level={5} style={{ 
+                          marginBottom: '12px',
+                          color: isDarkMode ? '#fff' : '#000'
+                        }}>
+                          Eşleşme Filtreleri
                         </Title>
-                        <Checkbox.Group
-                          value={selectedInterests}
-                          onChange={setSelectedInterests}
-                          style={{ width: '100%' }}
-                        >
-                          <Row gutter={[8, 8]}>
-                            {interestOptions.map(interest => (
-                              <Col span={8} key={interest}>
-                                <Checkbox value={interest}>{interest}</Checkbox>
-                              </Col>
-                            ))}
-                          </Row>
-                        </Checkbox.Group>
-                        {selectedInterests.length > 0 && (
-                          <div style={{ marginTop: '12px' }}>
-                            <Text type="secondary" style={{ fontSize: '12px' }}>
-                              Seçilen: {selectedInterests.join(', ')}
-                            </Text>
-                          </div>
-                        )}
+                        
+                        {/* Cinsiyet Filtresi */}
+                        <div style={{ marginBottom: '16px' }}>
+                          <Text strong style={{ 
+                            display: 'block', 
+                            marginBottom: '8px',
+                            color: isDarkMode ? '#fff' : '#000'
+                          }}>
+                            Cinsiyet:
+                          </Text>
+                          <Radio.Group
+                            value={selectedGender}
+                            onChange={(e) => setSelectedGender(e.target.value)}
+                            style={{ width: '100%' }}
+                          >
+                            <Space direction="vertical">
+                              <Radio value={null} style={{ color: isDarkMode ? '#fff' : '#000' }}>
+                                Tümü
+                              </Radio>
+                              <Radio value="Erkek" style={{ color: isDarkMode ? '#fff' : '#000' }}>
+                                Erkek
+                              </Radio>
+                              <Radio value="Kadın" style={{ color: isDarkMode ? '#fff' : '#000' }}>
+                                Kadın
+                              </Radio>
+                            </Space>
+                          </Radio.Group>
+                        </div>
+                        
+                        <Divider style={{ margin: '16px 0', borderColor: isDarkMode ? '#424242' : '#f0f0f0' }} />
+                        
+                        {/* İlgi Alanları Filtresi */}
+                        <div>
+                          <Text strong style={{ 
+                            display: 'block', 
+                            marginBottom: '12px',
+                            color: isDarkMode ? '#fff' : '#000'
+                          }}>
+                            İlgi Alanlarına Göre Filtrele
+                          </Text>
+                          <Checkbox.Group
+                            value={selectedInterests}
+                            onChange={setSelectedInterests}
+                            style={{ width: '100%' }}
+                          >
+                            <Row gutter={[8, 8]}>
+                              {interestOptions.map(interest => (
+                                <Col span={8} key={interest}>
+                                  <Checkbox value={interest} style={{ color: isDarkMode ? '#fff' : '#000' }}>
+                                    {interest}
+                                  </Checkbox>
+                                </Col>
+                              ))}
+                            </Row>
+                          </Checkbox.Group>
+                          {selectedInterests.length > 0 && (
+                            <div style={{ marginTop: '12px' }}>
+                              <Text type="secondary" style={{ fontSize: '12px' }}>
+                                Seçilen: {selectedInterests.join(', ')}
+                              </Text>
+                            </div>
+                          )}
+                        </div>
                       </Card>
                     )}
                     

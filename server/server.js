@@ -1249,7 +1249,8 @@ io.on('connection', (socket) => {
         socketId: socket.id,
         userId: userInfo.userId,
         profile: userInfo.profile,
-        filterInterests: data.filterInterests || null
+        filterInterests: data.filterInterests || null,
+        filterGender: data.filterGender || null // Cinsiyet filtresi eklendi
       });
       socket.emit('matching-started', { message: 'Eşleşme aranıyor...' });
       console.log(`${userInfo.profile.username} eşleşme kuyruğuna eklendi`, data.filterInterests ? `(Filtre: ${data.filterInterests.join(', ')})` : '');
@@ -1267,11 +1268,36 @@ io.on('connection', (socket) => {
       user1 = matchingQueue[0];
       user1Index = 0;
       
-      // İkinci kullanıcıyı bul - ilgi alanlarına göre filtrele
+      // İkinci kullanıcıyı bul - cinsiyet ve ilgi alanlarına göre filtrele
       for (let i = 1; i < matchingQueue.length; i++) {
         const candidate = matchingQueue[i];
         
-        // Eğer user1'in filtreleme tercihi varsa
+        // Cinsiyet filtresi kontrolü - erkek erkek, kadın kadın ile eşleşecek
+        let genderMatch = true;
+        if (user1.filterGender) {
+          // Kullanıcı belirli bir cinsiyet arıyorsa, candidate'ın cinsiyeti eşleşmeli
+          if (candidate.profile.gender !== user1.filterGender) {
+            genderMatch = false;
+          }
+        } else if (candidate.filterGender) {
+          // Candidate belirli bir cinsiyet arıyorsa, user1'in cinsiyeti eşleşmeli
+          if (user1.profile.gender !== candidate.filterGender) {
+            genderMatch = false;
+          }
+        } else {
+          // Her iki taraf da cinsiyet filtresi belirtmemişse, aynı cinsiyet ile eşleş
+          if (user1.profile.gender && candidate.profile.gender) {
+            if (user1.profile.gender !== candidate.profile.gender) {
+              genderMatch = false;
+            }
+          }
+        }
+        
+        if (!genderMatch) {
+          continue; // Cinsiyet eşleşmiyorsa bir sonraki adayı kontrol et
+        }
+        
+        // Eğer user1'in ilgi alanı filtreleme tercihi varsa
         if (user1.filterInterests && user1.filterInterests.length > 0) {
           const candidateInterests = candidate.profile.interests || [];
           const hasCommonInterest = user1.filterInterests.some(interest => 
@@ -1283,7 +1309,7 @@ io.on('connection', (socket) => {
             break;
           }
         }
-        // Eğer candidate'ın filtreleme tercihi varsa
+        // Eğer candidate'ın ilgi alanı filtreleme tercihi varsa
         else if (candidate.filterInterests && candidate.filterInterests.length > 0) {
           const user1Interests = user1.profile.interests || [];
           const hasCommonInterest = candidate.filterInterests.some(interest => 
@@ -1295,7 +1321,7 @@ io.on('connection', (socket) => {
             break;
           }
         }
-        // Filtreleme yoksa direkt eşleştir
+        // Filtreleme yoksa direkt eşleştir (cinsiyet zaten eşleşti)
         else {
           user2 = candidate;
           user2Index = i;
@@ -1358,12 +1384,12 @@ io.on('connection', (socket) => {
       // Her iki kullanıcıya eşleşme bildirimi gönder (anonim)
       io.to(user1.socketId).emit('match-found', {
         matchId: matchId,
-        message: 'Birisiyle eşleştiniz! 30 saniye sonra devam edip etmeyeceğiniz sorulacak.'
+        message: '🎉 Eşleşme başarılı! Anonim sohbet başladı. 30 saniye sonra devam edip etmeyeceğiniz sorulacak.'
       });
 
       io.to(user2.socketId).emit('match-found', {
         matchId: matchId,
-        message: 'Birisiyle eşleştiniz! 30 saniye sonra devam edip etmeyeceğiniz sorulacak.'
+        message: '🎉 Eşleşme başarılı! Anonim sohbet başladı. 30 saniye sonra devam edip etmeyeceğiniz sorulacak.'
       });
 
       // 30 saniyelik timer başlat

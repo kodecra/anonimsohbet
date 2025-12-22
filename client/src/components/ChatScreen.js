@@ -818,12 +818,13 @@ function ChatScreen({ userId, profile: currentProfile, matchId, partnerProfile: 
     }}>
       {/* Header */}
       <Header style={{ 
-        background: '#fff', 
+        background: isDarkMode ? '#1a1a2e' : '#fff', 
         padding: '16px 24px',
-        borderBottom: '1px solid #f0f0f0',
+        borderBottom: isDarkMode ? '1px solid #424242' : '1px solid #f0f0f0',
         display: 'flex',
         alignItems: 'center',
-        justifyContent: 'space-between'
+        justifyContent: 'space-between',
+        transition: 'background 0.3s ease, border-color 0.3s ease'
       }}>
         <Space>
           {onGoBack && (
@@ -837,7 +838,7 @@ function ChatScreen({ userId, profile: currentProfile, matchId, partnerProfile: 
               }}
             />
           )}
-          <Title level={4} style={{ margin: 0 }}>
+          <Title level={4} style={{ margin: 0, color: isDarkMode ? '#fff' : '#000' }}>
             💬 Sohbet
           </Title>
         </Space>
@@ -855,7 +856,9 @@ function ChatScreen({ userId, profile: currentProfile, matchId, partnerProfile: 
             </Avatar>
             <div>
               <Space>
-                <Text strong>{partnerProfile.username}</Text>
+                <Text strong style={{ color: isDarkMode ? '#fff' : '#000' }}>
+                  {partnerProfile.username}
+                </Text>
                 {partnerProfile.verified && (
                   <SafetyCertificateOutlined style={{ color: '#52c41a' }} />
                 )}
@@ -865,14 +868,14 @@ function ChatScreen({ userId, profile: currentProfile, matchId, partnerProfile: 
               </Space>
               {partnerProfile.age && (
                 <div>
-                  <Text type="secondary" style={{ fontSize: '12px' }}>
+                  <Text type="secondary" style={{ fontSize: '12px', color: isDarkMode ? '#b8b8b8' : '#999' }}>
                     Yaş: {partnerProfile.age}
                   </Text>
                 </div>
               )}
               {!partnerProfile.isOnline && partnerProfile.lastSeen && (
                 <div>
-                  <Text type="secondary" style={{ fontSize: '11px' }}>
+                  <Text type="secondary" style={{ fontSize: '11px', color: isDarkMode ? '#b8b8b8' : '#999' }}>
                     Son görülme: {new Date(partnerProfile.lastSeen).toLocaleString('tr-TR', {
                       day: '2-digit',
                       month: '2-digit',
@@ -951,10 +954,10 @@ function ChatScreen({ userId, profile: currentProfile, matchId, partnerProfile: 
         )}
         {!isCompletedMatch && !partnerProfile && !showDecision && !waitingForPartner && timer !== null && timer > 0 && (
           <div style={{ textAlign: 'right', marginLeft: 'auto' }}>
-            <Title level={3} style={{ margin: 0, color: '#1890ff', fontSize: '24px', fontWeight: 'bold' }}>
+            <Title level={3} style={{ margin: 0, color: isDarkMode ? '#5E72E4' : '#1890ff', fontSize: '24px', fontWeight: 'bold' }}>
               {timer}
             </Title>
-            <Text type="secondary" style={{ fontSize: '11px', display: 'block' }}>
+            <Text type="secondary" style={{ fontSize: '11px', display: 'block', color: isDarkMode ? '#b8b8b8' : '#999' }}>
               30 saniye sonra karar verilecek
             </Text>
           </div>
@@ -964,7 +967,7 @@ function ChatScreen({ userId, profile: currentProfile, matchId, partnerProfile: 
             <Title level={3} style={{ margin: 0, color: '#ff9800', fontSize: '24px', fontWeight: 'bold' }}>
               {waitingTimer}
             </Title>
-            <Text type="secondary" style={{ fontSize: '11px', display: 'block' }}>
+            <Text type="secondary" style={{ fontSize: '11px', display: 'block', color: isDarkMode ? '#b8b8b8' : '#999' }}>
               Karşı taraftan yanıt bekleniyor...
             </Text>
           </div>
@@ -973,19 +976,26 @@ function ChatScreen({ userId, profile: currentProfile, matchId, partnerProfile: 
 
       {partnerProfile && (
         <div style={{ 
-          background: '#fff', 
+          background: isDarkMode ? '#1a1a2e' : '#fff', 
           padding: '12px 24px',
-          borderBottom: '1px solid #f0f0f0'
+          borderBottom: isDarkMode ? '1px solid #424242' : '1px solid #f0f0f0',
+          transition: 'background 0.3s ease, border-color 0.3s ease'
         }}>
           {partnerProfile.bio && (
-            <Text type="secondary" style={{ display: 'block', marginBottom: '8px' }}>
+            <Text type="secondary" style={{ display: 'block', marginBottom: '8px', color: isDarkMode ? '#b8b8b8' : '#999' }}>
               {partnerProfile.bio}
             </Text>
           )}
           {partnerProfile.interests && partnerProfile.interests.length > 0 && (
             <Space wrap>
               {partnerProfile.interests.map((interest, index) => (
-                <Tag key={index}>{interest}</Tag>
+                <Tag key={index} style={{ 
+                  background: isDarkMode ? '#2e2e2e' : undefined,
+                  color: isDarkMode ? '#fff' : undefined,
+                  borderColor: isDarkMode ? '#424242' : undefined
+                }}>
+                  {interest}
+                </Tag>
               ))}
             </Space>
           )}
@@ -999,7 +1009,9 @@ function ChatScreen({ userId, profile: currentProfile, matchId, partnerProfile: 
         padding: '16px',
         display: 'flex',
         flexDirection: 'column',
-        gap: '8px'
+        gap: '8px',
+        background: isDarkMode ? '#16213e' : '#f8f9fa',
+        transition: 'background 0.3s ease'
       }}>
         {messages.map((message) => {
           // Mesaj gönderenin profil bilgisini bul
@@ -1049,10 +1061,13 @@ function ChatScreen({ userId, profile: currentProfile, matchId, partnerProfile: 
             <Card
               style={{
                 padding: '12px',
-                backgroundColor: message.userId === userId ? '#1890ff' : '#f5f5f5',
+                backgroundColor: message.userId === userId 
+                  ? (isDarkMode ? '#5E72E4' : '#1890ff')
+                  : (isDarkMode ? '#2e2e2e' : '#f5f5f5'),
                 borderRadius: '8px',
                 border: 'none',
-                flex: 1
+                flex: 1,
+                transition: 'background-color 0.3s ease'
               }}
               styles={{ body: { padding: 0 } }}
             >
@@ -1066,7 +1081,7 @@ function ChatScreen({ userId, profile: currentProfile, matchId, partnerProfile: 
                   <Text 
                     strong 
                     style={{ 
-                      color: message.userId === userId ? '#fff' : '#000',
+                      color: message.userId === userId ? '#fff' : (isDarkMode ? '#fff' : '#000'),
                       fontSize: '12px'
                     }}
                   >
@@ -1090,7 +1105,7 @@ function ChatScreen({ userId, profile: currentProfile, matchId, partnerProfile: 
               )}
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <Text style={{ 
-                  color: message.userId === userId ? '#fff' : '#000',
+                  color: message.userId === userId ? '#fff' : (isDarkMode ? '#fff' : '#000'),
                   flex: 1
                 }}>
                   {message.deleted ? (
@@ -1242,11 +1257,12 @@ function ChatScreen({ userId, profile: currentProfile, matchId, partnerProfile: 
       {/* Decision or Input */}
       {showDecision ? (
         <Footer style={{ 
-          background: '#fff', 
+          background: isDarkMode ? '#1a1a2e' : '#fff', 
           padding: '24px',
-          borderTop: '1px solid #f0f0f0'
+          borderTop: isDarkMode ? '1px solid #424242' : '1px solid #f0f0f0',
+          transition: 'background 0.3s ease, border-color 0.3s ease'
         }}>
-          <Title level={4} style={{ textAlign: 'center', marginBottom: '16px' }}>
+          <Title level={4} style={{ textAlign: 'center', marginBottom: '16px', color: isDarkMode ? '#fff' : '#000' }}>
             30 saniye doldu. Devam etmek istiyor musunuz?
           </Title>
           <Space size="large" style={{ width: '100%', justifyContent: 'center' }}>
@@ -1278,30 +1294,33 @@ function ChatScreen({ userId, profile: currentProfile, matchId, partnerProfile: 
         </Footer>
       ) : waitingForPartner ? (
         <Footer style={{ 
-          background: '#fff', 
+          background: isDarkMode ? '#1a1a2e' : '#fff', 
           padding: '24px',
-          borderTop: '1px solid #f0f0f0'
+          borderTop: isDarkMode ? '1px solid #424242' : '1px solid #f0f0f0',
+          transition: 'background 0.3s ease, border-color 0.3s ease'
         }}>
           <Title level={4} style={{ textAlign: 'center', marginBottom: '16px', color: '#ff9800' }}>
             Karşı taraftan yanıt bekleniyor...
           </Title>
-          <Text type="secondary" style={{ textAlign: 'center', display: 'block' }}>
+          <Text type="secondary" style={{ textAlign: 'center', display: 'block', color: isDarkMode ? '#b8b8b8' : '#999' }}>
             {waitingTimer} saniye içinde yanıt gelmezse eşleşme iptal edilecek
           </Text>
         </Footer>
       ) : (
         <Footer style={{ 
-          background: '#fff', 
+          background: isDarkMode ? '#1a1a2e' : '#fff', 
           padding: '16px 24px',
-          borderTop: '1px solid #f0f0f0'
+          borderTop: isDarkMode ? '1px solid #424242' : '1px solid #f0f0f0',
+          transition: 'background 0.3s ease, border-color 0.3s ease'
         }}>
           {selectedMedia && (
             <div style={{ 
               padding: '12px', 
-              background: '#f0f0f0', 
+              background: isDarkMode ? '#2e2e2e' : '#f0f0f0', 
               borderRadius: '8px', 
               marginBottom: '8px',
-              position: 'relative'
+              position: 'relative',
+              transition: 'background 0.3s ease'
             }}>
               <Button
                 type="text"
