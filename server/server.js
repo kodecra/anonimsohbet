@@ -1340,6 +1340,7 @@ io.on('connection', (socket) => {
       }, 30000);
 
       console.log(`Eşleşme oluşturuldu: ${matchId} - ${user1.profile.username} & ${user2.profile.username}`);
+      }
     }
   });
 
