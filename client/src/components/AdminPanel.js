@@ -145,9 +145,59 @@ function AdminPanel({ token, API_URL, onGoToProfile }) {
       
       message.success(action === 'approve' ? 'Kullanıcı onaylandı' : 'Doğrulama reddedildi');
       loadVerifications();
+      loadUsers(); // Kullanıcılar listesini de yenile
     } catch (err) {
       message.error(err.response?.data?.error || 'İşlem başarısız');
     }
+  };
+
+  const handleBanUser = async (userId, username) => {
+    Modal.confirm({
+      title: 'Kullanıcıyı Yasakla',
+      content: `${username} kullanıcısını yasaklamak istediğinize emin misiniz?`,
+      okText: 'Evet, Yasakla',
+      okType: 'danger',
+      cancelText: 'İptal',
+      onOk: async () => {
+        try {
+          await axios.post(`${API_URL}/api/admin/ban-user`, {
+            targetUserId: userId
+          }, {
+            headers: {
+              'Authorization': `Bearer ${token}`
+            }
+          });
+          message.success('Kullanıcı yasaklandı');
+          loadComplaints();
+        } catch (err) {
+          message.error(err.response?.data?.error || 'İşlem başarısız');
+        }
+      }
+    });
+  };
+
+  const handleWarnUser = async (userId, username) => {
+    Modal.confirm({
+      title: 'Kullanıcıya Uyarı Gönder',
+      content: `${username} kullanıcısına "Hakkınızda şikayet var" uyarısı gönderilecek. Devam etmek istiyor musunuz?`,
+      okText: 'Evet, Gönder',
+      cancelText: 'İptal',
+      onOk: async () => {
+        try {
+          await axios.post(`${API_URL}/api/admin/warn-user`, {
+            targetUserId: userId
+          }, {
+            headers: {
+              'Authorization': `Bearer ${token}`
+            }
+          });
+          message.success('Uyarı gönderildi');
+          loadComplaints();
+        } catch (err) {
+          message.error(err.response?.data?.error || 'İşlem başarısız');
+        }
+      }
+    });
   };
 
   if (loading) {
