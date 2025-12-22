@@ -259,7 +259,8 @@ function MainScreen({ userId, profile, token, onMatchFound, onMatchContinued, on
                 style={{ 
                   height: '50px', 
                   width: 'auto',
-                  objectFit: 'contain'
+                  objectFit: 'contain',
+                  filter: isDarkMode ? 'brightness(0) invert(1)' : 'none'
                 }} 
               />
               <Space>

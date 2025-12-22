@@ -67,8 +67,9 @@ function LoginAntd({ onLogin, onSwitchToRegister, API_URL }) {
           src="/logo.png" 
           alt="Soulbate Logo" 
           style={{ 
-            height: windowWidth < 768 ? '120px' : windowWidth < 1024 ? '160px' : '200px', 
-            width: 'auto',
+            height: windowWidth < 768 ? '80px' : windowWidth < 1024 ? '160px' : '200px', 
+            width: windowWidth < 768 ? '80%' : 'auto',
+            maxWidth: windowWidth < 768 ? '200px' : 'none',
             objectFit: 'contain',
             filter: 'brightness(0) invert(1)'
           }} 
