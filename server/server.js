@@ -1276,7 +1276,7 @@ io.on('connection', (socket) => {
   });
 
   // Mesaj gönderme (eşleşme içinde)
-  socket.on('send-message', (data) => {
+  socket.on('send-message', async (data) => {
     console.log('📨📨📨 MESAJ GÖNDERME İSTEĞİ:', { socketId: socket.id, userId: data.userId, matchId: data.matchId });
     console.log('   activeMatches size:', activeMatches.size);
     console.log('   activeMatches keys:', Array.from(activeMatches.keys()));
@@ -1650,7 +1650,7 @@ io.on('connection', (socket) => {
   });
 
   // Mesaja reaksiyon ekle/kaldır
-  socket.on('react-to-message', (data) => {
+  socket.on('react-to-message', async (data) => {
     const userInfo = activeUsers.get(socket.id);
     if (!userInfo) return;
 
