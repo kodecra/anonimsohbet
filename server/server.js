@@ -11,7 +11,7 @@ const fs = require('fs');
 // Veritabanı veya JSON dosyası kullanımı (DATABASE_URL varsa PostgreSQL, yoksa JSON)
 const useDatabase = !!process.env.DATABASE_URL;
 
-let saveUsers, loadUsers, saveAuth, loadAuth, saveMatches, loadMatches, saveVerifications, loadVerifications, initDatabase;
+let saveUsers, loadUsers, saveAuth, loadAuth, saveMatches, loadMatches, saveVerifications, loadVerifications, initDatabase, addUserMatch;
 
 let pool;
 if (useDatabase) {
@@ -25,6 +25,7 @@ if (useDatabase) {
   saveVerifications = db.saveVerifications;
   loadVerifications = db.loadVerifications;
   initDatabase = db.initDatabase;
+  addUserMatch = db.addUserMatch;
   pool = db.pool;
   console.log('✅ PostgreSQL kullanılıyor');
 } else {
@@ -2058,12 +2059,24 @@ io.on('connection', (socket) => {
         }
         
         // VERİTABANINA KAYDET - HEMEN VE ZORUNLU
+        // ÖNCE completedMatch'i kaydet
         try {
           await saveMatches(completedMatches, userMatches);
           console.log(`✅✅✅ saveMatches başarılı: ${matchId}`);
         } catch (error) {
           console.error(`❌❌❌ saveMatches HATASI:`, error);
           // Hata olsa bile devam et, ama logla
+        }
+        
+        // SONRA her iki kullanıcı için de doğrudan veritabanına ekle (race condition'ı önlemek için)
+        if (addUserMatch) {
+          try {
+            await addUserMatch(user1Id, matchId);
+            await addUserMatch(user2Id, matchId);
+            console.log(`✅✅✅ addUserMatch başarılı: ${user1Id} ve ${user2Id} -> ${matchId}`);
+          } catch (error) {
+            console.error(`❌❌❌ addUserMatch HATASI:`, error);
+          }
         }
         
         // DOĞRULAMA: Her iki kullanıcının da userMatches'inde olduğundan emin ol

@@ -311,10 +311,8 @@ async function saveMatches(completedMatches, userMatches) {
       ]);
     }
     
-    // User matches - önce temizle
-    await client.query('DELETE FROM user_matches');
-    
-    // Sonra ekle
+    // User matches - sadece ekle (DELETE yapmıyoruz, race condition'ı önlemek için)
+    // Her kullanıcı için tüm matchId'leri ekle
     for (const [userId, matchIds] of userMatches.entries()) {
       for (const matchId of matchIds) {
         await client.query(`
@@ -492,6 +490,7 @@ module.exports = {
   saveMatches,
   loadMatches,
   saveVerifications,
-  loadVerifications
+  loadVerifications,
+  addUserMatch
 };
 
