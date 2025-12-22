@@ -31,6 +31,7 @@ import {
   WarningOutlined,
   MoreOutlined
 } from '@ant-design/icons';
+import { Image } from 'antd';
 import { ThemeContext } from '../App';
 import './ChatScreen.css';
 
@@ -161,6 +162,28 @@ function ChatScreen({ userId, profile: currentProfile, matchId, partnerProfile: 
       console.log('ChatScreen: Socket bağlandı, profil set ediliyor:', userId, matchId);
       // set-profile event'ini gönder
       newSocket.emit('set-profile', { userId, matchId });
+      
+      // Socket bağlandığında mesajları tekrar yükle (kaybolma sorununu önlemek için)
+      if (matchId && isCompletedMatch) {
+        fetch(`${API_URL}/api/matches/${matchId}`, {
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem('token')}`
+          }
+        })
+        .then(response => {
+          if (response.ok) {
+            return response.json();
+          }
+        })
+        .then(data => {
+          if (data && data.match && data.match.messages && data.match.messages.length > 0) {
+            setMessages(data.match.messages);
+          }
+        })
+        .catch(err => {
+          console.error('Mesaj geçmişi yüklenemedi:', err);
+        });
+      }
     });
 
     // profile-set event'ini dinle
@@ -720,6 +743,25 @@ function ChatScreen({ userId, profile: currentProfile, matchId, partnerProfile: 
     });
   };
 
+  // Kullanıcı adı formatla: "İsim Soyisim (@username)"
+  const formatDisplayName = (profile) => {
+    if (!profile) return 'Bilinmeyen Kullanıcı';
+    const firstName = profile.firstName || '';
+    const lastName = profile.lastName || '';
+    const username = profile.username || '';
+    
+    if (firstName || lastName) {
+      const fullName = `${firstName} ${lastName}`.trim();
+      return username ? `${fullName} (@${username})` : fullName;
+    }
+    return username ? `@${username}` : 'Bilinmeyen Kullanıcı';
+  };
+
+  // Galeri modal state
+  const [galleryVisible, setGalleryVisible] = useState(false);
+  const [galleryImages, setGalleryImages] = useState([]);
+  const [galleryStartIndex, setGalleryStartIndex] = useState(0);
+
   return (
     <Layout style={{ 
       height: '100vh', 
@@ -911,20 +953,56 @@ function ChatScreen({ userId, profile: currentProfile, matchId, partnerProfile: 
         flexDirection: 'column',
         gap: '8px'
       }}>
-        {messages.map((message) => (
+        {messages.map((message) => {
+          // Mesaj gönderenin profil bilgisini bul
+          const messageSenderProfile = message.userId === userId 
+            ? currentProfile 
+            : partnerProfile;
+          
+          return (
           <div
             key={message.id}
             style={{
               alignSelf: message.userId === userId ? 'flex-end' : 'flex-start',
-              maxWidth: '70%'
+              maxWidth: '70%',
+              display: 'flex',
+              flexDirection: message.userId === userId ? 'row-reverse' : 'row',
+              gap: '8px',
+              alignItems: 'flex-end'
             }}
           >
+            {/* Profil Resmi */}
+            {isCompletedMatch && messageSenderProfile && (
+              <Avatar
+                src={messageSenderProfile.photos && messageSenderProfile.photos.length > 0 
+                  ? `${API_URL}${messageSenderProfile.photos[0].url}`
+                  : null}
+                size={32}
+                style={{ 
+                  cursor: 'pointer',
+                  flexShrink: 0
+                }}
+                onClick={() => {
+                  if (messageSenderProfile.photos && messageSenderProfile.photos.length > 0) {
+                    setGalleryImages(messageSenderProfile.photos.map(p => `${API_URL}${p.url}`));
+                    setGalleryStartIndex(0);
+                    setGalleryVisible(true);
+                  }
+                }}
+              >
+                {messageSenderProfile.firstName || messageSenderProfile.lastName
+                  ? `${(messageSenderProfile.firstName || '').charAt(0)}${(messageSenderProfile.lastName || '').charAt(0)}`.toUpperCase()
+                  : (messageSenderProfile.username || '?').charAt(0).toUpperCase()}
+              </Avatar>
+            )}
+            
             <Card
               style={{
                 padding: '12px',
                 backgroundColor: message.userId === userId ? '#1890ff' : '#f5f5f5',
                 borderRadius: '8px',
-                border: 'none'
+                border: 'none',
+                flex: 1
               }}
               styles={{ body: { padding: 0 } }}
             >
@@ -932,7 +1010,8 @@ function ChatScreen({ userId, profile: currentProfile, matchId, partnerProfile: 
                 <div style={{ 
                   display: 'flex', 
                   justifyContent: 'space-between', 
-                  marginBottom: '4px' 
+                  marginBottom: '4px',
+                  alignItems: 'center'
                 }}>
                   <Text 
                     strong 
@@ -941,8 +1020,8 @@ function ChatScreen({ userId, profile: currentProfile, matchId, partnerProfile: 
                       fontSize: '12px'
                     }}
                   >
-                    {partnerProfile 
-                      ? message.username 
+                    {isCompletedMatch && messageSenderProfile
+                      ? formatDisplayName(messageSenderProfile)
                       : message.userId === userId 
                         ? `Anonim-${userAnonymousId || '000000'}` 
                         : `Anonim-${partnerAnonymousId || '000000'}`
@@ -1086,7 +1165,8 @@ function ChatScreen({ userId, profile: currentProfile, matchId, partnerProfile: 
               )}
             </Card>
           </div>
-        ))}
+          );
+        })}
         
         {typingUsers.size > 0 && (
           <Text type="secondary" italic style={{ fontSize: '12px' }}>
@@ -1095,6 +1175,19 @@ function ChatScreen({ userId, profile: currentProfile, matchId, partnerProfile: 
         )}
         <div ref={messagesEndRef} />
       </Content>
+      
+      {/* Galeri Modal */}
+      <Image.PreviewGroup
+        preview={{
+          visible: galleryVisible,
+          onVisibleChange: (visible) => setGalleryVisible(visible),
+          current: galleryStartIndex
+        }}
+      >
+        {galleryImages.map((img, index) => (
+          <Image key={index} src={img} style={{ display: 'none' }} />
+        ))}
+      </Image.PreviewGroup>
 
       {/* Decision or Input */}
       {showDecision ? (

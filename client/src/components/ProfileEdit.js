@@ -41,6 +41,8 @@ function ProfileEdit({ profile, token, onProfileUpdated, onClose, API_URL }) {
   React.useEffect(() => {
     form.setFieldsValue({
       username: profile.username || '',
+      firstName: profile.firstName || '',
+      lastName: profile.lastName || '',
       age: profile.age || undefined,
       bio: profile.bio || '',
       interests: (profile.interests || []).join(', ')
@@ -108,8 +110,16 @@ function ProfileEdit({ profile, token, onProfileUpdated, onClose, API_URL }) {
         ? values.interests.split(',').map(i => i.trim()).filter(i => i.length > 0)
         : [];
 
+      if (!values.lastName || !values.lastName.trim()) {
+        setError('Soyisim zorunludur');
+        setLoading(false);
+        return;
+      }
+
       const response = await axios.post(`${API_URL}/api/profile`, {
         username: values.username.trim(),
+        firstName: values.firstName?.trim() || null,
+        lastName: values.lastName.trim(),
         age: values.age || null,
         bio: values.bio?.trim() || '',
         interests: interestsArray
@@ -183,6 +193,32 @@ function ProfileEdit({ profile, token, onProfileUpdated, onClose, API_URL }) {
           >
             <Input placeholder="Kullanıcı adınızı girin" />
           </Form.Item>
+
+          <Row gutter={16}>
+            <Col span={12}>
+              <Form.Item
+                name="firstName"
+                label="İsim"
+                rules={[
+                  { max: 50, message: 'En fazla 50 karakter olabilir' }
+                ]}
+              >
+                <Input placeholder="İsminiz" />
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item
+                name="lastName"
+                label="Soyisim"
+                rules={[
+                  { required: true, message: 'Soyisim zorunludur' },
+                  { max: 50, message: 'En fazla 50 karakter olabilir' }
+                ]}
+              >
+                <Input placeholder="Soyisminiz" />
+              </Form.Item>
+            </Col>
+          </Row>
 
           <Form.Item
             name="age"

@@ -4,6 +4,8 @@ import './ProfileSetup.css';
 
 function ProfileSetup({ userId, onProfileCreated, API_URL }) {
   const [username, setUsername] = useState('');
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
   const [age, setAge] = useState('');
   const [bio, setBio] = useState('');
   const [interests, setInterests] = useState('');
@@ -19,6 +21,11 @@ function ProfileSetup({ userId, onProfileCreated, API_URL }) {
       return;
     }
 
+    if (!lastName.trim()) {
+      setError('Soyisim zorunludur');
+      return;
+    }
+
     setLoading(true);
 
     try {
@@ -30,6 +37,8 @@ function ProfileSetup({ userId, onProfileCreated, API_URL }) {
       const response = await axios.post(`${API_URL}/api/profile`, {
         userId: userId || null,
         username: username.trim(),
+        firstName: firstName.trim() || null,
+        lastName: lastName.trim(),
         age: age ? parseInt(age) : null,
         bio: bio.trim(),
         interests: interestsArray
@@ -58,6 +67,29 @@ function ProfileSetup({ userId, onProfileCreated, API_URL }) {
               value={username}
               onChange={(e) => setUsername(e.target.value)}
               placeholder="Kullanıcı adınız"
+              required
+              maxLength={50}
+            />
+          </div>
+
+          <div className="form-group">
+            <label>İsim (İsteğe bağlı)</label>
+            <input
+              type="text"
+              value={firstName}
+              onChange={(e) => setFirstName(e.target.value)}
+              placeholder="İsminiz"
+              maxLength={50}
+            />
+          </div>
+
+          <div className="form-group">
+            <label>Soyisim *</label>
+            <input
+              type="text"
+              value={lastName}
+              onChange={(e) => setLastName(e.target.value)}
+              placeholder="Soyisminiz"
               required
               maxLength={50}
             />

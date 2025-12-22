@@ -301,7 +301,20 @@ function ChatsList({ token, onSelectChat, API_URL, refreshTrigger }) {
             }
             title={
               <Space>
-                <Text strong>{match.partner?.username || 'Bilinmeyen Kullanıcı'}</Text>
+                <Text strong>
+                  {(() => {
+                    const partner = match.partner;
+                    if (!partner) return 'Bilinmeyen Kullanıcı';
+                    const firstName = partner.firstName || '';
+                    const lastName = partner.lastName || '';
+                    const username = partner.username || '';
+                    if (firstName || lastName) {
+                      const fullName = `${firstName} ${lastName}`.trim();
+                      return username ? `${fullName} (@${username})` : fullName;
+                    }
+                    return username ? `@${username}` : 'Bilinmeyen Kullanıcı';
+                  })()}
+                </Text>
               </Space>
             }
             description={

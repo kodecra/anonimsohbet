@@ -265,7 +265,18 @@ function MainScreen({ userId, profile, token, onMatchFound, onMatchContinued, on
                 </Avatar>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <Space>
-                    <Text strong>{currentProfile.username}</Text>
+                    <Text strong>
+                      {(() => {
+                        const firstName = currentProfile.firstName || '';
+                        const lastName = currentProfile.lastName || '';
+                        const username = currentProfile.username || '';
+                        if (firstName || lastName) {
+                          const fullName = `${firstName} ${lastName}`.trim();
+                          return username ? `${fullName} (@${username})` : fullName;
+                        }
+                        return username ? `@${username}` : 'Bilinmeyen Kullanıcı';
+                      })()}
+                    </Text>
                     {currentProfile.verified && (
                       <Tag 
                         icon={<SafetyCertificateOutlined />}
@@ -443,7 +454,16 @@ function MainScreen({ userId, profile, token, onMatchFound, onMatchContinued, on
                     marginBottom: '16px' 
                   }}>
                     <Title level={3} style={{ margin: 0 }}>
-                      Hoş geldin, {currentProfile.username}!
+                      Hoş geldin, {(() => {
+                        const firstName = currentProfile.firstName || '';
+                        const lastName = currentProfile.lastName || '';
+                        const username = currentProfile.username || '';
+                        if (firstName || lastName) {
+                          const fullName = `${firstName} ${lastName}`.trim();
+                          return username ? `${fullName} (@${username})` : fullName;
+                        }
+                        return username ? `@${username}` : 'Bilinmeyen Kullanıcı';
+                      })()}!
                     </Title>
                     <Button
                       icon={<EditOutlined />}

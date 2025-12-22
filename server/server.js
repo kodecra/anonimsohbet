@@ -189,6 +189,8 @@ app.post('/api/register', async (req, res) => {
     userId,
     email: email.toLowerCase(),
     username: email.split('@')[0], // Varsayılan kullanıcı adı
+    firstName: null,
+    lastName: null,
     age: null,
     bio: '',
     interests: [],
@@ -499,7 +501,7 @@ app.delete('/api/profile/photos/:photoId', authenticateToken, async (req, res) =
 
 // Profil oluşturma/güncelleme (artık authenticated)
 app.post('/api/profile', authenticateToken, async (req, res) => {
-  const { username, age, bio, interests } = req.body;
+  const { username, firstName, lastName, age, bio, interests } = req.body;
   const userId = req.user.userId;
   
   const existingProfile = users.get(userId);
@@ -507,9 +509,16 @@ app.post('/api/profile', authenticateToken, async (req, res) => {
     return res.status(404).json({ error: 'Kullanıcı bulunamadı' });
   }
 
+  // Soyisim zorunlu kontrolü
+  if (lastName === undefined || lastName === null || lastName.trim() === '') {
+    return res.status(400).json({ error: 'Soyisim zorunludur' });
+  }
+
   const userProfile = {
     ...existingProfile,
     username: username || existingProfile.username,
+    firstName: firstName !== undefined ? firstName : existingProfile.firstName,
+    lastName: lastName !== undefined ? lastName : existingProfile.lastName,
     age: age !== undefined ? age : existingProfile.age,
     bio: bio !== undefined ? bio : existingProfile.bio,
     interests: interests || existingProfile.interests,
@@ -867,6 +876,8 @@ app.get('/api/matches', authenticateToken, (req, res) => {
     const partnerProfile = partner.profile || partner;
     const partnerUserId = partner.userId || partnerProfile?.userId;
     const partnerUsername = partner.username || partnerProfile?.username || 'Bilinmeyen Kullanıcı';
+    const partnerFirstName = partner.firstName || partnerProfile?.firstName || null;
+    const partnerLastName = partner.lastName || partnerProfile?.lastName || null;
     const partnerPhotos = partnerProfile?.photos || partner.photos || [];
     const partnerVerified = partnerProfile?.verified || partner.verified || false;
     
@@ -875,6 +886,8 @@ app.get('/api/matches', authenticateToken, (req, res) => {
       partner: {
         userId: partnerUserId,
         username: partnerUsername,
+        firstName: partnerFirstName,
+        lastName: partnerLastName,
         photos: partnerPhotos,
         verified: partnerVerified
       },
