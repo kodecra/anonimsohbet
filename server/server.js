@@ -1295,17 +1295,49 @@ io.on('connection', (socket) => {
         userMatches.get(match.user2.userId).push(matchId);
         await saveMatches(completedMatches, userMatches); // Hemen kaydet
 
-        io.to(match.user1.socketId).emit('match-continued', {
-          matchId: matchId,
-          partnerProfile: user2Profile,
-          message: 'Eşleşme onaylandı! Artık birbirinizin profillerini görebilirsiniz.'
+        // Güncel socket ID'leri bul (userId ile)
+        let user1SocketId = match.user1.socketId;
+        let user2SocketId = match.user2.socketId;
+        
+        // activeUsers'dan güncel socket ID'leri bul
+        for (const [socketId, userInfo] of activeUsers.entries()) {
+          if (userInfo.userId === match.user1.userId) {
+            user1SocketId = socketId;
+          }
+          if (userInfo.userId === match.user2.userId) {
+            user2SocketId = socketId;
+          }
+        }
+
+        console.log(`📤 match-continued gönderiliyor:`, {
+          matchId,
+          user1SocketId,
+          user2SocketId,
+          user1UserId: match.user1.userId,
+          user2UserId: match.user2.userId
         });
 
-        io.to(match.user2.socketId).emit('match-continued', {
-          matchId: matchId,
-          partnerProfile: user1Profile,
-          message: 'Eşleşme onaylandı! Artık birbirinizin profillerini görebilirsiniz.'
-        });
+        if (user1SocketId) {
+          io.to(user1SocketId).emit('match-continued', {
+            matchId: matchId,
+            partnerProfile: user2Profile,
+            message: 'Eşleşme onaylandı! Artık birbirinizin profillerini görebilirsiniz.'
+          });
+          console.log(`✅ user1'e match-continued gönderildi: ${user1SocketId}`);
+        } else {
+          console.log(`❌ user1 socket bulunamadı: ${match.user1.userId}`);
+        }
+
+        if (user2SocketId) {
+          io.to(user2SocketId).emit('match-continued', {
+            matchId: matchId,
+            partnerProfile: user1Profile,
+            message: 'Eşleşme onaylandı! Artık birbirinizin profillerini görebilirsiniz.'
+          });
+          console.log(`✅ user2'ye match-continued gönderildi: ${user2SocketId}`);
+        } else {
+          console.log(`❌ user2 socket bulunamadı: ${match.user2.userId}`);
+        }
 
         // Active match'i temizle
         activeMatches.delete(matchId);

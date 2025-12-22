@@ -267,7 +267,19 @@ function ChatScreen({ userId, profile: currentProfile, matchId, partnerProfile: 
       });
     });
 
-    newSocket.on('match-ended', () => {
+    newSocket.on('match-ended', (data) => {
+      console.log('❌ ChatScreen: match-ended event alındı', data);
+      // Timer'ları temizle
+      if (waitingTimerRef.current) {
+        clearInterval(waitingTimerRef.current);
+        waitingTimerRef.current = null;
+      }
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+        timerRef.current = null;
+      }
+      setWaitingForPartner(false);
+      setShowDecision(false);
       onMatchEnded();
     });
 
