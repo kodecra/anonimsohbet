@@ -1191,8 +1191,13 @@ app.get('/api/matches', authenticateToken, async (req, res) => {
     try {
       const matchesData = await loadMatches();
       if (matchesData && matchesData.userMatches) {
-        userMatches = matchesData.userMatches;
-        completedMatches = matchesData.completedMatches;
+        // Global Map'leri güncelle
+        for (const [key, value] of matchesData.userMatches.entries()) {
+          userMatches.set(key, value);
+        }
+        for (const [key, value] of matchesData.completedMatches.entries()) {
+          completedMatches.set(key, value);
+        }
         matchIds = userMatches.get(userId) || [];
         console.log(`✅ Veritabanından yüklendi: userId=${userId}, matchIds=${JSON.stringify(matchIds)}`);
       }
