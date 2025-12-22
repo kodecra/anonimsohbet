@@ -1121,30 +1121,55 @@ app.get('/api/matches/:matchId', authenticateToken, (req, res) => {
     return res.status(403).json({ error: 'Bu eşleşmeye erişim yetkiniz yok' });
   }
 
-  const partner = match.user1.userId === userId ? match.user2 : match.user1;
+  // Partner bilgisini bul - esnek yapı kontrolü
+  const user1Id = match.user1?.userId || match.user1?.user?.userId || match.user1;
+  const user2Id = match.user2?.userId || match.user2?.user?.userId || match.user2;
+  const partner = user1Id === userId ? match.user2 : match.user1;
   
   let partnerInfo = null;
   if (!isActiveMatch) {
     // Completed match - partner bilgisini göster
-    const partnerProfile = users.get(partner.userId);
+    console.log('✅ Completed match - partner bilgisi hazırlanıyor', { partner, userId, user1Id, user2Id });
     
-    // activeMatches'te partner.profile var, completedMatches'te partner direkt profile olabilir
-    const partnerData = partnerProfile || partner.profile || partner;
+    // Partner profile'ı bul - esnek yapı kontrolü
+    let partnerProfile = null;
+    if (partner && partner.profile) {
+      // completedMatches'te partner.profile var
+      partnerProfile = partner.profile;
+    } else if (partner && partner.userId) {
+      // users Map'inden al
+      partnerProfile = users.get(partner.userId);
+    } else if (partner && typeof partner === 'object') {
+      // Partner direkt profile olabilir
+      partnerProfile = partner;
+    }
     
-    partnerInfo = {
-      userId: partner.userId,
-      username: partnerData.username || partnerData.profile?.username,
-      age: partnerData.age || partnerData.profile?.age,
-      bio: partnerData.bio || partnerData.profile?.bio,
-      interests: partnerData.interests || partnerData.profile?.interests || [],
-      photos: partnerData.photos || partnerData.profile?.photos || [],
-      verified: partnerData.verified || partnerData.profile?.verified || false
-    };
+    if (partnerProfile) {
+      partnerInfo = {
+        userId: partner.userId || partnerProfile.userId,
+        username: partnerProfile.username,
+        firstName: partnerProfile.firstName,
+        lastName: partnerProfile.lastName,
+        age: partnerProfile.age,
+        bio: partnerProfile.bio,
+        interests: partnerProfile.interests || [],
+        photos: partnerProfile.photos || [],
+        verified: partnerProfile.verified || false,
+        gender: partnerProfile.gender
+      };
+      console.log('✅ Partner bilgisi hazırlandı:', partnerInfo);
+    } else {
+      console.log('⚠️ Partner profile bulunamadı');
+    }
   }
+  
+  console.log('✅ Match detayları döndürülüyor:', { matchId: match.id, isActiveMatch, hasPartner: !!partnerInfo, messageCount: (match.messages || []).length });
   
   res.json({
     match: {
       matchId: match.id,
+      user1: match.user1,
+      user2: match.user2,
       partner: partnerInfo,  // Aktif eşleşmede null, completed'de partner bilgisi
       messages: match.messages || [],
       startedAt: match.startedAt
