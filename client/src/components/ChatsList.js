@@ -13,6 +13,7 @@ import {
   Dropdown,
   Button,
   Modal,
+  Radio,
   message as antdMessage
 } from 'antd';
 import { 
@@ -29,7 +30,7 @@ import { ThemeContext } from '../App';
 import './ChatsList.css';
 
 const { Text } = Typography;
-const { Search } = Input;
+const { Search, TextArea } = Input;
 
 const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000';
 
