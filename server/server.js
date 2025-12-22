@@ -262,6 +262,8 @@ app.post('/api/register', async (req, res) => {
 app.post('/api/login', async (req, res) => {
   const { username, phoneNumber, password } = req.body;
   
+  console.log('🔐 Login attempt:', { username, phoneNumber: phoneNumber ? '***' : null, hasPassword: !!password });
+  
   if (!password) {
     return res.status(400).json({ error: 'Şifre gereklidir' });
   }
@@ -278,34 +280,45 @@ app.post('/api/login', async (req, res) => {
       u.username.toLowerCase() === usernameLower || 
       u.username === username.trim()
     );
+    console.log('👤 Profile found by username:', profile ? { userId: profile.userId, email: profile.email, username: profile.username } : 'NOT FOUND');
   } else if (phoneNumber) {
     profile = Array.from(users.values()).find(u => u.phoneNumber === phoneNumber.trim());
+    console.log('👤 Profile found by phone:', profile ? { userId: profile.userId, email: profile.email } : 'NOT FOUND');
   }
 
   if (!profile) {
+    console.log('❌ Profile not found');
     return res.status(401).json({ error: 'Kullanıcı adı/telefon veya şifre hatalı' });
   }
 
   // Auth bilgisini bul - email ile veya kullanıcı adı ile
   const email = profile.email;
   let auth = userAuth.get(email.toLowerCase());
+  console.log('🔑 Auth lookup by email:', email.toLowerCase(), auth ? 'FOUND' : 'NOT FOUND');
   
   // Eğer email ile bulunamazsa, kullanıcı adı ile dene (admin gibi özel durumlar için)
   if (!auth && username) {
     const possibleEmail = `${username.trim()}@anonimsohbet.local`;
     auth = userAuth.get(possibleEmail.toLowerCase());
+    console.log('🔑 Auth lookup by possible email:', possibleEmail.toLowerCase(), auth ? 'FOUND' : 'NOT FOUND');
   }
   
   if (!auth) {
+    console.log('❌ Auth not found. userAuth size:', userAuth.size);
+    console.log('🔍 Available emails in userAuth:', Array.from(userAuth.keys()).slice(0, 5));
     return res.status(401).json({ error: 'Kullanıcı adı/telefon veya şifre hatalı' });
   }
 
+  console.log('🔐 Comparing password. Hash exists:', !!auth.passwordHash);
   const isValidPassword = await bcrypt.compare(password, auth.passwordHash);
+  console.log('🔐 Password match:', isValidPassword);
+  
   if (!isValidPassword) {
     return res.status(401).json({ error: 'Kullanıcı adı/telefon veya şifre hatalı' });
   }
 
   const token = jwt.sign({ userId: auth.userId, username: profile.username }, JWT_SECRET, { expiresIn: '7d' });
+  console.log('✅ Login successful for:', profile.username);
 
   res.json({ 
     token,
