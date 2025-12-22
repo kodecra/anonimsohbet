@@ -381,34 +381,17 @@ app.post('/api/profile/photos', authenticateToken, upload.array('photos', 5), as
   // Mevcut fotoğrafları kontrol et (max 5)
   const currentPhotos = profile.photos || [];
   
-  // Dosyaları FTP ile hosting'e yükle
+  // Dosyaları direkt dosya sistemine kaydet (VPS'de FTP'ye gerek yok)
   const newPhotos = await Promise.all(req.files.map(async (file) => {
-    const localFilePath = path.join(uploadsDir, file.filename);
-    const remoteFilePath = `/uploads/${file.filename}`;
+    // Local dosya zaten uploadsDir'de, direkt URL oluştur
+    const fileUrl = `/uploads/${file.filename}`;
     
-    try {
-      // FTP ile yükle
-      const fileUrl = await uploadToFTP(localFilePath, remoteFilePath);
-      
-      // Local dosyayı sil (artık hosting'de var)
-      fs.unlinkSync(localFilePath);
-      
-      return {
-        id: uuidv4(),
-        url: fileUrl, // Hosting URL'i
-        filename: file.filename,
-        uploadedAt: new Date()
-      };
-    } catch (error) {
-      console.error('FTP upload error:', error);
-      // FTP hatası olursa local URL kullan (fallback)
-      return {
-        id: uuidv4(),
-        url: `/uploads/${file.filename}`, // Local URL (fallback)
-        filename: file.filename,
-        uploadedAt: new Date()
-      };
-    }
+    return {
+      id: uuidv4(),
+      url: fileUrl, // Local URL (VPS'de direkt erişilebilir)
+      filename: file.filename,
+      uploadedAt: new Date()
+    };
   }));
 
   const allPhotos = [...currentPhotos, ...newPhotos].slice(0, 5); // En fazla 5 fotoğraf

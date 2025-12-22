@@ -38,6 +38,14 @@ import './MainScreen.css';
 const { Header, Content, Sider } = Layout;
 const { Title, Text } = Typography;
 
+// Superadmin email'leri (backend ile aynı)
+const SUPERADMIN_EMAILS = ['admin@admin.com', 'oguzhancakar@anonimsohbet.local'].map(e => e.toLowerCase());
+
+// Helper function to check if user is superadmin
+function isSuperAdmin(email) {
+  return email && SUPERADMIN_EMAILS.includes(email.toLowerCase());
+}
+
 function MainScreen({ userId, profile, token, onMatchFound, onMatchContinued, onMatchEnded, onLogout, onProfileUpdated, onGoToAdmin, API_URL }) {
   const { isDarkMode, toggleDarkMode } = React.useContext(ThemeContext);
   const [socket, setSocket] = useState(null);
@@ -263,7 +271,11 @@ function MainScreen({ userId, profile, token, onMatchFound, onMatchContinued, on
                 gap: '12px' 
               }}>
                 <Avatar
-                  src={currentProfile.photos && currentProfile.photos.length > 0 ? `${API_URL}${currentProfile.photos[0].url}` : undefined}
+                  src={currentProfile.photos && currentProfile.photos.length > 0 
+                    ? (currentProfile.photos[0].url.startsWith('http') 
+                        ? currentProfile.photos[0].url 
+                        : `${API_URL}${currentProfile.photos[0].url}`)
+                    : undefined}
                   size={60}
                   style={{ backgroundColor: '#1890ff', flexShrink: 0 }}
                 >
@@ -378,7 +390,7 @@ function MainScreen({ userId, profile, token, onMatchFound, onMatchContinued, on
             />
 
             {/* Admin Panel Button */}
-            {currentProfile && currentProfile.email === 'admin@admin.com' && (
+            {currentProfile && isSuperAdmin(currentProfile.email) && (
               <div style={{ padding: '12px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
                 <Button
                   block
