@@ -102,16 +102,21 @@ function ChatScreen({ userId, profile: currentProfile, matchId, partnerProfile: 
           
           // Partner profile varsa completed match'tir
           if (partner && partner.profile) {
+            console.log('✅ Completed match bulundu, profil yükleniyor:', partner.profile);
             setIsCompletedMatch(true);
             setPartnerProfile(partner.profile);
             setTimer(null);
             
             // Mesaj geçmişini yükle
             if (data.match.messages && data.match.messages.length > 0) {
+              console.log(`✅ ${data.match.messages.length} mesaj yüklendi`);
               setMessages(data.match.messages);
+            } else {
+              console.log('⚠️ Mesaj geçmişi boş');
             }
           } else {
             // Yeni eşleşme
+            console.log('⚠️ Yeni eşleşme (completed match değil)');
             setIsCompletedMatch(false);
           }
         }
@@ -427,8 +432,8 @@ function ChatScreen({ userId, profile: currentProfile, matchId, partnerProfile: 
       timerRef.current = null;
     }
 
-    // Completed match kontrolü: isCompletedMatch true ise timer başlatma
-    if (isCompletedMatch) {
+    // Completed match kontrolü: isCompletedMatch true ise veya partnerProfile varsa timer başlatma
+    if (isCompletedMatch || partnerProfile) {
       // Completed match'te timer'ı temizle
       setTimer(null);
       setShowDecision(false);
@@ -439,7 +444,7 @@ function ChatScreen({ userId, profile: currentProfile, matchId, partnerProfile: 
       return;
     }
 
-    // Sadece yeni eşleşmelerde timer başlat (isCompletedMatch false ise)
+    // Sadece yeni eşleşmelerde timer başlat (isCompletedMatch false ise ve partnerProfile yoksa)
     if (!isCompletedMatch && !partnerProfile && !showDecision && !waitingForPartner && matchId) {
       setTimer(30);
       timerRef.current = setInterval(() => {
@@ -462,7 +467,7 @@ function ChatScreen({ userId, profile: currentProfile, matchId, partnerProfile: 
         timerRef.current = null;
       }
     };
-  }, [isCompletedMatch, initialPartnerProfile, partnerProfile, showDecision, waitingForPartner, matchId, userId, API_URL]);
+  }, [isCompletedMatch, showDecision, waitingForPartner, matchId]); // partnerProfile dependency'den çıkarıldı - timer tekrar başlamasın
 
   // Mesajlar değiştiğinde scroll
   useEffect(() => {
