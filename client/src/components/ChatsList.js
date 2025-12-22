@@ -24,6 +24,7 @@ import {
   CloseOutlined,
   EyeOutlined
 } from '@ant-design/icons';
+import { Badge } from 'antd';
 import './ChatsList.css';
 
 const { Text } = Typography;
@@ -39,10 +40,61 @@ function ChatsList({ token, onSelectChat, API_URL, refreshTrigger }) {
   const [searchQuery, setSearchQuery] = useState('');
   const [viewProfileModal, setViewProfileModal] = useState(false);
   const [selectedPartner, setSelectedPartner] = useState(null);
+  const [unreadCounts, setUnreadCounts] = useState({}); // matchId -> count
 
   useEffect(() => {
     loadMatches();
   }, [token, refreshTrigger]);
+
+  // Okunmamış mesaj sayılarını yükle
+  useEffect(() => {
+    if (matches.length > 0) {
+      loadUnreadCounts();
+    }
+  }, [matches, token]);
+
+  const loadUnreadCounts = async () => {
+    const counts = {};
+    for (const match of matches) {
+      try {
+        const response = await axios.get(`${API_URL}/api/matches/${match.matchId}/unread-count`, {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        });
+        counts[match.matchId] = response.data.count || 0;
+      } catch (error) {
+        counts[match.matchId] = 0;
+      }
+    }
+    setUnreadCounts(counts);
+  };
+
+  const markMatchAsRead = async (matchId) => {
+    try {
+      // Bu match'e ait tüm bildirimleri okundu olarak işaretle
+      const response = await axios.get(`${API_URL}/api/notifications`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      const notifications = response.data.notifications || [];
+      const matchNotifications = notifications.filter(n => n.matchId === matchId && !n.read);
+      
+      for (const notification of matchNotifications) {
+        await axios.post(`${API_URL}/api/notifications/${notification.id}/read`, {}, {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        });
+      }
+      
+      // Okunmamış sayıyı güncelle
+      setUnreadCounts(prev => ({ ...prev, [matchId]: 0 }));
+    } catch (error) {
+      console.error('Bildirim okundu işaretleme hatası:', error);
+    }
+  };
 
   const loadMatches = async () => {
     try {
@@ -249,6 +301,10 @@ function ChatsList({ token, onSelectChat, API_URL, refreshTrigger }) {
               return;
             }
             onSelectChat(match.matchId);
+            // Sohbete girildiğinde bildirimleri okundu olarak işaretle
+            if (unreadCounts[match.matchId] > 0) {
+              markMatchAsRead(match.matchId);
+            }
           }}
           style={{
             cursor: 'pointer',
@@ -267,39 +323,41 @@ function ChatsList({ token, onSelectChat, API_URL, refreshTrigger }) {
         >
           <List.Item.Meta
             avatar={
-              <div style={{ position: 'relative' }}>
-                {match.partner.photos && match.partner.photos.length > 0 ? (
-                  <Avatar
-                    src={match.partner.photos[0].url && match.partner.photos[0].url.startsWith('http')
-                      ? match.partner.photos[0].url
-                      : `${API_URL}${match.partner.photos[0].url}`}
-                    size={60}
-                    onError={(e) => {
-                      if (e && e.target) {
-                        e.target.src = 'https://via.placeholder.com/60';
-                      }
-                    }}
-                  />
-                ) : (
-                  <Avatar size={60} style={{ backgroundColor: '#1890ff' }}>
-                    {match.partner?.username ? match.partner.username.charAt(0).toUpperCase() : '?'}
-                  </Avatar>
-                )}
-                {match.partner.verified && (
-                  <SafetyCertificateOutlined
-                    style={{
-                      position: 'absolute',
-                      bottom: 0,
-                      right: 0,
-                      backgroundColor: '#52c41a',
-                      color: 'white',
-                      borderRadius: '50%',
-                      padding: '2px',
-                      fontSize: '14px'
-                    }}
-                  />
-                )}
-              </div>
+              <Badge count={unreadCounts[match.matchId] || 0} offset={[-5, 5]}>
+                <div style={{ position: 'relative' }}>
+                  {match.partner.photos && match.partner.photos.length > 0 ? (
+                    <Avatar
+                      src={match.partner.photos[0].url && match.partner.photos[0].url.startsWith('http')
+                        ? match.partner.photos[0].url
+                        : `${API_URL}${match.partner.photos[0].url}`}
+                      size={60}
+                      onError={(e) => {
+                        if (e && e.target) {
+                          e.target.src = 'https://via.placeholder.com/60';
+                        }
+                      }}
+                    />
+                  ) : (
+                    <Avatar size={60} style={{ backgroundColor: '#1890ff' }}>
+                      {match.partner?.username ? match.partner.username.charAt(0).toUpperCase() : '?'}
+                    </Avatar>
+                  )}
+                  {match.partner.verified && (
+                    <SafetyCertificateOutlined
+                      style={{
+                        position: 'absolute',
+                        bottom: 0,
+                        right: 0,
+                        backgroundColor: '#52c41a',
+                        color: 'white',
+                        borderRadius: '50%',
+                        padding: '2px',
+                        fontSize: '14px'
+                      }}
+                    />
+                  )}
+                </div>
+              </Badge>
             }
             title={
               <Space>

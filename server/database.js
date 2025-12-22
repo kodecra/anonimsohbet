@@ -97,6 +97,27 @@ async function initDatabase() {
       )
     `);
 
+    // Notifications tablosu
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS notifications (
+        notification_id VARCHAR(255) PRIMARY KEY,
+        user_id VARCHAR(255) NOT NULL,
+        type VARCHAR(50) NOT NULL,
+        title VARCHAR(255),
+        message TEXT,
+        match_id VARCHAR(255),
+        from_user_id VARCHAR(255),
+        read BOOLEAN DEFAULT false,
+        created_at TIMESTAMP DEFAULT NOW()
+      )
+    `);
+    
+    // Index ekle
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS idx_notifications_user_id ON notifications(user_id);
+      CREATE INDEX IF NOT EXISTS idx_notifications_read ON notifications(user_id, read);
+    `);
+
     console.log('✅ Tablolar oluşturuldu/kontrol edildi');
   } catch (error) {
     console.error('❌ Tablo oluşturma hatası:', error);

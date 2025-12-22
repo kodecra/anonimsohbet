@@ -141,7 +141,10 @@ function ChatScreen({ userId, profile: currentProfile, matchId, partnerProfile: 
       })
       .then(data => {
         if (data && data.match && data.match.messages && data.match.messages.length > 0) {
+          console.log('✅ Mesaj geçmişi yüklendi:', data.match.messages.length, 'mesaj');
           setMessages(data.match.messages);
+        } else {
+          console.log('⚠️ Mesaj geçmişi boş veya bulunamadı');
         }
       })
       .catch(err => {
@@ -181,7 +184,10 @@ function ChatScreen({ userId, profile: currentProfile, matchId, partnerProfile: 
         })
         .then(data => {
           if (data && data.match && data.match.messages && data.match.messages.length > 0) {
+            console.log('✅ Socket bağlandığında mesaj geçmişi yüklendi:', data.match.messages.length, 'mesaj');
             setMessages(data.match.messages);
+          } else {
+            console.log('⚠️ Socket bağlandığında mesaj geçmişi boş');
           }
         })
         .catch(err => {

@@ -13,6 +13,7 @@ const useDatabase = !!process.env.DATABASE_URL;
 
 let saveUsers, loadUsers, saveAuth, loadAuth, saveMatches, loadMatches, saveVerifications, loadVerifications, initDatabase;
 
+let pool;
 if (useDatabase) {
   const db = require('./database');
   saveUsers = db.saveUsers;
@@ -24,6 +25,7 @@ if (useDatabase) {
   saveVerifications = db.saveVerifications;
   loadVerifications = db.loadVerifications;
   initDatabase = db.initDatabase;
+  pool = db.pool;
   console.log('✅ PostgreSQL kullanılıyor');
 } else {
   const storage = require('./dataStorage');
@@ -1150,6 +1152,128 @@ app.get('/api/matches/:matchId', authenticateToken, (req, res) => {
   });
 });
 
+// Bildirimler API
+app.get('/api/notifications', authenticateToken, async (req, res) => {
+  const userId = req.user.userId;
+  
+  if (!pool) {
+    return res.json({ notifications: [] });
+  }
+  
+  try {
+    const result = await pool.query(`
+      SELECT * FROM notifications 
+      WHERE user_id = $1 
+      ORDER BY created_at DESC 
+      LIMIT 50
+    `, [userId]);
+    
+    const notifications = result.rows.map(row => ({
+      id: row.notification_id,
+      type: row.type,
+      title: row.title,
+      message: row.message,
+      matchId: row.match_id,
+      fromUserId: row.from_user_id,
+      read: row.read,
+      createdAt: row.created_at
+    }));
+    
+    res.json({ notifications });
+  } catch (error) {
+    console.error('Bildirim yükleme hatası:', error);
+    res.status(500).json({ error: 'Bildirimler yüklenemedi' });
+  }
+});
+
+// Okunmamış bildirim sayısı
+app.get('/api/notifications/unread-count', authenticateToken, async (req, res) => {
+  const userId = req.user.userId;
+  
+  if (!pool) {
+    return res.json({ count: 0 });
+  }
+  
+  try {
+    const result = await pool.query(`
+      SELECT COUNT(*) as count FROM notifications 
+      WHERE user_id = $1 AND read = false
+    `, [userId]);
+    
+    res.json({ count: parseInt(result.rows[0].count) });
+  } catch (error) {
+    console.error('Okunmamış bildirim sayısı hatası:', error);
+    res.json({ count: 0 });
+  }
+});
+
+// Bildirimi okundu olarak işaretle
+app.post('/api/notifications/:notificationId/read', authenticateToken, async (req, res) => {
+  const userId = req.user.userId;
+  const notificationId = req.params.notificationId;
+  
+  if (!pool) {
+    return res.json({ success: true });
+  }
+  
+  try {
+    await pool.query(`
+      UPDATE notifications 
+      SET read = true 
+      WHERE notification_id = $1 AND user_id = $2
+    `, [notificationId, userId]);
+    
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Bildirim okundu işaretleme hatası:', error);
+    res.status(500).json({ error: 'Bildirim güncellenemedi' });
+  }
+});
+
+// Tüm bildirimleri okundu olarak işaretle
+app.post('/api/notifications/read-all', authenticateToken, async (req, res) => {
+  const userId = req.user.userId;
+  
+  if (!pool) {
+    return res.json({ success: true });
+  }
+  
+  try {
+    await pool.query(`
+      UPDATE notifications 
+      SET read = true 
+      WHERE user_id = $1 AND read = false
+    `, [userId]);
+    
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Tüm bildirimleri okundu işaretleme hatası:', error);
+    res.status(500).json({ error: 'Bildirimler güncellenemedi' });
+  }
+});
+
+// Match'e göre okunmamış mesaj sayısı (badge için)
+app.get('/api/matches/:matchId/unread-count', authenticateToken, async (req, res) => {
+  const userId = req.user.userId;
+  const matchId = req.params.matchId;
+  
+  if (!pool) {
+    return res.json({ count: 0 });
+  }
+  
+  try {
+    const result = await pool.query(`
+      SELECT COUNT(*) as count FROM notifications 
+      WHERE user_id = $1 AND match_id = $2 AND read = false AND type = 'new-message'
+    `, [userId, matchId]);
+    
+    res.json({ count: parseInt(result.rows[0].count) });
+  } catch (error) {
+    console.error('Okunmamış mesaj sayısı hatası:', error);
+    res.json({ count: 0 });
+  }
+});
+
 // Socket.io bağlantıları
 io.on('connection', (socket) => {
   console.log('Yeni kullanıcı bağlandı:', socket.id);
@@ -2047,6 +2171,9 @@ io.on('connection', (socket) => {
       completedMatch.messages.push(message);
       completedMatch.lastMessageAt = new Date();
       await saveMatches(completedMatches, userMatches); // Hemen kaydet
+    } else {
+      // activeMatches'teki mesajları da kaydet (completedMatches'e geçerken kaybolmasın)
+      // Mesajlar zaten match.messages'da, completedMatches'e geçerken aktarılacak
     }
 
     // Online status güncelle
@@ -2068,6 +2195,56 @@ io.on('connection', (socket) => {
       console.log(`✅ Mesaj partner'e gönderildi: ${partnerSocketId}`);
     } else {
       console.log('⚠️ Partner socketId yok, mesaj gönderilemedi. Partner offline olabilir.');
+    }
+    
+    // Partner offline ise bildirim kaydet (bildirim sistemi için)
+    if (!partnerSocketId && partnerUserId && pool) {
+      const notificationId = uuidv4();
+      try {
+        await pool.query(`
+          INSERT INTO notifications (
+            notification_id, user_id, type, title, message, match_id, from_user_id, read, created_at
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+        `, [
+          notificationId,
+          partnerUserId,
+          'new-message',
+          'Yeni Mesaj',
+          data.text.substring(0, 100),
+          match.id,
+          userInfo.userId,
+          false,
+          new Date()
+        ]);
+        console.log(`✅ Bildirim kaydedildi (offline): ${partnerUserId}`);
+      } catch (error) {
+        console.error('❌ Bildirim kaydetme hatası:', error);
+      }
+    }
+    
+    // Partner online ise de bildirim kaydet (okunmamış mesaj sayısı için)
+    if (partnerSocketId && partnerUserId && pool) {
+      const notificationId = uuidv4();
+      try {
+        await pool.query(`
+          INSERT INTO notifications (
+            notification_id, user_id, type, title, message, match_id, from_user_id, read, created_at
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+        `, [
+          notificationId,
+          partnerUserId,
+          'new-message',
+          'Yeni Mesaj',
+          data.text.substring(0, 100),
+          match.id,
+          userInfo.userId,
+          false,
+          new Date()
+        ]);
+        console.log(`✅ Bildirim kaydedildi (online): ${partnerUserId}`);
+      } catch (error) {
+        console.error('❌ Bildirim kaydetme hatası:', error);
+      }
     }
     
     socket.emit('new-message', message); // Gönderen kişiye de mesajı gönder

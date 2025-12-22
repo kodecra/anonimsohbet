@@ -19,7 +19,10 @@ import {
   Modal,
   Statistic,
   Checkbox,
-  Radio
+  Radio,
+  Badge,
+  List as AntList,
+  Empty
 } from 'antd';
 import {
   EditOutlined,
@@ -30,7 +33,8 @@ import {
   SettingOutlined,
   MoonOutlined,
   SunOutlined,
-  CheckCircleOutlined
+  CheckCircleOutlined,
+  BellOutlined
 } from '@ant-design/icons';
 import { ThemeContext } from '../App';
 import ProfileEdit from './ProfileEdit';
@@ -67,6 +71,9 @@ function MainScreen({ userId, profile, token, onMatchFound, onMatchContinued, on
   const [showMatchFilters, setShowMatchFilters] = useState(false);
   const [selectedInterests, setSelectedInterests] = useState([]);
   const [selectedGender, setSelectedGender] = useState(null); // Cinsiyet filtresi
+  const [showNotifications, setShowNotifications] = useState(false);
+  const [notifications, setNotifications] = useState([]);
+  const [unreadNotificationCount, setUnreadNotificationCount] = useState(0);
   const timerRef = useRef(null);
 
   // Temel ilgi alanları listesi (ProfileEdit ile aynı)
@@ -84,8 +91,70 @@ function MainScreen({ userId, profile, token, onMatchFound, onMatchContinued, on
   useEffect(() => {
     if (token) {
       loadStatistics();
+      loadNotifications();
+      loadUnreadNotificationCount();
     }
   }, [token]);
+
+  // Bildirimleri yükle
+  const loadNotifications = async () => {
+    try {
+      const response = await axios.get(`${API_URL}/api/notifications`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      setNotifications(response.data.notifications || []);
+    } catch (error) {
+      console.error('Bildirimler yüklenemedi:', error);
+    }
+  };
+
+  // Okunmamış bildirim sayısını yükle
+  const loadUnreadNotificationCount = async () => {
+    try {
+      const response = await axios.get(`${API_URL}/api/notifications/unread-count`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      setUnreadNotificationCount(response.data.count || 0);
+    } catch (error) {
+      console.error('Okunmamış bildirim sayısı yüklenemedi:', error);
+    }
+  };
+
+  // Bildirimi okundu olarak işaretle
+  const markNotificationAsRead = async (notificationId) => {
+    try {
+      await axios.post(`${API_URL}/api/notifications/${notificationId}/read`, {}, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      setNotifications(prev => prev.map(n => 
+        n.id === notificationId ? { ...n, read: true } : n
+      ));
+      setUnreadNotificationCount(prev => Math.max(0, prev - 1));
+    } catch (error) {
+      console.error('Bildirim okundu işaretleme hatası:', error);
+    }
+  };
+
+  // Tüm bildirimleri okundu olarak işaretle
+  const markAllNotificationsAsRead = async () => {
+    try {
+      await axios.post(`${API_URL}/api/notifications/read-all`, {}, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+      setUnreadNotificationCount(0);
+    } catch (error) {
+      console.error('Tüm bildirimleri okundu işaretleme hatası:', error);
+    }
+  };
 
   const loadStatistics = async () => {
     try {
@@ -139,6 +208,13 @@ function MainScreen({ userId, profile, token, onMatchFound, onMatchContinued, on
       setChatsRefreshKey(prev => prev + 1); // ChatsList'i yenile
       setActiveTab('chats'); // Sohbetler sekmesine geç
       onMatchContinued(data.partnerProfile);
+    });
+
+    // Bildirim event'ini dinle
+    newSocket.on('notification', (notification) => {
+      console.log('Bildirim alındı:', notification);
+      loadUnreadNotificationCount();
+      loadNotifications();
     });
 
     // Eşleşme sona erdi
@@ -921,6 +997,94 @@ function MainScreen({ userId, profile, token, onMatchFound, onMatchContinued, on
             />
           </div>
         </Space>
+      </Modal>
+
+      {/* Bildirimler Modal */}
+      <Modal
+        title={
+          <Space>
+            <span>Bildirimler</span>
+            {unreadNotificationCount > 0 && (
+              <Badge count={unreadNotificationCount} />
+            )}
+            {unreadNotificationCount > 0 && (
+              <Button 
+                type="link" 
+                size="small"
+                onClick={markAllNotificationsAsRead}
+              >
+                Tümünü Okundu İşaretle
+              </Button>
+            )}
+          </Space>
+        }
+        open={showNotifications}
+        onCancel={() => setShowNotifications(false)}
+        footer={null}
+        width={600}
+        style={{
+          top: 20
+        }}
+      >
+        {notifications.length === 0 ? (
+          <Empty 
+            description="Henüz bildiriminiz yok"
+            style={{ padding: '40px 0' }}
+          />
+        ) : (
+          <AntList
+            dataSource={notifications}
+            renderItem={(notification) => (
+              <AntList.Item
+                style={{
+                  backgroundColor: notification.read ? 'transparent' : (isDarkMode ? '#2e2e2e' : '#f0f7ff'),
+                  padding: '12px',
+                  borderRadius: '8px',
+                  marginBottom: '8px',
+                  cursor: 'pointer'
+                }}
+                onClick={() => {
+                  if (!notification.read) {
+                    markNotificationAsRead(notification.id);
+                  }
+                  if (notification.matchId) {
+                    onMatchFound(notification.matchId);
+                    setShowNotifications(false);
+                  }
+                }}
+              >
+                <AntList.Item.Meta
+                  title={
+                    <Space>
+                      <Text strong={!notification.read}>
+                        {notification.title || 'Yeni Mesaj'}
+                      </Text>
+                      {!notification.read && (
+                        <Badge dot color="red" />
+                      )}
+                    </Space>
+                  }
+                  description={
+                    <div>
+                      <Text type="secondary" style={{ display: 'block', marginBottom: '4px' }}>
+                        {notification.message}
+                      </Text>
+                      <Text type="secondary" style={{ fontSize: '12px' }}>
+                        {new Date(notification.createdAt).toLocaleString('tr-TR', {
+                          day: '2-digit',
+                          month: '2-digit',
+                          year: 'numeric',
+                          hour: '2-digit',
+                          minute: '2-digit'
+                        })}
+                      </Text>
+                    </div>
+                  }
+                />
+              </AntList.Item>
+            )}
+          />
+        )}
       </Modal>
     </div>
   );
