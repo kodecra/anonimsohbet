@@ -131,9 +131,13 @@ function ChatScreen({ userId, profile: currentProfile, matchId, partnerProfile: 
       });
     } else if (initialPartnerProfile && matchId) {
       // initialPartnerProfile varsa zaten completed match
+      console.log('✅ initialPartnerProfile var - completed match', initialPartnerProfile);
       setIsCompletedMatch(true);
+      setPartnerProfile(initialPartnerProfile);
+      setTimer(null);
       
       // Mesaj geçmişini yükle
+      console.log('✅ Mesaj geçmişi yükleniyor...', matchId);
       fetch(`${API_URL}/api/matches/${matchId}`, {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('token')}`
@@ -143,17 +147,21 @@ function ChatScreen({ userId, profile: currentProfile, matchId, partnerProfile: 
         if (response.ok) {
           return response.json();
         }
+        throw new Error('Mesaj geçmişi yüklenemedi');
       })
       .then(data => {
+        console.log('✅ Mesaj geçmişi API response:', data);
         if (data && data.match && data.match.messages && data.match.messages.length > 0) {
-          console.log('✅ Mesaj geçmişi yüklendi:', data.match.messages.length, 'mesaj');
+          console.log(`✅ ${data.match.messages.length} mesaj yüklendi`);
           setMessages(data.match.messages);
         } else {
           console.log('⚠️ Mesaj geçmişi boş veya bulunamadı');
+          setMessages([]); // Boş array set et
         }
       })
       .catch(err => {
-        console.error('Mesaj geçmişi yüklenemedi:', err);
+        console.error('❌ Mesaj geçmişi yüklenemedi:', err);
+        setMessages([]); // Hata durumunda boş array
       });
     }
     

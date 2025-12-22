@@ -147,6 +147,7 @@ function App() {
           'Authorization': `Bearer ${token}`
         }
       });
+      console.log('✅ handleMatchFound: Match data alındı', response.data);
       if (response.data && response.data.match) {
         // Partner bilgisini bul
         const partner = response.data.match.user1.userId === userId 
@@ -163,7 +164,9 @@ function App() {
     }
     
     // Partner profile'ı set et ve sonra chat ekranına geç
+    console.log('✅ handleMatchFound: Partner profile set ediliyor', partnerProfileData);
     setPartnerProfile(partnerProfileData);
+    // Partner profile varsa completed match'tir, mesajlar yüklenecek
     setScreen('chat');
   };
 
