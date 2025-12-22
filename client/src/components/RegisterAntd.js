@@ -96,22 +96,24 @@ function RegisterAntd({ onRegister, onSwitchToLogin, API_URL }) {
             maxWidth: 420,
             borderRadius: '16px',
             boxShadow: '0 8px 24px rgba(0,0,0,0.12)',
-            maxHeight: '95vh',
-            overflowY: 'auto'
+            maxHeight: '90vh',
+            overflowY: 'auto',
+            padding: '20px'
           }}
+          bodyStyle={{ padding: '20px' }}
         >
-          <div style={{ textAlign: 'center', marginBottom: '20px' }}>
+          <div style={{ textAlign: 'center', marginBottom: '16px' }}>
             <img 
               src="/logo.png" 
               alt="Soulbate Logo" 
               style={{ 
-                height: '60px', 
+                height: '50px', 
                 width: 'auto', 
-                marginBottom: '12px',
+                marginBottom: '8px',
                 objectFit: 'contain'
               }} 
             />
-            <Text type="secondary" style={{ display: 'block', fontSize: '16px' }}>Kayıt Ol</Text>
+            <Text type="secondary" style={{ display: 'block', fontSize: '15px' }}>Kayıt Ol</Text>
           </div>
 
           {error && (
@@ -120,7 +122,7 @@ function RegisterAntd({ onRegister, onSwitchToLogin, API_URL }) {
               description={error}
               type="error"
               showIcon
-              style={{ marginBottom: '16px' }}
+              style={{ marginBottom: '12px' }}
               closable
               onClose={() => setError('')}
             />
@@ -142,7 +144,7 @@ function RegisterAntd({ onRegister, onSwitchToLogin, API_URL }) {
               { required: true, message: 'Kullanıcı adı gereklidir' },
               { max: 50, message: 'En fazla 50 karakter olabilir' }
             ]}
-            style={{ marginBottom: '12px' }}
+            style={{ marginBottom: '10px' }}
           >
             <Input 
               prefix={<UserOutlined />} 
@@ -158,7 +160,7 @@ function RegisterAntd({ onRegister, onSwitchToLogin, API_URL }) {
                 rules={[
                   { max: 50, message: 'En fazla 50 karakter olabilir' }
                 ]}
-                style={{ marginBottom: '12px' }}
+                style={{ marginBottom: '10px' }}
               >
                 <Input placeholder="İsminiz" />
               </Form.Item>
@@ -171,7 +173,7 @@ function RegisterAntd({ onRegister, onSwitchToLogin, API_URL }) {
                   { required: true, message: 'Soyisim zorunludur' },
                   { max: 50, message: 'En fazla 50 karakter olabilir' }
                 ]}
-                style={{ marginBottom: '12px' }}
+                style={{ marginBottom: '10px' }}
               >
                 <Input placeholder="Soyisminiz" />
               </Form.Item>
@@ -184,7 +186,7 @@ function RegisterAntd({ onRegister, onSwitchToLogin, API_URL }) {
             rules={[
               { required: false }
             ]}
-            style={{ marginBottom: '12px' }}
+            style={{ marginBottom: '10px' }}
           >
             <Select placeholder="Cinsiyet seçin (isteğe bağlı)">
               <Select.Option value="male">Erkek</Select.Option>
@@ -204,7 +206,7 @@ function RegisterAntd({ onRegister, onSwitchToLogin, API_URL }) {
                 message: 'Geçerli bir telefon numarası giriniz (10-15 rakam)' 
               }
             ]}
-            style={{ marginBottom: '12px' }}
+            style={{ marginBottom: '10px' }}
           >
             <Input 
               prefix={<PhoneOutlined />} 
@@ -250,7 +252,7 @@ function RegisterAntd({ onRegister, onSwitchToLogin, API_URL }) {
                 }
               }
             ]}
-            style={{ marginBottom: '12px' }}
+            style={{ marginBottom: '10px' }}
           >
             <DatePicker
               style={{ width: '100%' }}
@@ -280,7 +282,7 @@ function RegisterAntd({ onRegister, onSwitchToLogin, API_URL }) {
               { required: true, message: 'Şifre gereklidir' },
               { min: 6, message: 'Şifre en az 6 karakter olmalıdır' }
             ]}
-            style={{ marginBottom: '12px' }}
+            style={{ marginBottom: '10px' }}
           >
             <Input.Password 
               prefix={<LockOutlined />} 
@@ -303,7 +305,7 @@ function RegisterAntd({ onRegister, onSwitchToLogin, API_URL }) {
                 },
               }),
             ]}
-            style={{ marginBottom: '16px' }}
+            style={{ marginBottom: '12px' }}
           >
             <Input.Password 
               prefix={<LockOutlined />} 
@@ -311,7 +313,7 @@ function RegisterAntd({ onRegister, onSwitchToLogin, API_URL }) {
             />
           </Form.Item>
 
-          <Form.Item style={{ marginBottom: '12px' }}>
+          <Form.Item style={{ marginBottom: '10px' }}>
             <Button 
               type="primary" 
               htmlType="submit" 
@@ -330,7 +332,7 @@ function RegisterAntd({ onRegister, onSwitchToLogin, API_URL }) {
           </Form.Item>
         </Form>
 
-        <Divider style={{ margin: '16px 0' }}>Zaten hesabınız var mı?</Divider>
+        <Divider style={{ margin: '12px 0' }}>Zaten hesabınız var mı?</Divider>
 
         <Button 
           type="default" 
