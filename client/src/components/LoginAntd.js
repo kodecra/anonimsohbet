@@ -244,7 +244,6 @@ function LoginAntd({ onLogin, onSwitchToRegister, API_URL }) {
         </div>
       </div>
     </div>
-    </>
   );
 }
 
