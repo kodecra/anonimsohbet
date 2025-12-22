@@ -159,7 +159,7 @@ function ProfileEdit({ profile, token, onProfileUpdated, onClose, API_URL }) {
         message.success('Fotoğraf yüklendi');
         
         // Eğer kullanıcı onaylanmışsa ve yeni fotoğraf yüklendiyse, verified'ı false yap
-        if (profile.verified && updatedProfile.verified === false) {
+        if (response.data.verifiedRemoved || (profile.verified && updatedProfile.verified === false)) {
           message.warning('Yeni fotoğraf yüklendi. Profil onayınız kaldırıldı. Lütfen tekrar onaylama yaptırın.');
         }
         

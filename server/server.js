@@ -389,6 +389,18 @@ app.post('/api/profile/photos', authenticateToken, upload.array('photos', 5), as
   // Mevcut fotoğrafları kontrol et (max 5)
   const currentPhotos = profile.photos || [];
   
+  // Onaylanmış kullanıcılar yeni fotoğraf yüklerse verified'ı false yap
+  const wasVerified = profile.verified;
+  if (profile.verified) {
+    console.log(`⚠️ Onaylanmış kullanıcı ${profile.username} yeni fotoğraf yüklüyor, verified false yapılıyor`);
+    profile.verified = false;
+    // Verification request'i de sil (tekrar onaylama yapması gerekecek)
+    if (pendingVerifications.has(userId)) {
+      pendingVerifications.delete(userId);
+      await saveVerifications(pendingVerifications);
+    }
+  }
+
   // Dosyaları direkt dosya sistemine kaydet (VPS'de FTP'ye gerek yok)
   const newPhotos = await Promise.all(req.files.map(async (file) => {
     // Local dosya zaten uploadsDir'de, direkt URL oluştur
