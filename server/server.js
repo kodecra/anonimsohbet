@@ -1182,9 +1182,18 @@ app.get('/api/matches', authenticateToken, (req, res) => {
   const userId = req.user.userId;
   const matchIds = userMatches.get(userId) || [];
   
+  console.log(`📋 /api/matches: userId=${userId}, matchIds=${JSON.stringify(matchIds)}`);
+  console.log(`📋 completedMatches size: ${completedMatches.size}`);
+  
   const matches = matchIds.map(matchId => {
     const match = completedMatches.get(matchId);
-    if (!match) return null;
+    if (!match) {
+      console.log(`⚠️ Match bulunamadı: ${matchId} (userId: ${userId})`);
+      // Eğer match bulunamazsa, userMatches'ten de çıkar (temizlik)
+      const filteredMatchIds = matchIds.filter(id => id !== matchId);
+      userMatches.set(userId, filteredMatchIds);
+      return null;
+    }
 
     // Partner bilgisini bul
     const partner = match.user1.userId === userId ? match.user2 : match.user1;
@@ -1216,9 +1225,19 @@ app.get('/api/matches', authenticateToken, (req, res) => {
     };
   }).filter(m => m !== null).sort((a, b) => {
     // En son mesaj alanı üstte
-    return new Date(b.lastMessageAt) - new Date(a.lastMessageAt);
+    const dateA = a.lastMessageAt ? new Date(a.lastMessageAt) : new Date(0);
+    const dateB = b.lastMessageAt ? new Date(b.lastMessageAt) : new Date(0);
+    return dateB - dateA;
   });
-
+  
+  // Temizlik yapıldıysa kaydet
+  if (matches.length < matchIds.length) {
+    saveMatches(completedMatches, userMatches);
+    console.log(`🧹 Temizlik yapıldı: ${matchIds.length - matches.length} geçersiz matchId silindi`);
+  }
+  
+  console.log(`✅ /api/matches: ${matches.length} match döndürüldü (userId: ${userId})`);
+  
   res.json({ matches });
 });
 
