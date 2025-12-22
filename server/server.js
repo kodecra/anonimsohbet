@@ -130,6 +130,16 @@ const activeUsers = new Map(); // socketId -> user info (geçici)
 const matchingQueue = []; // Eşleşme bekleyen kullanıcılar (geçici)
 const activeMatches = new Map(); // matchId -> match info (geçici)
 
+// Match silme helper function - Timer interval'ini de temizler
+function deleteActiveMatch(matchId) {
+  const match = activeMatches.get(matchId);
+  if (match && match.timerInterval) {
+    clearInterval(match.timerInterval);
+    match.timerInterval = null;
+  }
+  activeMatches.delete(matchId);
+}
+
 const SUPERADMIN_EMAIL = process.env.SUPERADMIN_EMAIL || 'admin@admin.com'; // Superadmin email
 
 // Veritabanını başlat (eğer PostgreSQL kullanılıyorsa)
@@ -822,7 +832,7 @@ app.delete('/api/matches/:matchId', authenticateToken, async (req, res) => {
   
   // Eşleşmeyi sil
   completedMatches.delete(matchId);
-  activeMatches.delete(matchId);
+  deleteActiveMatch(matchId); // Timer interval'ini de temizler
   
   await saveMatches(completedMatches, userMatches);
   
@@ -1119,25 +1129,66 @@ io.on('connection', (socket) => {
         startedAt: startedAt // Timer senkronizasyonu için
       });
 
-      // 30 saniyelik timer başlat
+      // Server-side timer başlat - Her saniye her iki client'a da güncel süreyi gönder
       match.timerStarted = true;
-      setTimeout(() => {
+      const TIMER_DURATION = 30000; // 30 saniye = 30000 ms
+      
+      // Timer interval'i - Her saniye güncelle
+      match.timerInterval = setInterval(() => {
         const currentMatch = activeMatches.get(matchId);
-        if (!currentMatch) return;
+        if (!currentMatch) {
+          // Match silinmiş, interval'i temizle
+          if (match.timerInterval) {
+            clearInterval(match.timerInterval);
+          }
+          return;
+        }
 
-        // Her iki kullanıcıya da karar sor
-        io.to(user1.socketId).emit('time-up', {
-          matchId: matchId,
-          message: '30 saniye doldu. Devam etmek istiyor musunuz?'
-        });
+        const now = Date.now();
+        const elapsed = now - startedAt;
+        const remaining = Math.max(0, TIMER_DURATION - elapsed);
+        const remainingSeconds = Math.ceil(remaining / 1000);
 
-        io.to(user2.socketId).emit('time-up', {
-          matchId: matchId,
-          message: '30 saniye doldu. Devam etmek istiyor musunuz?'
-        });
+        // Her iki kullanıcıya da güncel timer değerini gönder
+        if (currentMatch.user1 && currentMatch.user1.socketId) {
+          io.to(currentMatch.user1.socketId).emit('timer-update', {
+            matchId: matchId,
+            remainingSeconds: remainingSeconds,
+            remaining: remaining
+          });
+        }
+        if (currentMatch.user2 && currentMatch.user2.socketId) {
+          io.to(currentMatch.user2.socketId).emit('timer-update', {
+            matchId: matchId,
+            remainingSeconds: remainingSeconds,
+            remaining: remaining
+          });
+        }
 
-        console.log(`30 saniye doldu - Match: ${matchId}`);
-      }, 30000);
+        // Timer bittiğinde
+        if (remainingSeconds <= 0) {
+          if (match.timerInterval) {
+            clearInterval(match.timerInterval);
+            match.timerInterval = null;
+          }
+
+          // Her iki kullanıcıya da karar sor
+          if (currentMatch.user1 && currentMatch.user1.socketId) {
+            io.to(currentMatch.user1.socketId).emit('time-up', {
+              matchId: matchId,
+              message: '30 saniye doldu. Devam etmek istiyor musunuz?'
+            });
+          }
+          if (currentMatch.user2 && currentMatch.user2.socketId) {
+            io.to(currentMatch.user2.socketId).emit('time-up', {
+              matchId: matchId,
+              message: '30 saniye doldu. Devam etmek istiyor musunuz?'
+            });
+          }
+
+          console.log(`30 saniye doldu - Match: ${matchId}`);
+        }
+      }, 1000); // Her saniye güncelle
 
       console.log(`Eşleşme oluşturuldu: ${matchId} - ${user1.profile.username} & ${user2.profile.username}`);
     }
@@ -1222,6 +1273,12 @@ io.on('connection', (socket) => {
 
         completedMatches.set(matchId, completedMatch);
 
+        // Timer interval'ini temizle (match tamamlandı)
+        if (match.timerInterval) {
+          clearInterval(match.timerInterval);
+          match.timerInterval = null;
+        }
+
         // Kullanıcıların eşleşme listelerine ekle
         if (!userMatches.has(match.user1.userId)) {
           userMatches.set(match.user1.userId, []);
@@ -1269,7 +1326,7 @@ io.on('connection', (socket) => {
           user2Info.inMatch = false;
           user2Info.matchId = null;
         }
-        activeMatches.delete(matchId);
+        deleteActiveMatch(matchId); // Timer interval'ini de temizler
 
         console.log(`Eşleşme sona erdi: ${matchId}`);
       }
@@ -1773,7 +1830,7 @@ io.on('connection', (socket) => {
             partnerInfo.inMatch = false;
             partnerInfo.matchId = null;
           }
-          activeMatches.delete(userInfo.matchId);
+          deleteActiveMatch(userInfo.matchId); // Timer interval'ini de temizler
         }
       }
 

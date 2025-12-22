@@ -247,6 +247,20 @@ function ChatScreen({ userId, profile: currentProfile, matchId, partnerProfile: 
       }
     });
 
+    // Server'dan gelen timer güncellemelerini dinle
+    newSocket.on('timer-update', (data) => {
+      console.log('⏱️ Server timer-update alındı:', data);
+      if (data.matchId === matchId) {
+        // Server'dan gelen değeri direkt kullan
+        setTimer(data.remainingSeconds);
+        
+        // Timer bittiğinde karar ekranını göster
+        if (data.remainingSeconds <= 0) {
+          setShowDecision(true);
+        }
+      }
+    });
+
     // İlk kontrol
     checkAndSetProfile();
     
@@ -494,154 +508,26 @@ function ChatScreen({ userId, profile: currentProfile, matchId, partnerProfile: 
     };
   }, [userId, API_URL, onMatchEnded, onMatchContinued]);
 
-  // Timer başlat - Server'dan gelen startedAt'a göre senkronize
+  // Timer - Artık tamamen server-side yönetiliyor, client sadece server'dan gelen değeri gösteriyor
   useEffect(() => {
-    console.log('🔄 Timer useEffect çalışıyor:', { isCompletedMatch, partnerProfile: !!partnerProfile, showDecision, waitingForPartner, matchId, matchStartedAt });
+    console.log('🔄 Timer useEffect çalışıyor:', { isCompletedMatch, partnerProfile: !!partnerProfile, showDecision, waitingForPartner, matchId });
     
-    // Önceki timer'ı temizle
-    if (timerRef.current) {
-      console.log('⏹️ Önceki timer durduruluyor');
-      clearTimeout(timerRef.current);
-      timerRef.current = null;
-    }
-
-    // Completed match kontrolü: isCompletedMatch true ise veya partnerProfile varsa timer başlatma
+    // Completed match kontrolü: isCompletedMatch true ise veya partnerProfile varsa timer'ı temizle
     if (isCompletedMatch || partnerProfile) {
-      console.log('✅ Completed match - timer başlatılmayacak');
-      // Completed match'te timer'ı temizle
+      console.log('✅ Completed match - timer temizleniyor');
       setTimer(null);
       setShowDecision(false);
-      if (timerRef.current) {
-        clearTimeout(timerRef.current);
-        timerRef.current = null;
-      }
       return;
     }
 
-    // Sadece yeni eşleşmelerde timer başlat (isCompletedMatch false ise ve partnerProfile yoksa)
+    // Yeni eşleşme için başlangıç değeri (server'dan timer-update gelecek)
     if (!isCompletedMatch && !partnerProfile && !showDecision && !waitingForPartner && matchId) {
-      // Timer senkronizasyonu: matchStartedAt varsa onu kullan, yoksa şu anki zamanı kullan
-      const calculateRemainingTime = () => {
-        if (matchStartedAt) {
-          // Server'dan gelen başlangıç zamanına göre kalan süreyi hesapla
-          const now = Date.now();
-          const elapsed = now - matchStartedAt; // milliseconds
-          const remaining = Math.max(0, 30000 - elapsed); // 30 saniye = 30000 ms
-          return Math.ceil(remaining / 1000); // saniyeye çevir
-        }
-        // startedAt yoksa varsayılan 30 saniye
-        return 30;
-      };
-
-      const updateTimer = () => {
-        if (matchStartedAt) {
-          // Server zamanına göre hesapla (senkronize)
-          const now = Date.now();
-          const elapsed = now - matchStartedAt;
-          const remaining = Math.max(0, 30000 - elapsed);
-          const remainingSeconds = Math.ceil(remaining / 1000);
-          
-          if (remainingSeconds <= 0) {
-            if (timerRef.current) {
-              clearTimeout(timerRef.current);
-              timerRef.current = null;
-            }
-            setShowDecision(true);
-            setTimer(0);
-          } else {
-            setTimer(remainingSeconds);
-            // Her saniye güncelle (setTimeout ile)
-            timerRef.current = setTimeout(updateTimer, 1000);
-          }
-        } else {
-          // Fallback: Normal geri sayım (startedAt yoksa)
-          setTimer((prev) => {
-            if (prev === null || prev <= 1) {
-              if (timerRef.current) {
-                clearTimeout(timerRef.current);
-                timerRef.current = null;
-              }
-              setShowDecision(true);
-              return 0;
-            }
-            const next = prev - 1;
-            timerRef.current = setTimeout(updateTimer, 1000);
-            return next;
-          });
-        }
-      };
-
-      const initialTime = calculateRemainingTime();
-      console.log('⏱️ Yeni eşleşme - timer başlatılıyor:', { initialTime, matchStartedAt });
-      
-      if (initialTime <= 0) {
-        // Timer zaten bitmiş
-        setShowDecision(true);
-        setTimer(0);
-        return;
+      // İlk değer olarak 30 saniye göster (server'dan güncelleme gelecek)
+      if (timer === null || timer === undefined) {
+        setTimer(30);
       }
-
-      setTimer(initialTime);
-      // İlk güncellemeyi başlat
-      timerRef.current = setTimeout(updateTimer, 1000);
-    } else {
-      console.log('⏸️ Timer başlatılmıyor:', { isCompletedMatch, partnerProfile: !!partnerProfile, showDecision, waitingForPartner, matchId, matchStartedAt });
     }
-
-    // Sekme görünürlük değişikliğini dinle - sekme tekrar aktif olduğunda timer'ı yeniden hesapla
-    const handleVisibilityChange = () => {
-      if (!document.hidden && !isCompletedMatch && !partnerProfile && !showDecision && !waitingForPartner && matchId && matchStartedAt) {
-        console.log('👁️ Sekme tekrar aktif - timer yeniden hesaplanıyor');
-        // Timer'ı durdur
-        if (timerRef.current) {
-          clearTimeout(timerRef.current);
-          timerRef.current = null;
-        }
-        // Yeniden hesapla ve başlat
-        const now = Date.now();
-        const elapsed = now - matchStartedAt;
-        const remaining = Math.max(0, 30000 - elapsed);
-        const remainingSeconds = Math.ceil(remaining / 1000);
-        
-        if (remainingSeconds <= 0) {
-          setShowDecision(true);
-          setTimer(0);
-        } else {
-          setTimer(remainingSeconds);
-          // Timer'ı yeniden başlat
-          const updateTimer = () => {
-            const now = Date.now();
-            const elapsed = now - matchStartedAt;
-            const remaining = Math.max(0, 30000 - elapsed);
-            const remainingSeconds = Math.ceil(remaining / 1000);
-            
-            if (remainingSeconds <= 0) {
-              if (timerRef.current) {
-                clearTimeout(timerRef.current);
-                timerRef.current = null;
-              }
-              setShowDecision(true);
-              setTimer(0);
-            } else {
-              setTimer(remainingSeconds);
-              timerRef.current = setTimeout(updateTimer, 1000);
-            }
-          };
-          timerRef.current = setTimeout(updateTimer, 1000);
-        }
-      }
-    };
-
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-
-    return () => {
-      if (timerRef.current) {
-        clearTimeout(timerRef.current);
-        timerRef.current = null;
-      }
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
-    };
-  }, [isCompletedMatch, showDecision, waitingForPartner, matchId, partnerProfile, matchStartedAt]); // matchStartedAt eklendi
+  }, [isCompletedMatch, showDecision, waitingForPartner, matchId, partnerProfile]); // timer-update event'i ile güncellenecek
 
   // Mesajlar değiştiğinde scroll
   useEffect(() => {
