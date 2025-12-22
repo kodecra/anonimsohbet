@@ -22,8 +22,6 @@ function RegisterAntd({ onRegister, onSwitchToLogin, API_URL }) {
 
     try {
       const response = await axios.post(`${API_URL}/api/register`, {
-        email: values.email.trim(),
-        password: values.password,
         username: values.username.trim(),
         firstName: values.firstName?.trim() || null,
         lastName: values.lastName.trim(),
@@ -146,57 +144,6 @@ function RegisterAntd({ onRegister, onSwitchToLogin, API_URL }) {
             </Select>
           </Form.Item>
 
-          <Form.Item
-            name="email"
-            label="Email"
-            rules={[
-              { required: true, message: 'Email gereklidir' },
-              { type: 'email', message: 'Geçerli bir email girin' }
-            ]}
-          >
-            <Input 
-              prefix={<MailOutlined />} 
-              placeholder="ornek@email.com"
-            />
-          </Form.Item>
-
-          <Form.Item
-            name="password"
-            label="Şifre"
-            rules={[
-              { required: true, message: 'Şifre gereklidir' },
-              { min: 6, message: 'Şifre en az 6 karakter olmalıdır' }
-            ]}
-            hasFeedback
-          >
-            <Input.Password 
-              prefix={<LockOutlined />} 
-              placeholder="En az 6 karakter"
-            />
-          </Form.Item>
-
-          <Form.Item
-            name="confirmPassword"
-            label="Şifre Tekrar"
-            dependencies={['password']}
-            rules={[
-              { required: true, message: 'Şifre tekrarını girin' },
-              ({ getFieldValue }) => ({
-                validator(_, value) {
-                  if (!value || getFieldValue('password') === value) {
-                    return Promise.resolve();
-                  }
-                  return Promise.reject(new Error('Şifreler eşleşmiyor'));
-                },
-              }),
-            ]}
-            hasFeedback
-          >
-            <Input.Password 
-              prefix={<LockOutlined />} 
-              placeholder="Şifrenizi tekrar girin"
-            />
-          </Form.Item>
 
           <Form.Item>
             <Button 

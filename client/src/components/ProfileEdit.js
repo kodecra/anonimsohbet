@@ -44,7 +44,6 @@ function ProfileEdit({ profile, token, onProfileUpdated, onClose, API_URL }) {
       firstName: profile.firstName || '',
       lastName: profile.lastName || '',
       gender: profile.gender || undefined,
-      age: profile.age || undefined,
       bio: profile.bio || '',
       interests: (profile.interests || []).join(', ')
     });
@@ -122,7 +121,6 @@ function ProfileEdit({ profile, token, onProfileUpdated, onClose, API_URL }) {
         firstName: values.firstName?.trim() || null,
         lastName: values.lastName.trim(),
         gender: values.gender || null,
-        age: values.age || null,
         bio: values.bio?.trim() || '',
         interests: interestsArray
       }, {
@@ -237,20 +235,6 @@ function ProfileEdit({ profile, token, onProfileUpdated, onClose, API_URL }) {
             </Select>
           </Form.Item>
 
-          <Form.Item
-            name="age"
-            label="Yaş"
-            rules={[
-              { type: 'number', min: 13, max: 120, message: 'Yaş 13-120 arasında olmalıdır' }
-            ]}
-          >
-            <InputNumber
-              placeholder="Yaşınızı girin"
-              style={{ width: '100%' }}
-              min={13}
-              max={120}
-            />
-          </Form.Item>
 
           <Form.Item
             name="bio"

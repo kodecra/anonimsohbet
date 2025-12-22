@@ -164,27 +164,14 @@ process.on('SIGINT', async () => {
 
 // Kayıt ol
 app.post('/api/register', async (req, res) => {
-  const { email, password, username, firstName, lastName, gender } = req.body;
+  const { username, firstName, lastName, gender } = req.body;
   
-  if (!email || !password) {
-    return res.status(400).json({ error: 'Email ve şifre gereklidir' });
-  }
-
   if (!username || !username.trim()) {
     return res.status(400).json({ error: 'Kullanıcı adı gereklidir' });
   }
 
   if (!lastName || !lastName.trim()) {
     return res.status(400).json({ error: 'Soyisim zorunludur' });
-  }
-
-  if (password.length < 6) {
-    return res.status(400).json({ error: 'Şifre en az 6 karakter olmalıdır' });
-  }
-
-  // Email kontrolü
-  if (userAuth.has(email.toLowerCase())) {
-    return res.status(400).json({ error: 'Bu email zaten kayıtlı' });
   }
 
   // Kullanıcı adı kontrolü
@@ -1194,22 +1181,66 @@ io.on('connection', (socket) => {
     const { matchId, decision } = data; // decision: 'continue' veya 'leave'
     const userInfo = activeUsers.get(socket.id);
     
-    if (!userInfo || !userInfo.inMatch || userInfo.matchId !== matchId) {
-      console.log('❌ match-decision: Geçersiz eşleşme', { 
-        socketId: socket.id, 
-        userInfo: !!userInfo, 
-        inMatch: userInfo?.inMatch, 
-        matchId: userInfo?.matchId,
-        requestedMatchId: matchId 
-      });
-      socket.emit('error', { message: 'Geçersiz eşleşme' });
+    if (!userInfo) {
+      console.log('❌ match-decision: Kullanıcı bulunamadı', { socketId: socket.id });
+      socket.emit('error', { message: 'Kullanıcı bulunamadı' });
       return;
     }
 
-    const match = activeMatches.get(matchId);
+    // Önce activeMatches'te kontrol et
+    let match = activeMatches.get(matchId);
+    
+    // Eğer activeMatches'te yoksa, completedMatches'te kontrol et (belki zaten tamamlanmış)
     if (!match) {
-      console.log('❌ match-decision: Eşleşme bulunamadı', { matchId, activeMatchesSize: activeMatches.size });
+      const completedMatch = completedMatches.get(matchId);
+      if (completedMatch) {
+        // Match zaten tamamlanmış, match-continued event'i gönder
+        const isUser1 = completedMatch.user1.userId === userInfo.userId;
+        const isUser2 = completedMatch.user2.userId === userInfo.userId;
+        
+        if (isUser1 || isUser2) {
+          const partnerProfile = isUser1 ? completedMatch.user2.profile : completedMatch.user1.profile;
+          
+          // Güncel socket ID'yi bul
+          let userSocketId = socket.id;
+          for (const [socketId, uInfo] of activeUsers.entries()) {
+            if (uInfo.userId === userInfo.userId) {
+              userSocketId = socketId;
+              break;
+            }
+          }
+          
+          io.to(userSocketId).emit('match-continued', {
+            matchId: matchId,
+            partnerProfile: partnerProfile,
+            message: 'Eşleşme onaylandı! Artık birbirinizin profillerini görebilirsiniz.'
+          });
+          console.log(`✅ match-continued gönderildi (completed match): ${userSocketId}`);
+          return;
+        }
+      }
+      
+      console.log('❌ match-decision: Eşleşme bulunamadı', { 
+        matchId, 
+        activeMatchesSize: activeMatches.size,
+        completedMatchesSize: completedMatches.size,
+        userMatchId: userInfo.matchId
+      });
       socket.emit('error', { message: 'Eşleşme bulunamadı' });
+      return;
+    }
+    
+    // Match activeMatches'te var, kullanıcının bu match'te olduğunu kontrol et
+    const isUser1 = match.user1.userId === userInfo.userId;
+    const isUser2 = match.user2.userId === userInfo.userId;
+    
+    if (!isUser1 && !isUser2) {
+      console.log('❌ match-decision: Kullanıcı match\'te bulunamadı', { 
+        userId: userInfo.userId, 
+        matchUser1Id: match.user1.userId, 
+        matchUser2Id: match.user2.userId 
+      });
+      socket.emit('error', { message: 'Eşleşmede kullanıcı bulunamadı' });
       return;
     }
 
@@ -1229,6 +1260,7 @@ io.on('connection', (socket) => {
 
     console.log(`✅ match-decision: ${isUser1 ? 'user1' : 'user2'} karar verdi: ${decision}`, { matchId, userId: userInfo.userId });
     
+    // Hangi kullanıcı olduğunu belirle (userId ile kontrol et, socket.id değişebilir)
     if (isUser1) {
       match.user1Decision = decision;
       match.user1.socketId = socket.id; // Socket ID'yi güncelle
