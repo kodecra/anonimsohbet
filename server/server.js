@@ -1072,6 +1072,7 @@ app.get('/api/matches', authenticateToken, (req, res) => {
       lastMessage: match.messages.length > 0 ? match.messages[match.messages.length - 1] : null,
       lastMessageAt: match.lastMessageAt,
       messageCount: match.messages.length,
+      messages: match.messages || [], // Mesajları da gönder (arama için)
       startedAt: match.startedAt
     };
   }).filter(m => m !== null).sort((a, b) => {
@@ -1417,7 +1418,8 @@ io.on('connection', (socket) => {
       user1 = matchingQueue[0];
       user1Index = 0;
       
-      // İkinci kullanıcıyı bul - cinsiyet ve ilgi alanlarına göre filtrele
+      // ÖNCE: Cinsiyet filtresine uygun kullanıcıları bul
+      const genderFilteredCandidates = [];
       for (let i = 1; i < matchingQueue.length; i++) {
         const candidate = matchingQueue[i];
         
@@ -1442,10 +1444,25 @@ io.on('connection', (socket) => {
           }
         }
         
-        if (!genderMatch) {
-          continue; // Cinsiyet eşleşmiyorsa bir sonraki adayı kontrol et
+        if (genderMatch) {
+          genderFilteredCandidates.push({ candidate, index: i });
         }
-        
+      }
+      
+      console.log(`🔍 Cinsiyet filtresine uygun ${genderFilteredCandidates.length} aday bulundu`);
+      
+      // Eğer cinsiyet filtresine uygun aday yoksa, cinsiyet filtresini atlamadan eşleşme yapma
+      if (genderFilteredCandidates.length === 0) {
+        console.log('⚠️ Cinsiyet filtresine uygun aday bulunamadı, eşleşme yapılamıyor');
+        // Kullanıcıyı kuyrukta bırak, beklesin
+        return;
+      }
+      
+      // SONRA: İlgi alanlarına göre filtrele (opsiyonel - cinsiyet öncelikli)
+      let foundMatch = false;
+      
+      // Önce ilgi alanlarına göre eşleşme ara
+      for (const { candidate, index } of genderFilteredCandidates) {
         // Eğer user1'in ilgi alanı filtreleme tercihi varsa
         if (user1.filterInterests && user1.filterInterests.length > 0) {
           const candidateInterests = candidate.profile.interests || [];
@@ -1454,7 +1471,9 @@ io.on('connection', (socket) => {
           );
           if (hasCommonInterest) {
             user2 = candidate;
-            user2Index = i;
+            user2Index = index;
+            foundMatch = true;
+            console.log('✅ İlgi alanlarına göre eşleşme bulundu');
             break;
           }
         }
@@ -1466,22 +1485,20 @@ io.on('connection', (socket) => {
           );
           if (hasCommonInterest) {
             user2 = candidate;
-            user2Index = i;
+            user2Index = index;
+            foundMatch = true;
+            console.log('✅ İlgi alanlarına göre eşleşme bulundu');
             break;
           }
         }
-        // Filtreleme yoksa direkt eşleştir (cinsiyet zaten eşleşti)
-        else {
-          user2 = candidate;
-          user2Index = i;
-          break;
-        }
       }
       
-      // Eğer filtreleme ile eşleşme bulunamazsa, filtreleme olmadan eşleştir
-      if (!user2 && matchingQueue.length >= 2) {
-        user2 = matchingQueue[1];
-        user2Index = 1;
+      // İlgi alanlarına göre eşleşme bulunamazsa, cinsiyet filtresine uygun ilk adayı al (ilgi alanlarına bakmadan)
+      if (!foundMatch && genderFilteredCandidates.length > 0) {
+        console.log('⚠️ İlgi alanlarına göre eşleşme bulunamadı, cinsiyet filtresine uygun ilk aday seçiliyor');
+        user2 = genderFilteredCandidates[0].candidate;
+        user2Index = genderFilteredCandidates[0].index;
+        foundMatch = true;
       }
       
       if (user1 && user2) {

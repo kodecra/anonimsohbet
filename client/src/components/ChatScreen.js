@@ -907,7 +907,7 @@ function ChatScreen({ userId, profile: currentProfile, matchId, partnerProfile: 
             <div>
               <Space>
                 <Text strong style={{ color: isDarkMode ? '#fff' : '#000' }}>
-                  {partnerProfile.username}
+                  {formatDisplayName(partnerProfile)}
                 </Text>
                 {partnerProfile.verified && (
                   <SafetyCertificateOutlined style={{ color: '#52c41a' }} />
@@ -919,7 +919,7 @@ function ChatScreen({ userId, profile: currentProfile, matchId, partnerProfile: 
               {partnerProfile.age && (
                 <div>
                   <Text type="secondary" style={{ fontSize: '12px', color: isDarkMode ? '#b8b8b8' : '#999' }}>
-                    Yaş: {partnerProfile.age}
+                    ({partnerProfile.age})
                   </Text>
                 </div>
               )}

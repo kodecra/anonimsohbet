@@ -25,6 +25,7 @@ import {
   EyeOutlined
 } from '@ant-design/icons';
 import { Badge } from 'antd';
+import { ThemeContext } from '../App';
 import './ChatsList.css';
 
 const { Text } = Typography;
@@ -33,6 +34,7 @@ const { Search } = Input;
 const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000';
 
 function ChatsList({ token, onSelectChat, API_URL, refreshTrigger }) {
+  const { isDarkMode } = React.useContext(ThemeContext);
   const [matches, setMatches] = useState([]);
   const [filteredMatches, setFilteredMatches] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -123,10 +125,25 @@ function ChatsList({ token, onSelectChat, API_URL, refreshTrigger }) {
     }
     
     const query = searchQuery.toLowerCase();
-    const filtered = matches.filter(match => 
-      (match.partner?.username || '').toLowerCase().includes(query) ||
-      (match.lastMessage && match.lastMessage.text.toLowerCase().includes(query))
-    );
+    const filtered = matches.filter(match => {
+      // Kullanıcı adı, isim, soyisim araması
+      const usernameMatch = (match.partner?.username || '').toLowerCase().includes(query);
+      const firstNameMatch = (match.partner?.firstName || '').toLowerCase().includes(query);
+      const lastNameMatch = (match.partner?.lastName || '').toLowerCase().includes(query);
+      
+      // Son mesaj içeriği araması
+      const lastMessageMatch = match.lastMessage && match.lastMessage.text.toLowerCase().includes(query);
+      
+      // Tüm mesajlar içinde arama (match.messages varsa)
+      let messagesMatch = false;
+      if (match.messages && Array.isArray(match.messages)) {
+        messagesMatch = match.messages.some(msg => 
+          msg.text && msg.text.toLowerCase().includes(query)
+        );
+      }
+      
+      return usernameMatch || firstNameMatch || lastNameMatch || lastMessageMatch || messagesMatch;
+    });
     setFilteredMatches(filtered);
   }, [searchQuery, matches]);
 
@@ -272,7 +289,7 @@ function ChatsList({ token, onSelectChat, API_URL, refreshTrigger }) {
   return (
     <div>
       <div style={{ padding: '16px', borderBottom: '1px solid #f0f0f0' }}>
-        <Search
+        <Input
           placeholder="Sohbet ara..."
           allowClear
           value={searchQuery}
@@ -315,7 +332,7 @@ function ChatsList({ token, onSelectChat, API_URL, refreshTrigger }) {
             justifyContent: 'space-between'
           }}
           onMouseEnter={(e) => {
-            e.currentTarget.style.backgroundColor = '#f8f9fa';
+            e.currentTarget.style.backgroundColor = isDarkMode ? '#2e2e2e' : '#f8f9fa';
           }}
           onMouseLeave={(e) => {
             e.currentTarget.style.backgroundColor = 'transparent';

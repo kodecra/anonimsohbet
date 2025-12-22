@@ -95,6 +95,27 @@ function ProfileEdit({ profile, token, onProfileUpdated, onClose, API_URL }) {
       return;
     }
 
+    // Onaylanmış kullanıcılar için uyarı
+    if (profile.verified) {
+      Modal.confirm({
+        title: 'Fotoğraf Yükleme Uyarısı',
+        content: 'Profiliniz onaylanmış durumda. Yeni fotoğraf yüklerseniz tekrar onaylama yaptırmanız gerekmektedir. Devam etmek istiyor musunuz?',
+        okText: 'Evet, Devam Et',
+        cancelText: 'İptal',
+        onOk: () => {
+          uploadPhoto(file, onSuccess, onError);
+        },
+        onCancel: () => {
+          onError();
+        }
+      });
+      return;
+    }
+
+    uploadPhoto(file, onSuccess, onError);
+  };
+
+  const uploadPhoto = async (file, onSuccess, onError) => {
     setIsUploading(true);
     setUploadProgress(0);
 
@@ -130,14 +151,20 @@ function ProfileEdit({ profile, token, onProfileUpdated, onClose, API_URL }) {
       setUploadProgress(100);
       
       setTimeout(() => {
-        setPhotos(response.data.profile.photos);
+        const updatedProfile = response.data.profile;
+        setPhotos(updatedProfile.photos);
         setIsUploading(false);
         setUploadProgress(0);
         onSuccess();
         message.success('Fotoğraf yüklendi');
         
+        // Eğer kullanıcı onaylanmışsa ve yeni fotoğraf yüklendiyse, verified'ı false yap
+        if (profile.verified && updatedProfile.verified === false) {
+          message.warning('Yeni fotoğraf yüklendi. Profil onayınız kaldırıldı. Lütfen tekrar onaylama yaptırın.');
+        }
+        
         if (onProfileUpdated) {
-          onProfileUpdated(response.data.profile, false); // false = modal kapanmasın
+          onProfileUpdated(updatedProfile, false); // false = modal kapanmasın
         }
       }, 500);
     } catch (err) {
