@@ -103,10 +103,19 @@ function App() {
           }
         }
       })
-      .catch(() => {
-        localStorage.removeItem('token');
-        localStorage.removeItem('userId');
-        setScreen('auth');
+      .catch((err) => {
+        console.error('Token doğrulama hatası:', err.response?.status, err.response?.data);
+        // 401 veya 403 hatası - token geçersiz
+        if (err.response?.status === 401 || err.response?.status === 403) {
+          localStorage.removeItem('token');
+          localStorage.removeItem('userId');
+          setScreen('auth');
+        } else {
+          // Diğer hatalar - tekrar dene veya auth'a yönlendir
+          localStorage.removeItem('token');
+          localStorage.removeItem('userId');
+          setScreen('auth');
+        }
       });
     } else {
       setScreen('auth');

@@ -91,14 +91,34 @@ function ChatScreen({ userId, profile: currentProfile, matchId: initialMatchId, 
     if (!initialPartnerProfile && activeMatchId && typeof activeMatchId === 'string' && activeMatchId.trim() !== '') {
       // matchId'nin geçerli olduğundan emin ol
       const cleanMatchId = activeMatchId.trim();
+      const token = localStorage.getItem('token');
+      if (!token) {
+        console.error('❌ Token bulunamadı, login sayfasına yönlendiriliyor...');
+        if (onGoBack) onGoBack();
+        return;
+      }
+      
       fetch(`${API_URL}/api/matches/${cleanMatchId}`, {
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
+          'Authorization': `Bearer ${token}`
         }
       })
       .then(response => {
+        if (response.status === 401) {
+          console.error('❌ Token geçersiz, login sayfasına yönlendiriliyor...');
+          localStorage.removeItem('token');
+          localStorage.removeItem('userId');
+          if (onGoBack) onGoBack();
+          return null;
+        }
         if (response.ok) {
           return response.json();
+        }
+        // 404 hatası - eşleşme bulunamadı, geri dön
+        if (response.status === 404) {
+          console.warn('⚠️ Match bulunamadı (404), geri dönülüyor...');
+          if (onGoBack) onGoBack();
+          return null;
         }
         throw new Error('Match bulunamadı');
       })
@@ -303,20 +323,26 @@ function ChatScreen({ userId, profile: currentProfile, matchId: initialMatchId, 
 
     newSocket.on('error', (error) => {
       console.error('Socket error:', error);
+      // "Profil bulunamadı" hatası - token geçersiz veya kullanıcı silinmiş
+      if (error.message && error.message.includes('Profil bulunamadı')) {
+        console.log('❌ Profil bulunamadı hatası alındı, login sayfasına yönlendiriliyor...');
+        localStorage.removeItem('token');
+        localStorage.removeItem('userId');
+        antdMessage.error('Oturum süreniz doldu. Lütfen tekrar giriş yapın.');
+        setTimeout(() => {
+          if (onGoBack) onGoBack();
+        }, 1500);
+        return;
+      }
       // "Eşleşme bulunamadı" hatası geldiğinde timer'ı durdur ve eşleşmeyi sonlandır
       if (error.message && error.message.includes('Eşleşme bulunamadı')) {
         console.log('❌ Eşleşme bulunamadı hatası alındı');
         setWaitingForPartner(false);
-        onMatchEnded();
+        if (onMatchEnded) onMatchEnded();
         return;
       }
       // Hata mesajı göster
-      setMessages((prev) => [...prev, {
-        id: `error-${Date.now()}`,
-        text: error.message || 'Bir hata oluştu',
-        isSystem: true,
-        timestamp: new Date()
-      }]);
+      antdMessage.error(error.message || 'Bir hata oluştu');
     });
 
     newSocket.on('user-typing', (data) => {
@@ -467,27 +493,8 @@ function ChatScreen({ userId, profile: currentProfile, matchId: initialMatchId, 
       onMatchEnded();
     });
 
-    // Error event'ini dinle
-    newSocket.on('error', (error) => {
-      console.error('❌ ChatScreen: error event alındı', error);
-      if (error.message) {
-        if (error.message.includes('Eşleşme bulunamadı') || error.message.includes('Geçersiz eşleşme')) {
-          antdMessage.error('Eşleşme bulunamadı. Profil sayfasına yönlendiriliyorsunuz...');
-          setTimeout(() => {
-            if (onMatchEnded) {
-              onMatchEnded();
-            }
-            if (onGoBack) {
-              onGoBack();
-            }
-          }, 2000);
-        } else {
-          antdMessage.error(error.message || 'Bir hata oluştu');
-        }
-      }
-      setWaitingForPartner(false);
-      waitingForPartnerRef.current = false;
-    });
+    // Error event'ini dinle (ikinci handler - duplicate, ama güvenlik için bırakıyoruz)
+    // Not: İlk error handler yukarıda zaten var, bu sadece ek kontrol için
 
     return () => {
       newSocket.close();

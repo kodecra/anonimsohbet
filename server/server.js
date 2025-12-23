@@ -748,7 +748,17 @@ app.post('/api/profile/reset-anonymous-number', authenticateToken, async (req, r
 app.get('/api/profile', authenticateToken, async (req, res) => {
   let profile = users.get(req.user.userId);
   if (!profile) {
-    return res.status(404).json({ error: 'Profil bulunamadı' });
+    // Veritabanından yüklemeyi dene
+    console.log('⚠️ Profil memory\'de bulunamadı, veritabanından yükleniyor:', req.user.userId);
+    if (useDatabase && loadUsers) {
+      await loadUsers();
+      profile = users.get(req.user.userId);
+    }
+    
+    if (!profile) {
+      console.error('❌ Profil veritabanında da bulunamadı:', req.user.userId);
+      return res.status(404).json({ error: 'Profil bulunamadı. Lütfen tekrar giriş yapın.' });
+    }
   }
   
   // Eğer anonim numarası yoksa otomatik oluştur (eski kullanıcılar için)
@@ -1336,8 +1346,6 @@ app.delete('/api/matches/:matchId', authenticateToken, async (req, res) => {
   
   res.json({ success: true, message: 'Eşleşmeden çıkıldı' });
 });
-<｜tool▁calls▁begin｜><｜tool▁call▁begin｜>
-grep
 
 app.post('/api/notifications/settings', authenticateToken, async (req, res) => {
   const userId = req.user.userId;
@@ -1674,11 +1682,36 @@ io.on('connection', (socket) => {
   // Kullanıcı profili ile bağlanıyor
   socket.on('set-profile', (data) => {
     const { userId, matchId } = data;
-    const profile = users.get(userId);
+    
+    if (!userId) {
+      console.error('❌ set-profile: userId verilmemiş');
+      socket.emit('error', { message: 'Kullanıcı ID bulunamadı. Lütfen tekrar giriş yapın.' });
+      return;
+    }
+    
+    let profile = users.get(userId);
     
     if (!profile) {
-      socket.emit('error', { message: 'Profil bulunamadı. Lütfen önce profil oluşturun.' });
-      return;
+      console.error('❌ set-profile: Profil memory\'de bulunamadı, veritabanından yükleniyor:', userId);
+      // Veritabanından yüklemeyi dene
+      if (useDatabase && loadUsers) {
+        try {
+          await loadUsers();
+          profile = users.get(userId);
+          if (profile) {
+            console.log('✅ Profil veritabanından yüklendi:', userId);
+          }
+        } catch (error) {
+          console.error('❌ Veritabanından yükleme hatası:', error);
+        }
+      }
+      
+      if (!profile) {
+        console.error('❌ set-profile: Profil bulunamadı, userId:', userId);
+        console.error('   Mevcut kullanıcılar:', Array.from(users.keys()));
+        socket.emit('error', { message: 'Profil bulunamadı. Lütfen sayfayı yenileyin veya tekrar giriş yapın.' });
+        return;
+      }
     }
 
     let currentMatchId = matchId || null;
