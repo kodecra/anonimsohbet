@@ -1213,9 +1213,9 @@ io.on('connection', (socket) => {
         const currentMatch = activeMatches.get(matchId);
         if (!currentMatch) {
           // Match silinmiş, interval'i temizle
-          if (match.timerInterval) {
-            clearInterval(match.timerInterval);
-            match.timerInterval = null;
+          if (currentMatch && currentMatch.timerInterval) {
+            clearInterval(currentMatch.timerInterval);
+            currentMatch.timerInterval = null;
           }
           return;
         }
@@ -1244,9 +1244,9 @@ io.on('connection', (socket) => {
 
         // Timer bittiğinde
         if (remainingSeconds <= 0) {
-          if (match.timerInterval) {
-            clearInterval(match.timerInterval);
-            match.timerInterval = null;
+          if (currentMatch.timerInterval) {
+            clearInterval(currentMatch.timerInterval);
+            currentMatch.timerInterval = null;
           }
 
           // Her iki kullanıcıya da karar sor
@@ -1268,15 +1268,18 @@ io.on('connection', (socket) => {
       };
 
       // İlk güncellemeyi hemen gönder (0ms gecikme ile)
-      console.log('⏱️ Timer başlatılıyor, ilk güncelleme gönderiliyor...');
+      console.log('⏱️ Timer başlatılıyor, ilk güncelleme gönderiliyor...', { matchId, startedAt });
       sendTimerUpdate();
       
-      // Sonra her saniye güncelle
-      match.timerInterval = setInterval(() => {
+      // Sonra her saniye güncelle - interval'i match objesine kaydet (activeMatches'teki match ile aynı referans)
+      const timerInterval = setInterval(() => {
         console.log('⏱️ Timer interval çalışıyor, matchId:', matchId);
         sendTimerUpdate();
       }, 1000);
-      console.log('⏱️ Timer interval başlatıldı:', match.timerInterval);
+      
+      // Match objesine timer interval'ı kaydet (activeMatches'teki match ile aynı referans olduğu için)
+      match.timerInterval = timerInterval;
+      console.log('⏱️ Timer interval başlatıldı ve kaydedildi:', timerInterval, 'match.timerInterval:', match.timerInterval);
 
       console.log(`Eşleşme oluşturuldu: ${matchId} - ${user1.profile.username} & ${user2.profile.username}`);
     }
