@@ -198,7 +198,7 @@ function ChatScreen({ userId, profile: currentProfile, matchId, partnerProfile: 
     };
 
     newSocket.on('connect', () => {
-      console.log('ChatScreen: Socket bağlandı, profil set ediliyor:', userId, matchId);
+      console.log('ChatScreen: Socket bağlandı, socket.id:', newSocket.id, 'userId:', userId, 'matchId:', matchId);
       // set-profile event'ini gönder
       newSocket.emit('set-profile', { userId, matchId });
       

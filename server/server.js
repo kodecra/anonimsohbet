@@ -1226,20 +1226,35 @@ io.on('connection', (socket) => {
         const remainingSeconds = Math.ceil(remaining / 1000);
 
         // Her iki kullanıcıya da güncel timer değerini gönder
-        console.log('⏱️ Timer güncelleme gönderiliyor:', { matchId, remainingSeconds, user1Socket: currentMatch.user1?.socketId, user2Socket: currentMatch.user2?.socketId });
+        console.log('⏱️ Timer güncelleme gönderiliyor:', { 
+          matchId, 
+          remainingSeconds, 
+          user1Socket: currentMatch.user1?.socketId, 
+          user2Socket: currentMatch.user2?.socketId,
+          user1UserId: currentMatch.user1?.userId,
+          user2UserId: currentMatch.user2?.userId
+        });
+        
         if (currentMatch.user1 && currentMatch.user1.socketId) {
+          console.log('📤 user1\'e timer-update gönderiliyor:', currentMatch.user1.socketId);
           io.to(currentMatch.user1.socketId).emit('timer-update', {
             matchId: matchId,
             remainingSeconds: remainingSeconds,
             remaining: remaining
           });
+        } else {
+          console.log('⚠️ user1 socketId yok!');
         }
+        
         if (currentMatch.user2 && currentMatch.user2.socketId) {
+          console.log('📤 user2\'ye timer-update gönderiliyor:', currentMatch.user2.socketId);
           io.to(currentMatch.user2.socketId).emit('timer-update', {
             matchId: matchId,
             remainingSeconds: remainingSeconds,
             remaining: remaining
           });
+        } else {
+          console.log('⚠️ user2 socketId yok!');
         }
 
         // Timer bittiğinde
