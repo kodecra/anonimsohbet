@@ -438,12 +438,42 @@ function ChatScreen({ userId, profile: currentProfile, matchId, partnerProfile: 
       setWaitingForPartner(false);
     });
 
+    // Devam isteği gönderildi onayı
+    newSocket.on('continue-request-sent', (data) => {
+      console.log('✅ ChatScreen: continue-request-sent event alındı', data);
+      setWaitingForPartner(true);
+      waitingForPartnerRef.current = true;
+    });
+
     // Devam isteği reddedildiğinde
     newSocket.on('continue-request-rejected', (data) => {
       console.log('❌ ChatScreen: continue-request-rejected event alındı', data);
       setWaitingForPartner(false);
       setContinueRequestReceived(false);
+      antdMessage.error('Devam isteği reddedildi');
       onMatchEnded();
+    });
+
+    // Error event'ini dinle
+    newSocket.on('error', (error) => {
+      console.error('❌ ChatScreen: error event alındı', error);
+      if (error.message) {
+        if (error.message.includes('Eşleşme bulunamadı') || error.message.includes('Geçersiz eşleşme')) {
+          antdMessage.error('Eşleşme bulunamadı. Profil sayfasına yönlendiriliyorsunuz...');
+          setTimeout(() => {
+            if (onMatchEnded) {
+              onMatchEnded();
+            }
+            if (onGoBack) {
+              onGoBack();
+            }
+          }, 2000);
+        } else {
+          antdMessage.error(error.message || 'Bir hata oluştu');
+        }
+      }
+      setWaitingForPartner(false);
+      waitingForPartnerRef.current = false;
     });
 
     return () => {
@@ -542,9 +572,20 @@ function ChatScreen({ userId, profile: currentProfile, matchId, partnerProfile: 
   // Devam etmek istiyorum isteği gönder
   const handleContinueRequest = () => {
     if (socket && matchId) {
+      console.log('Devam isteği gönderiliyor:', { matchId, socketConnected: socket.connected });
+      
+      // Socket bağlı değilse hata göster
+      if (!socket.connected) {
+        antdMessage.error('Bağlantı hatası. Lütfen sayfayı yenileyin.');
+        return;
+      }
+      
       socket.emit('continue-request', { matchId });
       setWaitingForPartner(true);
       waitingForPartnerRef.current = true;
+    } else {
+      console.error('Devam isteği gönderilemedi:', { hasSocket: !!socket, hasMatchId: !!matchId });
+      antdMessage.error('Eşleşme bilgisi bulunamadı');
     }
   };
 
