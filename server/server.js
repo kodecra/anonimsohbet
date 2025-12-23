@@ -1356,13 +1356,49 @@ app.get('/api/matches', authenticateToken, (req, res) => {
     }
     
     // Completed match veya partner profile var
+    // Partner bilgisi eksikse users Map'inden al
+    let partnerInfo = partner.profile || partner;
+    if (!partnerInfo || !partnerInfo.username) {
+      const partnerProfile = users.get(partner.userId);
+      if (partnerProfile) {
+        partnerInfo = {
+          userId: partnerProfile.userId,
+          username: partnerProfile.username,
+          firstName: partnerProfile.firstName,
+          lastName: partnerProfile.lastName,
+          photos: partnerProfile.photos || [],
+          verified: partnerProfile.verified || false
+        };
+      } else {
+        // Partner bulunamadı, anonim numarası göster
+        const partnerAnonymousNumber = partner.anonymousId || '0000000';
+        return {
+          matchId: match.id,
+          partner: {
+            userId: null,
+            username: `Anonim-${partnerAnonymousNumber}`,
+            photos: [],
+            verified: false,
+            isAnonymous: true
+          },
+          lastMessage: match.messages.length > 0 ? match.messages[match.messages.length - 1] : null,
+          lastMessageAt: match.lastMessageAt,
+          messageCount: match.messages.length,
+          startedAt: match.startedAt,
+          isActiveMatch: false
+        };
+      }
+    }
+    
     return {
       matchId: match.id,
       partner: {
-        userId: partner.userId,
-        username: partner.username,
-        photos: partner.profile?.photos || [],
-        verified: partner.profile?.verified || false
+        userId: partnerInfo.userId || partner.userId,
+        username: partnerInfo.username || partner.username,
+        firstName: partnerInfo.firstName,
+        lastName: partnerInfo.lastName,
+        photos: partnerInfo.photos || [],
+        verified: partnerInfo.verified || false
       },
       lastMessage: match.messages.length > 0 ? match.messages[match.messages.length - 1] : null,
       lastMessageAt: match.lastMessageAt,
@@ -1702,11 +1738,104 @@ io.on('connection', (socket) => {
 
   // Devam etmek istiyorum isteği gönderme (anonim eşleşmede)
   socket.on('continue-request', (data) => {
-    const { matchId } = data;
+    let { matchId } = data;
     
     console.log(`🔵 continue-request event alındı: matchId=${matchId}, socketId=${socket.id}`);
     console.log(`   activeMatches size: ${activeMatches.size}`);
     console.log(`   activeMatches keys:`, Array.from(activeMatches.keys()));
+    
+    // Kullanıcıyı bul (socket.id ile)
+    let userInfo = activeUsers.get(socket.id);
+    
+    // Eğer userInfo yoksa, socket.id ile aktif kullanıcıları kontrol et
+    if (!userInfo) {
+      // Socket.id ile aktif kullanıcıları ara
+      for (const [sid, info] of activeUsers.entries()) {
+        if (sid === socket.id) {
+          userInfo = info;
+          break;
+        }
+      }
+    }
+    
+    // Eğer hala userInfo yoksa, matchId'den kullanıcıyı bulmaya çalış
+    if (!userInfo && matchId) {
+      // Match'teki kullanıcılardan birini bul
+      let match = activeMatches.get(matchId);
+      if (!match) {
+        match = completedMatches.get(matchId);
+      }
+      
+      if (match) {
+        // Match'teki kullanıcılardan birini bul (socket.id ile eşleşen)
+        const isUser1 = match.user1?.socketId === socket.id;
+        const isUser2 = match.user2?.socketId === socket.id;
+        
+        if (isUser1 || isUser2) {
+          const userId = isUser1 ? match.user1.userId : match.user2.userId;
+          const profile = users.get(userId);
+          
+          if (profile) {
+            userInfo = {
+              socketId: socket.id,
+              userId: userId,
+              profile: profile,
+              inMatch: true,
+              matchId: matchId
+            };
+            activeUsers.set(socket.id, userInfo);
+          }
+        }
+      }
+    }
+    
+    // Eğer hala userInfo yoksa, aktif eşleşmelerde kullanıcıyı ara
+    if (!userInfo) {
+      for (const [mid, m] of activeMatches.entries()) {
+        if (m.user1?.userId && m.user2?.userId) {
+          // Socket.id ile eşleşen kullanıcıyı bul
+          const isUser1 = m.user1.socketId === socket.id;
+          const isUser2 = m.user2.socketId === socket.id;
+          
+          if (isUser1 || isUser2) {
+            const userId = isUser1 ? m.user1.userId : m.user2.userId;
+            const profile = users.get(userId);
+            
+            if (profile) {
+              userInfo = {
+                socketId: socket.id,
+                userId: userId,
+                profile: profile,
+                inMatch: true,
+                matchId: mid
+              };
+              activeUsers.set(socket.id, userInfo);
+              // matchId'yi güncelle
+              matchId = mid;
+              break;
+            }
+          }
+        }
+      }
+    }
+    
+    if (!userInfo) {
+      console.log(`   ❌ Kullanıcı bulunamadı: socketId=${socket.id}`);
+      socket.emit('error', { message: 'Kullanıcı bilgisi bulunamadı. Lütfen sayfayı yenileyin.' });
+      return;
+    }
+    
+    // Eğer matchId yoksa, kullanıcının aktif eşleşmesini kullan
+    if (!matchId && userInfo.matchId) {
+      matchId = userInfo.matchId;
+      console.log(`   ⚠️ matchId yok, kullanıcının aktif eşleşmesi kullanılıyor: ${matchId}`);
+    }
+    
+    if (!matchId) {
+      console.log(`   ❌ matchId bulunamadı`);
+      socket.emit('error', { message: 'Eşleşme bulunamadı. Lütfen yeni bir eşleşme başlatın.' });
+      return;
+    }
     
     // Önce match'i bul (activeMatches'te)
     let match = activeMatches.get(matchId);
@@ -1724,43 +1853,10 @@ io.on('connection', (socket) => {
     }
     
     console.log(`   ✅ Match bulundu: ${matchId}`);
-
-    // Kullanıcıyı bul (socket.id veya userId ile)
-    let userInfo = activeUsers.get(socket.id);
-    
-    // Eğer socket.id ile bulunamazsa, match'teki userId'lerden biri olup olmadığını kontrol et
-    if (!userInfo) {
-      // Match'teki kullanıcılardan biri mi kontrol et
-      const isUser1 = match.user1.socketId === socket.id;
-      const isUser2 = match.user2.socketId === socket.id;
-      
-      if (!isUser1 && !isUser2) {
-        socket.emit('error', { message: 'Bu eşleşmeye erişim yetkiniz yok' });
-        return;
-      }
-      
-      // Kullanıcıyı userId ile bul
-      const userId = isUser1 ? match.user1.userId : match.user2.userId;
-      const profile = users.get(userId);
-      
-      if (!profile) {
-        socket.emit('error', { message: 'Kullanıcı bulunamadı' });
-        return;
-      }
-      
-      // activeUsers'a ekle
-      userInfo = {
-        socketId: socket.id,
-        userId: userId,
-        profile: profile,
-        inMatch: true,
-        matchId: matchId
-      };
-      activeUsers.set(socket.id, userInfo);
-    }
     
     // Kullanıcının bu match'te olup olmadığını kontrol et
     if (match.user1.userId !== userInfo.userId && match.user2.userId !== userInfo.userId) {
+      console.log(`   ❌ Kullanıcı bu match'te değil: userId=${userInfo.userId}, match.user1=${match.user1.userId}, match.user2=${match.user2.userId}`);
       socket.emit('error', { message: 'Bu eşleşmeye erişim yetkiniz yok' });
       return;
     }
