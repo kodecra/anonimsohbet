@@ -351,6 +351,17 @@ function MainScreen({ userId, profile, token, onMatchFound, onMatchContinued, on
                 }} 
               />
               <Space>
+                <Badge count={unreadNotificationCount} size="small">
+                  <Button
+                    type="text"
+                    icon={<BellOutlined />}
+                    onClick={() => {
+                      setShowNotifications(true);
+                      loadNotifications();
+                    }}
+                    style={{ fontSize: '18px' }}
+                  />
+                </Badge>
                 <Switch
                   checked={isDarkMode}
                   onChange={toggleDarkMode}

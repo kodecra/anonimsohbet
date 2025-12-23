@@ -226,6 +226,12 @@ function ChatScreen({ userId, profile: currentProfile, matchId, partnerProfile: 
     // match-found event'ini dinle
     newSocket.on('match-found', (data) => {
       console.log('✅ ChatScreen: match-found event alındı', data);
+      if (data.userAnonymousId) {
+        setUserAnonymousId(data.userAnonymousId);
+      }
+      if (data.partnerAnonymousId) {
+        setPartnerAnonymousId(data.partnerAnonymousId);
+      }
     });
 
     // Timer sistemi kaldırıldı - artık takip isteği sistemi kullanılıyor
@@ -822,63 +828,71 @@ function ChatScreen({ userId, profile: currentProfile, matchId, partnerProfile: 
             💬 Sohbet
           </Title>
         </Space>
-        {partnerProfile && (
-          <Space 
-            style={{ 
-              cursor: 'pointer',
-              padding: '4px 8px',
-              borderRadius: '8px',
-              transition: 'background 0.2s',
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.background = isDarkMode ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)';
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.background = 'transparent';
-            }}
-            onClick={() => setShowPartnerProfileModal(true)}
-          >
-            <Avatar
-              src={partnerProfile.photos && partnerProfile.photos.length > 0 
-                ? (partnerProfile.photos[0].url && partnerProfile.photos[0].url.startsWith('http')
-                    ? partnerProfile.photos[0].url
-                    : `${API_URL}${partnerProfile.photos[0].url}`)
-                : undefined}
-              style={{ backgroundColor: '#1890ff' }}
+        <Space style={{ alignItems: 'center' }}>
+          {partnerProfile ? (
+            <Space 
+              style={{ 
+                cursor: 'pointer',
+                padding: '4px 8px',
+                borderRadius: '8px',
+                transition: 'background 0.2s',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = isDarkMode ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = 'transparent';
+              }}
+              onClick={() => setShowPartnerProfileModal(true)}
             >
-              {partnerProfile.username.charAt(0).toUpperCase()}
-            </Avatar>
-            <div>
-              <Space>
-                <Text strong style={{ color: isDarkMode ? '#fff' : '#000' }}>
-                  {formatDisplayName(partnerProfile)}
-                  {partnerProfile.age && (
-                    <Text type="secondary" style={{ fontSize: '12px', color: isDarkMode ? '#b8b8b8' : '#999', marginLeft: '4px' }}>
-                      ({partnerProfile.age})
-                    </Text>
-                  )}
-                </Text>
-                {partnerProfile.verified && (
-                  <SafetyCertificateOutlined style={{ color: '#52c41a' }} />
-                )}
-                {partnerProfile.isOnline && (
-                  <Tag color="green" style={{ margin: 0 }}>Çevrimiçi</Tag>
-                )}
-              </Space>
-              {!partnerProfile.isOnline && partnerProfile.lastSeen && (
-                <div>
-                  <Text type="secondary" style={{ fontSize: '11px', color: isDarkMode ? '#b8b8b8' : '#999' }}>
-                    Son görülme: {new Date(partnerProfile.lastSeen).toLocaleString('tr-TR', {
-                      day: '2-digit',
-                      month: '2-digit',
-                      year: 'numeric',
-                      hour: '2-digit',
-                      minute: '2-digit'
-                    })}
+              <Avatar
+                src={partnerProfile.photos && partnerProfile.photos.length > 0 
+                  ? (partnerProfile.photos[0].url && partnerProfile.photos[0].url.startsWith('http')
+                      ? partnerProfile.photos[0].url
+                      : `${API_URL}${partnerProfile.photos[0].url}`)
+                  : undefined}
+                style={{ backgroundColor: '#1890ff' }}
+              >
+                {partnerProfile.username.charAt(0).toUpperCase()}
+              </Avatar>
+              <div>
+                <Space>
+                  <Text strong style={{ color: isDarkMode ? '#fff' : '#000' }}>
+                    {formatDisplayName(partnerProfile)}
+                    {partnerProfile.age && (
+                      <Text type="secondary" style={{ fontSize: '12px', color: isDarkMode ? '#b8b8b8' : '#999', marginLeft: '4px' }}>
+                        ({partnerProfile.age})
+                      </Text>
+                    )}
                   </Text>
-                </div>
-              )}
-            </div>
+                  {partnerProfile.verified && (
+                    <SafetyCertificateOutlined style={{ color: '#52c41a' }} />
+                  )}
+                  {partnerProfile.isOnline && (
+                    <Tag color="green" style={{ margin: 0 }}>Çevrimiçi</Tag>
+                  )}
+                </Space>
+                {!partnerProfile.isOnline && partnerProfile.lastSeen && (
+                  <div>
+                    <Text type="secondary" style={{ fontSize: '11px', color: isDarkMode ? '#b8b8b8' : '#999' }}>
+                      Son görülme: {new Date(partnerProfile.lastSeen).toLocaleString('tr-TR', {
+                        day: '2-digit',
+                        month: '2-digit',
+                        year: 'numeric',
+                        hour: '2-digit',
+                        minute: '2-digit'
+                      })}
+                    </Text>
+                  </div>
+                )}
+              </div>
+            </Space>
+          ) : !isCompletedMatch && (
+            <Text type="secondary" style={{ color: isDarkMode ? '#b8b8b8' : '#999' }}>
+              Anonim-{partnerAnonymousId || '0000000'}
+            </Text>
+          )}
+          {partnerProfile && (
             <Dropdown
               menu={{
                 items: [
@@ -890,7 +904,6 @@ function ChatScreen({ userId, profile: currentProfile, matchId, partnerProfile: 
                     onClick: async () => {
                       if (matchId) {
                         try {
-                          // Completed match ise API ile sil, aktif eşleşme ise socket ile
                           if (isCompletedMatch || partnerProfile) {
                             const token = localStorage.getItem('token');
                             await axios.delete(`${API_URL}/api/matches/${matchId}`, {
@@ -906,7 +919,6 @@ function ChatScreen({ userId, profile: currentProfile, matchId, partnerProfile: 
                               onGoBack();
                             }
                           } else if (socket) {
-                            // Aktif eşleşme
                             socket.emit('match-decision', { matchId, decision: 'leave' });
                             if (onMatchEnded) {
                               onMatchEnded();
@@ -942,17 +954,16 @@ function ChatScreen({ userId, profile: currentProfile, matchId, partnerProfile: 
                 style={{ fontSize: '18px' }}
               />
             </Dropdown>
-          </Space>
-        )}
-        {!isCompletedMatch && !partnerProfile && !waitingForPartner && (
-          <Button
-            type="primary"
-            onClick={handleContinueRequest}
-            style={{ marginLeft: 'auto' }}
-          >
-            Devam Etmek İstiyorum
-          </Button>
-        )}
+          )}
+          {!isCompletedMatch && !partnerProfile && !waitingForPartner && (
+            <Button
+              type="primary"
+              onClick={handleContinueRequest}
+            >
+              Devam Etmek İstiyorum
+            </Button>
+          )}
+        </Space>
       </Header>
 
       {partnerProfile && isCompletedMatch && (
@@ -1441,6 +1452,11 @@ function ChatScreen({ userId, profile: currentProfile, matchId, partnerProfile: 
               }}
             />
           </form>
+          {!partnerProfile && !isCompletedMatch && (
+            <Text type="secondary" style={{ fontSize: '12px', color: isDarkMode ? '#b8b8b8' : '#999', marginTop: '4px', marginLeft: '4px' }}>
+              Anonim-{partnerAnonymousId || '0000000'}
+            </Text>
+          )}
         </Footer>
       )}
 

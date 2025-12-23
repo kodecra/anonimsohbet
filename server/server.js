@@ -729,6 +729,54 @@ app.post('/api/admin/verify-user', authenticateToken, async (req, res) => {
   }
 });
 
+// Admin - Tüm kullanıcıları getir
+app.get('/api/admin/users', authenticateToken, (req, res) => {
+  const userId = req.user.userId;
+  const profile = users.get(userId);
+  
+  if (!isAdmin(profile)) {
+    return res.status(403).json({ error: 'Bu işlem için yetkiniz yok' });
+  }
+
+  const { sortBy = 'createdAt', order = 'desc' } = req.query;
+  
+  const usersList = Array.from(users.values()).map(user => ({
+    userId: user.userId,
+    username: user.username,
+    email: user.email,
+    anonymousNumber: user.anonymousNumber,
+    verified: user.verified,
+    createdAt: user.createdAt,
+    profileViews: user.profileViews || 0
+  }));
+
+  // Sıralama
+  usersList.sort((a, b) => {
+    const aVal = a[sortBy];
+    const bVal = b[sortBy];
+    if (order === 'asc') {
+      return aVal > bVal ? 1 : -1;
+    } else {
+      return aVal < bVal ? 1 : -1;
+    }
+  });
+
+  res.json({ users: usersList });
+});
+
+// Admin - Şikayetleri getir
+app.get('/api/admin/complaints', authenticateToken, (req, res) => {
+  const userId = req.user.userId;
+  const profile = users.get(userId);
+  
+  if (!isAdmin(profile)) {
+    return res.status(403).json({ error: 'Bu işlem için yetkiniz yok' });
+  }
+
+  // Şimdilik boş array döndür (şikayet sistemi henüz eklenmedi)
+  res.json({ complaints: [] });
+});
+
 // Mesaj için resim yükleme
 app.post('/api/messages/upload-media', authenticateToken, upload.single('media'), async (req, res) => {
   if (!req.file) {
