@@ -336,7 +336,9 @@ function ChatsList({ token, onSelectChat, API_URL, refreshTrigger }) {
             if (e.target.closest('.ant-dropdown') || e.target.closest('.ant-btn') || e.target.closest('.ant-dropdown-menu')) {
               return;
             }
-            onSelectChat(match.matchId);
+            // Pending request ise gerçek matchId'yi kullan
+            const actualMatchId = match.isPendingRequest && match.matchId ? match.matchId : match.matchId;
+            onSelectChat(actualMatchId);
             // Sohbete girildiğinde bildirimleri okundu olarak işaretle
             if (unreadCounts[match.matchId] > 0) {
               markMatchAsRead(match.matchId);
@@ -397,6 +399,11 @@ function ChatsList({ token, onSelectChat, API_URL, refreshTrigger }) {
             }
             title={
               <Space>
+                {match.isPendingRequest && (
+                  <Tag color="orange" style={{ marginRight: '4px' }}>
+                    {match.requestStatus === 'sent' ? 'Beklemede' : 'Yanıt Bekliyor'}
+                  </Tag>
+                )}
                 <Text strong>
                   {(() => {
                     const partner = match.partner;
@@ -415,7 +422,16 @@ function ChatsList({ token, onSelectChat, API_URL, refreshTrigger }) {
             }
             description={
               <div>
-                {match.lastMessage && (
+                {match.isPendingRequest ? (
+                  <Text 
+                    type="secondary" 
+                    style={{ display: 'block', maxWidth: '200px', marginBottom: '4px' }}
+                  >
+                    {match.requestStatus === 'sent' 
+                      ? 'Yanıt bekleniyor...' 
+                      : 'Devam isteği bekleniyor'}
+                  </Text>
+                ) : match.lastMessage ? (
                   <Text 
                     type="secondary" 
                     ellipsis 
@@ -425,7 +441,7 @@ function ChatsList({ token, onSelectChat, API_URL, refreshTrigger }) {
                       ? match.lastMessage.text.substring(0, 50) + '...'
                       : match.lastMessage.text}
                   </Text>
-                )}
+                ) : null}
                 <Text type="secondary" style={{ fontSize: '12px' }}>
                   {formatDate(match.lastMessageAt)}
                 </Text>

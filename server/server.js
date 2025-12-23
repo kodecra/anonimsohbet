@@ -1055,6 +1055,51 @@ app.get('/api/matches', authenticateToken, (req, res) => {
     }
   }
   
+  // Bekleyen follow request'leri de ekle (pending istekler)
+  const pendingRequestMatches = [];
+  for (const [requestId, request] of followRequests.entries()) {
+    if (request.status === 'pending') {
+      // Kullanıcı isteği gönderdi (fromUserId) veya aldı (toUserId)
+      if (request.fromUserId === userId || request.toUserId === userId) {
+        const partnerId = request.fromUserId === userId ? request.toUserId : request.fromUserId;
+        const partnerProfile = users.get(partnerId);
+        const currentUserProfile = users.get(userId);
+        
+        // Partner'ın anonim numarasını bul
+        const partnerAnonymousNumber = partnerProfile?.anonymousNumber || '0000000';
+        const currentUserAnonymousNumber = currentUserProfile?.anonymousNumber || '0000000';
+        
+        // İsteği gönderen kullanıcı için partner'ın numarasını göster
+        // İsteği alan kullanıcı için kendi numarasını göster (çünkü karşı taraf anonim)
+        const displayAnonymousNumber = request.fromUserId === userId 
+          ? partnerAnonymousNumber 
+          : currentUserAnonymousNumber;
+        
+        // request.matchId varsa onu kullan, yoksa request-{requestId} formatını kullan
+        const displayMatchId = request.matchId || `request-${requestId}`;
+        
+        pendingRequestMatches.push({
+          matchId: displayMatchId, // Gerçek matchId veya request-{requestId}
+          partner: {
+            userId: null,
+            username: `Anonim-${displayAnonymousNumber}`,
+            photos: [],
+            verified: false,
+            isAnonymous: true
+          },
+          lastMessage: null,
+          lastMessageAt: request.createdAt || new Date(),
+          messageCount: 0,
+          startedAt: request.createdAt || new Date(),
+          isActiveMatch: false,
+          isPendingRequest: true,
+          requestId: requestId,
+          requestStatus: request.fromUserId === userId ? 'sent' : 'received'
+        });
+      }
+    }
+  }
+  
   const allMatchIds = [...new Set([...matchIds, ...activeMatchIds])];
   
   const matches = allMatchIds.map(matchId => {
@@ -1114,12 +1159,17 @@ app.get('/api/matches', authenticateToken, (req, res) => {
       startedAt: match.startedAt,
       isActiveMatch: false
     };
-  }).filter(m => m !== null).sort((a, b) => {
-    // En son mesaj alanı üstte
+  }).filter(m => m !== null);
+  
+  // Pending request'leri de ekle
+  const allMatches = [...matches, ...pendingRequestMatches];
+  
+  // Sıralama: En son mesaj/istek alanı üstte
+  allMatches.sort((a, b) => {
     return new Date(b.lastMessageAt) - new Date(a.lastMessageAt);
   });
 
-  res.json({ matches });
+  res.json({ matches: allMatches });
 });
 
 // Belirli bir eşleşmenin detaylarını getir - DELETE'den SONRA olmalı!
