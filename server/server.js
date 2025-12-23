@@ -1865,7 +1865,7 @@ io.on('connection', (socket) => {
   });
 
   // Eşleşme başlatma
-  socket.on('start-matching', (data) => {
+  socket.on('start-matching', async (data) => {
     console.log('start-matching event alındı, socket.id:', socket.id, 'data:', data);
     console.log('Aktif kullanıcılar:', Array.from(activeUsers.keys()));
     
