@@ -76,6 +76,7 @@ function MainScreen({ userId, profile, token, onMatchFound, onMatchContinued, on
   const [unreadNotificationCount, setUnreadNotificationCount] = useState(0);
   const [pendingMatches, setPendingMatches] = useState([]); // Devam etmemiş eşleşmeler
   const timerRef = useRef(null);
+  const matchesRefreshHandlerRef = useRef(null);
 
   // Temel ilgi alanları listesi (ProfileEdit ile aynı)
   const interestOptions = [
@@ -251,6 +252,16 @@ function MainScreen({ userId, profile, token, onMatchFound, onMatchContinued, on
       loadPendingMatches(); // Devam etmemiş eşleşmeleri yenile
     });
 
+    // Window event'i dinle (handleMatchEnded'den gelir)
+    matchesRefreshHandlerRef.current = () => {
+      console.log('✅ matches-should-refresh event alındı, sohbetler listesi yenileniyor...');
+      setChatsRefreshKey(prev => prev + 1);
+      loadStatistics();
+      loadPendingMatches();
+    };
+    
+    window.addEventListener('matches-should-refresh', matchesRefreshHandlerRef.current);
+
     // Bildirim event'ini dinle
     newSocket.on('notification', (notification) => {
       console.log('Bildirim alındı:', notification);
@@ -286,6 +297,9 @@ function MainScreen({ userId, profile, token, onMatchFound, onMatchContinued, on
     return () => {
       if (timerRef.current) {
         clearInterval(timerRef.current);
+      }
+      if (matchesRefreshHandlerRef.current) {
+        window.removeEventListener('matches-should-refresh', matchesRefreshHandlerRef.current);
       }
       newSocket.close();
     };

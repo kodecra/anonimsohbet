@@ -177,6 +177,11 @@ function App() {
     setMatchId(null);
     setPartnerProfile(null);
     setScreen('main');
+    // MainScreen'e dönüldüğünde listeyi yenilemek için kısa bir gecikme
+    setTimeout(() => {
+      // matches-updated event'i tetiklenmesi için window'a event gönder
+      window.dispatchEvent(new Event('matches-should-refresh'));
+    }, 100);
   };
 
   const handleLogout = () => {

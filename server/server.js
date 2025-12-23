@@ -1309,8 +1309,35 @@ app.delete('/api/matches/:matchId', authenticateToken, async (req, res) => {
   
   console.log(`Eşleşme tamamen silindi: ${matchId} (Kullanıcı: ${userId})`);
   
+  // Her iki kullanıcıya da matches-updated event'i gönder
+  const user1SocketIds = [];
+  const user2SocketIds = [];
+  
+  for (const [socketId, userInfo] of activeUsers.entries()) {
+    if (userInfo.userId === userId) {
+      user1SocketIds.push(socketId);
+    }
+    if (partnerId && userInfo.userId === partnerId) {
+      user2SocketIds.push(socketId);
+    }
+  }
+  
+  // Kullanıcıya bildir
+  user1SocketIds.forEach(socketId => {
+    io.to(socketId).emit('matches-updated');
+  });
+  
+  // Partner'a da bildir (eğer varsa)
+  if (partnerId) {
+    user2SocketIds.forEach(socketId => {
+      io.to(socketId).emit('matches-updated');
+    });
+  }
+  
   res.json({ success: true, message: 'Eşleşmeden çıkıldı' });
 });
+<｜tool▁calls▁begin｜><｜tool▁call▁begin｜>
+grep
 
 app.post('/api/notifications/settings', authenticateToken, async (req, res) => {
   const userId = req.user.userId;
