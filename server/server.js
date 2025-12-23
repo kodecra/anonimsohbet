@@ -2969,15 +2969,17 @@ io.on('connection', (socket) => {
     }
 
     // Eşleşme partnerine mesajı gönder (bildirim ile)
-    io.to(partnerSocketId).emit('new-message', message);
-    io.to(partnerSocketId).emit('notification', {
-      type: 'new-message',
-      matchId: match.id,
-      from: userInfo.profile.username,
-      message: data.text.substring(0, 50)
-    });
+    if (partnerSocketId) {
+      io.to(partnerSocketId).emit('new-message', message);
+      io.to(partnerSocketId).emit('notification', {
+        type: 'new-message',
+        matchId: match.id,
+        from: userInfo.profile.username,
+        message: data.text.substring(0, 50)
+      });
+    }
     
-    socket.emit('new-message', message); // Gönderen kişiye de mesajı gönder
+    // Gönderene sadece message-sent gönder (new-message gönderme - duplicate olur!)
     socket.emit('message-sent', message);
 
     console.log(`Mesaj gönderildi - Match: ${match.id}, From: ${userInfo.profile.username}, To: ${partnerSocketId}`);

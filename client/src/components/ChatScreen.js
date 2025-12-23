@@ -1191,11 +1191,11 @@ function ChatScreen({ userId, profile: currentProfile, matchId: initialMatchId, 
       <Content style={{ 
         flex: 1, 
         overflow: 'auto', 
-        padding: '16px',
+        padding: '8px 12px',
         display: 'flex',
         flexDirection: 'column',
-        gap: '8px',
-        background: isDarkMode ? '#16213e' : '#f8f9fa',
+        gap: '2px',
+        background: isDarkMode ? '#0b141a' : '#e5ddd5',
         transition: 'background 0.3s ease'
       }}>
         {messages.map((message) => {
@@ -1209,10 +1209,10 @@ function ChatScreen({ userId, profile: currentProfile, matchId: initialMatchId, 
             key={message.id}
             style={{
               alignSelf: message.userId === userId ? 'flex-end' : 'flex-start',
-              maxWidth: window.innerWidth < 768 ? '85%' : '60%',
+              maxWidth: '75%',
               display: 'flex',
               flexDirection: message.userId === userId ? 'row-reverse' : 'row',
-              gap: '6px',
+              gap: '4px',
               alignItems: 'flex-end'
             }}
           >
@@ -1224,7 +1224,7 @@ function ChatScreen({ userId, profile: currentProfile, matchId: initialMatchId, 
                       ? messageSenderProfile.photos[0].url
                       : `${API_URL}${messageSenderProfile.photos[0].url}`)
                   : null}
-                size={32}
+                size={24}
                 style={{ 
                   cursor: 'pointer',
                   flexShrink: 0
@@ -1245,43 +1245,49 @@ function ChatScreen({ userId, profile: currentProfile, matchId: initialMatchId, 
             
             <Card
               style={{
-                padding: window.innerWidth < 768 ? '8px 10px' : '10px 12px',
+                padding: '4px 8px',
                 backgroundColor: message.userId === userId 
-                  ? (isDarkMode ? '#5E72E4' : '#1890ff')
-                  : (isDarkMode ? '#2e2e2e' : '#f5f5f5'),
-                borderRadius: '10px',
+                  ? (isDarkMode ? '#005c4b' : '#dcf8c6')
+                  : (isDarkMode ? '#1f2c34' : '#fff'),
+                borderRadius: message.userId === userId ? '6px 6px 0 6px' : '6px 6px 6px 0',
                 border: 'none',
-                flex: 1,
-                transition: 'background-color 0.3s ease'
+                maxWidth: '75%',
+                minWidth: '80px',
+                boxShadow: '0 1px 0.5px rgba(0,0,0,0.13)',
+                transition: 'background-color 0.2s ease'
               }}
               styles={{ body: { padding: 0 } }}
             >
               {!message.isSystem && (
                 <div style={{ 
                   display: 'flex', 
-                  justifyContent: 'space-between', 
-                  marginBottom: '4px',
-                  alignItems: 'center'
+                  alignItems: 'center',
+                  gap: '6px',
+                  marginBottom: '1px'
                 }}>
                   <Text 
                     strong 
                     style={{ 
-                      color: message.userId === userId ? '#fff' : (isDarkMode ? '#fff' : '#000'),
-                      fontSize: '12px'
+                      color: message.userId === userId 
+                        ? (isDarkMode ? 'rgba(255,255,255,0.7)' : '#075e54') 
+                        : (isDarkMode ? '#53bdeb' : '#075e54'),
+                      fontSize: '11px',
+                      fontWeight: 600
                     }}
                   >
                     {isCompletedMatch && messageSenderProfile
                       ? formatDisplayName(messageSenderProfile)
                       : message.userId === userId 
-                        ? `Anonim-${userAnonymousId || '000000'}` 
-                        : `Anonim-${partnerAnonymousId || '000000'}`
+                        ? `@${message.username || 'Sen'}` 
+                        : `@Anonim-${partnerAnonymousId || '000000'}`
                     }
                   </Text>
                   <Text 
                     style={{ 
-                      color: message.userId === userId ? 'rgba(255,255,255,0.7)' : '#8c8c8c',
-                      fontSize: '12px',
-                      marginLeft: '8px'
+                      color: message.userId === userId 
+                        ? (isDarkMode ? 'rgba(255,255,255,0.5)' : '#667781') 
+                        : (isDarkMode ? 'rgba(255,255,255,0.45)' : '#667781'),
+                      fontSize: '10px'
                     }}
                   >
                     {formatTime(message.timestamp)}
@@ -1290,7 +1296,11 @@ function ChatScreen({ userId, profile: currentProfile, matchId: initialMatchId, 
               )}
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <Text style={{ 
-                  color: message.userId === userId ? '#fff' : (isDarkMode ? '#fff' : '#000'),
+                  color: message.userId === userId 
+                    ? (isDarkMode ? '#e9edef' : '#000') 
+                    : (isDarkMode ? '#e9edef' : '#000'),
+                  fontSize: '13px',
+                  lineHeight: 1.3,
                   flex: 1
                 }}>
                   {message.deleted ? (
