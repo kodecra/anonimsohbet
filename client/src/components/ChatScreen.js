@@ -52,23 +52,14 @@ function ChatScreen({ userId, profile: currentProfile, matchId, partnerProfile: 
   const [messageText, setMessageText] = useState('');
   const [typingUsers, setTypingUsers] = useState(new Set());
   const [isTyping, setIsTyping] = useState(false);
-  // Timer sadece yeni eşleşmelerde (initialPartnerProfile yoksa) başlatılacak
-  // initialPartnerProfile varsa completed match'tir, timer olmamalı
-  // initialPartnerProfile null ise ve matchId varsa, completed match kontrolü yap
   const [isCompletedMatch, setIsCompletedMatch] = useState(!!initialPartnerProfile);
-  const [timer, setTimer] = useState(initialPartnerProfile ? null : 30);
-  const [showDecision, setShowDecision] = useState(false);
   const [partnerProfile, setPartnerProfile] = useState(initialPartnerProfile);
   const [waitingForPartner, setWaitingForPartner] = useState(false);
-  const [waitingTimer, setWaitingTimer] = useState(15);
-  const waitingTimerRef = useRef(null);
   const waitingForPartnerRef = useRef(false);
   const [userAnonymousId, setUserAnonymousId] = useState(null);
   const [partnerAnonymousId, setPartnerAnonymousId] = useState(null);
-  const [matchStartedAt, setMatchStartedAt] = useState(null); // Timer senkronizasyonu için
   const messagesEndRef = useRef(null);
   const typingTimeoutRef = useRef(null);
-  const timerRef = useRef(null);
   const fileInputRef = useRef(null);
   const [selectedMedia, setSelectedMedia] = useState(null);
   const [uploadingMedia, setUploadingMedia] = useState(false);
@@ -112,11 +103,6 @@ function ChatScreen({ userId, profile: currentProfile, matchId, partnerProfile: 
           // Aktif eşleşmede partner null, completed'de dolu
           const partnerProfile = data.match.partner;
           
-          // Timer senkronizasyonu için startedAt'ı kaydet
-          if (data.match.startedAt) {
-            setMatchStartedAt(data.match.startedAt);
-            console.log('✅ Match startedAt alındı:', data.match.startedAt);
-          }
           
           if (partnerProfile && (partnerProfile.userId || partnerProfile.username)) {
             // Completed match - partner bilgisi var
@@ -238,31 +224,12 @@ function ChatScreen({ userId, profile: currentProfile, matchId, partnerProfile: 
       console.log('ChatScreen: Profil başarıyla set edildi, mesaj gönderebilirsiniz');
     });
 
-    // match-found event'ini dinle - startedAt bilgisini al
+    // match-found event'ini dinle
     newSocket.on('match-found', (data) => {
       console.log('✅ ChatScreen: match-found event alındı', data);
-      if (data.startedAt) {
-        setMatchStartedAt(data.startedAt);
-        console.log('✅ Match startedAt kaydedildi:', data.startedAt);
-      }
     });
 
-    // Server'dan gelen timer güncellemelerini dinle
-    newSocket.on('timer-update', (data) => {
-      console.log('⏱️ Client: timer-update event alındı:', data, 'current matchId:', matchId);
-      if (data.matchId === matchId) {
-        console.log('✅ Client: matchId eşleşti, timer güncelleniyor:', data.remainingSeconds);
-        // Server'dan gelen değeri direkt kullan
-        setTimer(data.remainingSeconds);
-        
-        // Timer bittiğinde karar ekranını göster
-        if (data.remainingSeconds <= 0) {
-          setShowDecision(true);
-        }
-      } else {
-        console.log('❌ Client: matchId eşleşmedi!', { received: data.matchId, current: matchId });
-      }
-    });
+    // Timer sistemi kaldırıldı - artık takip isteği sistemi kullanılıyor
 
     // İlk kontrol
     checkAndSetProfile();
@@ -437,9 +404,6 @@ function ChatScreen({ userId, profile: currentProfile, matchId, partnerProfile: 
       setShowDecision(false);
       waitingForPartnerRef.current = false;
       setWaitingForPartner(false);
-      setWaitingTimer(0);
-      setTimer(null); // Timer'ı null yap
-      setMatchStartedAt(null); // Timer başlangıç zamanını temizle
       setIsCompletedMatch(true); // ÖNCE isCompletedMatch'i true yap
       setPartnerProfile(data.partnerProfile); // SONRA partnerProfile'ı set et
       
@@ -511,28 +475,7 @@ function ChatScreen({ userId, profile: currentProfile, matchId, partnerProfile: 
     };
   }, [userId, API_URL, onMatchEnded, onMatchContinued]);
 
-  // Timer - Artık tamamen server-side yönetiliyor, client sadece server'dan gelen değeri gösteriyor
-  useEffect(() => {
-    console.log('🔄 Timer useEffect çalışıyor:', { isCompletedMatch, partnerProfile: !!partnerProfile, showDecision, waitingForPartner, matchId, currentTimer: timer });
-    
-    // Completed match kontrolü: isCompletedMatch true ise veya partnerProfile varsa timer'ı temizle
-    if (isCompletedMatch || partnerProfile) {
-      console.log('✅ Completed match - timer temizleniyor');
-      setTimer(null);
-      setShowDecision(false);
-      return;
-    }
-
-    // Yeni eşleşme için sadece ilk başlangıç değeri (server'dan timer-update gelecek ve override edecek)
-    if (!isCompletedMatch && !partnerProfile && !showDecision && !waitingForPartner && matchId) {
-      // Sadece timer hiç set edilmemişse 30 göster (server'dan güncelleme gelecek)
-      // Timer-update event'i geldiğinde bu değeri override edecek
-      if (timer === null || timer === undefined) {
-        console.log('⏱️ İlk timer değeri set ediliyor: 30 (server\'dan güncelleme bekleniyor)');
-        setTimer(30);
-      }
-    }
-  }, [isCompletedMatch, showDecision, waitingForPartner, matchId, partnerProfile]); // timer state'i dependency'de yok, sadece timer-update event'i ile güncellenecek
+  // Timer sistemi kaldırıldı - artık takip isteği sistemi kullanılıyor
 
   // Mesajlar değiştiğinde scroll
   useEffect(() => {

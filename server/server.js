@@ -127,17 +127,14 @@ let users, userAuth, completedMatches, userMatches, pendingVerifications;
 })();
 
 const activeUsers = new Map(); // socketId -> user info (geçici)
-const matchingQueue = []; // Eşleşme bekleyen kullanıcılar (geçici)
+const matchingQueue = []; // Eşleşme bekleyen kullanıcılar (geçici - artık kullanılmayacak)
 const activeMatches = new Map(); // matchId -> match info (geçici)
+const followRequests = new Map(); // requestId -> { fromUserId, toUserId, fromSocketId, toSocketId, status: 'pending'|'accepted'|'rejected', createdAt }
 
-// Match silme helper function - Timer interval'ini de temizler
+// Match silme helper function
 function deleteActiveMatch(matchId) {
-  const match = activeMatches.get(matchId);
-  if (match && match.timerInterval) {
-    clearInterval(match.timerInterval);
-    match.timerInterval = null;
-  }
   activeMatches.delete(matchId);
+  console.log(`🗑️ Aktif eşleşme silindi: ${matchId}`);
 }
 
 const SUPERADMIN_EMAIL = process.env.SUPERADMIN_EMAIL || 'admin@admin.com'; // Superadmin email
@@ -1034,7 +1031,7 @@ app.get('/api/matches/:matchId', authenticateToken, (req, res) => {
       matchId: match.id,
       partner: partnerInfo,  // Aktif eşleşmede null, completed'de partner bilgisi
       messages: match.messages || [],
-      startedAt: match.startedAt ? (match.startedAt instanceof Date ? match.startedAt.getTime() : match.startedAt) : null // Timer senkronizasyonu için timestamp
+      startedAt: match.startedAt ? (match.startedAt instanceof Date ? match.startedAt.getTime() : match.startedAt) : null
     }
   });
 });
@@ -1068,8 +1065,7 @@ io.on('connection', (socket) => {
             userId, 
             oldSocketId: oldSocketId1, 
             newSocketId: socket.id,
-            matchId,
-            timerStarted: match.timerStarted
+            matchId
           });
         } else if (match.user2.userId === userId) {
           match.user2.socketId = socket.id;
@@ -1077,10 +1073,10 @@ io.on('connection', (socket) => {
             userId, 
             oldSocketId: oldSocketId2, 
             newSocketId: socket.id,
-            matchId,
-            timerStarted: match.timerStarted
+            matchId
           });
         }
+        
         currentMatchId = matchId;
       }
     } else {
@@ -1180,10 +1176,7 @@ io.on('connection', (socket) => {
           profile: user2.profile
         },
         startedAt: new Date(),
-        messages: [],
-        user1Decision: null,
-        user2Decision: null,
-        timerStarted: false
+        messages: []
       };
 
       activeMatches.set(matchId, match);
@@ -1217,145 +1210,15 @@ io.on('connection', (socket) => {
       }
 
       // Her iki kullanıcıya eşleşme bildirimi gönder (anonim)
-      // Timer senkronizasyonu için startedAt zamanını gönder
-      const startedAt = match.startedAt.getTime(); // Unix timestamp (milliseconds)
       io.to(user1.socketId).emit('match-found', {
         matchId: matchId,
-        message: 'Birisiyle eşleştiniz! 30 saniye sonra devam edip etmeyeceğiniz sorulacak.',
-        startedAt: startedAt // Timer senkronizasyonu için
+        message: 'Birisiyle eşleştiniz!'
       });
 
       io.to(user2.socketId).emit('match-found', {
         matchId: matchId,
-        message: 'Birisiyle eşleştiniz! 30 saniye sonra devam edip etmeyeceğiniz sorulacak.',
-        startedAt: startedAt // Timer senkronizasyonu için
+        message: 'Birisiyle eşleştiniz!'
       });
-
-      // Server-side timer başlat - Her saniye her iki client'a da güncel süreyi gönder
-      match.timerStarted = true;
-      const TIMER_DURATION = 30000; // 30 saniye = 30000 ms
-      
-      // Timer güncelleme fonksiyonu
-      const sendTimerUpdate = () => {
-        const currentMatch = activeMatches.get(matchId);
-        if (!currentMatch) {
-          // Match silinmiş, interval'i temizle
-          if (currentMatch && currentMatch.timerInterval) {
-            clearInterval(currentMatch.timerInterval);
-            currentMatch.timerInterval = null;
-          }
-          return;
-        }
-
-        const now = Date.now();
-        const elapsed = now - startedAt;
-        const remaining = Math.max(0, TIMER_DURATION - elapsed);
-        const remainingSeconds = Math.ceil(remaining / 1000);
-
-        // SocketId'leri activeUsers map'inden güncel olarak al (set-profile event'i socketId'yi güncelleyebilir)
-        let user1SocketId = currentMatch.user1?.socketId;
-        let user2SocketId = currentMatch.user2?.socketId;
-        
-        // activeUsers map'inden güncel socketId'leri bul
-        for (const [socketId, userInfo] of activeUsers.entries()) {
-          if (userInfo.userId === currentMatch.user1?.userId && userInfo.matchId === matchId) {
-            user1SocketId = socketId;
-            // Match'teki socketId'yi de güncelle
-            if (currentMatch.user1) {
-              currentMatch.user1.socketId = socketId;
-            }
-          }
-          if (userInfo.userId === currentMatch.user2?.userId && userInfo.matchId === matchId) {
-            user2SocketId = socketId;
-            // Match'teki socketId'yi de güncelle
-            if (currentMatch.user2) {
-              currentMatch.user2.socketId = socketId;
-            }
-          }
-        }
-        
-        // Her iki kullanıcıya da güncel timer değerini gönder
-        console.log('⏱️ Timer güncelleme gönderiliyor:', { 
-          matchId, 
-          remainingSeconds, 
-          user1Socket: user1SocketId, 
-          user2Socket: user2SocketId,
-          user1UserId: currentMatch.user1?.userId,
-          user2UserId: currentMatch.user2?.userId
-        });
-        
-        // user1'e gönder
-        if (user1SocketId) {
-          const socketExists = io.sockets.sockets.has(user1SocketId);
-          if (socketExists) {
-            io.to(user1SocketId).emit('timer-update', {
-              matchId: matchId,
-              remainingSeconds: remainingSeconds,
-              remaining: remaining
-            });
-            console.log('✅ user1\'e timer-update gönderildi:', user1SocketId);
-          } else {
-            console.log('⚠️ user1 socketId geçersiz:', user1SocketId);
-          }
-        } else {
-          console.log('⚠️ user1 socketId bulunamadı!');
-        }
-        
-        // user2'ye gönder
-        if (user2SocketId) {
-          const socketExists = io.sockets.sockets.has(user2SocketId);
-          if (socketExists) {
-            io.to(user2SocketId).emit('timer-update', {
-              matchId: matchId,
-              remainingSeconds: remainingSeconds,
-              remaining: remaining
-            });
-            console.log('✅ user2\'ye timer-update gönderildi:', user2SocketId);
-          } else {
-            console.log('⚠️ user2 socketId geçersiz:', user2SocketId);
-          }
-        } else {
-          console.log('⚠️ user2 socketId bulunamadı!');
-        }
-
-        // Timer bittiğinde
-        if (remainingSeconds <= 0) {
-          if (currentMatch.timerInterval) {
-            clearInterval(currentMatch.timerInterval);
-            currentMatch.timerInterval = null;
-          }
-
-          // Her iki kullanıcıya da karar sor
-          if (currentMatch.user1 && currentMatch.user1.socketId) {
-            io.to(currentMatch.user1.socketId).emit('time-up', {
-              matchId: matchId,
-              message: '30 saniye doldu. Devam etmek istiyor musunuz?'
-            });
-          }
-          if (currentMatch.user2 && currentMatch.user2.socketId) {
-            io.to(currentMatch.user2.socketId).emit('time-up', {
-              matchId: matchId,
-              message: '30 saniye doldu. Devam etmek istiyor musunuz?'
-            });
-          }
-
-          console.log(`30 saniye doldu - Match: ${matchId}`);
-        }
-      };
-
-      // İlk güncellemeyi hemen gönder (0ms gecikme ile)
-      console.log('⏱️ Timer başlatılıyor, ilk güncelleme gönderiliyor...', { matchId, startedAt });
-      sendTimerUpdate();
-      
-      // Sonra her saniye güncelle - interval'i match objesine kaydet (activeMatches'teki match ile aynı referans)
-      const timerInterval = setInterval(() => {
-        console.log('⏱️ Timer interval çalışıyor, matchId:', matchId);
-        sendTimerUpdate();
-      }, 1000);
-      
-      // Match objesine timer interval'ı kaydet (activeMatches'teki match ile aynı referans olduğu için)
-      match.timerInterval = timerInterval;
-      console.log('⏱️ Timer interval başlatıldı ve kaydedildi:', timerInterval, 'match.timerInterval:', match.timerInterval);
 
       console.log(`Eşleşme oluşturuldu: ${matchId} - ${user1.profile.username} & ${user2.profile.username}`);
     }
@@ -1375,133 +1238,239 @@ io.on('connection', (socket) => {
     }
   });
 
-  // Devam/Çıkış kararı
-  socket.on('match-decision', async (data) => {
-    const { matchId, decision } = data; // decision: 'continue' veya 'leave'
+  // Takip isteği gönderme
+  socket.on('follow-request', (data) => {
+    const { toUserId } = data; // Takip isteği gönderilecek kullanıcının userId'si
     const userInfo = activeUsers.get(socket.id);
     
-    if (!userInfo || !userInfo.inMatch || userInfo.matchId !== matchId) {
-      socket.emit('error', { message: 'Geçersiz eşleşme' });
+    if (!userInfo) {
+      socket.emit('error', { message: 'Lütfen önce giriş yapın' });
       return;
     }
 
-    const match = activeMatches.get(matchId);
-    if (!match) {
-      socket.emit('error', { message: 'Eşleşme bulunamadı' });
+    const fromUserId = userInfo.userId;
+    
+    if (fromUserId === toUserId) {
+      socket.emit('error', { message: 'Kendinize takip isteği gönderemezsiniz' });
       return;
     }
 
-    // Hangi kullanıcı olduğunu belirle
-    const isUser1 = match.user1.socketId === socket.id;
-    if (isUser1) {
-      match.user1Decision = decision;
-    } else {
-      match.user2Decision = decision;
+    const toUser = users.get(toUserId);
+    if (!toUser) {
+      socket.emit('error', { message: 'Kullanıcı bulunamadı' });
+      return;
     }
 
-    // Eğer kullanıcı "continue" dediyse, karşı tarafa bildir
-    if (decision === 'continue') {
-      const partnerSocketId = isUser1 ? match.user2.socketId : match.user1.socketId;
-      if (partnerSocketId) {
-        io.to(partnerSocketId).emit('partner-continued', {
-          matchId: matchId,
-          message: 'Karşı taraf devam etmek istiyor, sizin kararınızı bekliyor...'
-        });
+    // Karşı tarafın socketId'sini bul
+    let toSocketId = null;
+    for (const [sId, uInfo] of activeUsers.entries()) {
+      if (uInfo.userId === toUserId) {
+        toSocketId = sId;
+        break;
       }
     }
 
-    // Her iki karar da alındı mı?
-    if (match.user1Decision !== null && match.user2Decision !== null) {
-      if (match.user1Decision === 'continue' && match.user2Decision === 'continue') {
-        // Her iki kullanıcı da devam etmek istiyor - Profilleri göster
-        const user1Profile = users.get(match.user1.userId);
-        const user2Profile = users.get(match.user2.userId);
-
-        // Eşleşmeyi kalıcı olarak kaydet
-        const completedMatch = {
-          id: matchId,
-          user1: {
-            userId: match.user1.userId,
-            username: user1Profile.username,
-            profile: user1Profile
-          },
-          user2: {
-            userId: match.user2.userId,
-            username: user2Profile.username,
-            profile: user2Profile
-          },
-          startedAt: match.startedAt,
-          completedAt: new Date(),
-          messages: [...match.messages],
-          lastMessageAt: match.messages.length > 0 
-            ? match.messages[match.messages.length - 1].timestamp 
-            : match.startedAt
-        };
-
-        completedMatches.set(matchId, completedMatch);
-
-        // Timer interval'ini temizle (match tamamlandı)
-        if (match.timerInterval) {
-          clearInterval(match.timerInterval);
-          match.timerInterval = null;
-        }
-
-        // Kullanıcıların eşleşme listelerine ekle
-        if (!userMatches.has(match.user1.userId)) {
-          userMatches.set(match.user1.userId, []);
-        }
-        if (!userMatches.has(match.user2.userId)) {
-          userMatches.set(match.user2.userId, []);
-        }
-        userMatches.get(match.user1.userId).push(matchId);
-        userMatches.get(match.user2.userId).push(matchId);
-        await saveMatches(completedMatches, userMatches); // Hemen kaydet
-
-        io.to(match.user1.socketId).emit('match-continued', {
-          matchId: matchId,
-          partnerProfile: user2Profile,
-          message: 'Eşleşme onaylandı! Artık birbirinizin profillerini görebilirsiniz.'
-        });
-
-        io.to(match.user2.socketId).emit('match-continued', {
-          matchId: matchId,
-          partnerProfile: user1Profile,
-          message: 'Eşleşme onaylandı! Artık birbirinizin profillerini görebilirsiniz.'
-        });
-
-        console.log(`Eşleşme onaylandı: ${matchId}`);
-      } else {
-        // Biri veya ikisi de çıkmak istiyor
-        io.to(match.user1.socketId).emit('match-ended', {
-          matchId: matchId,
-          message: 'Eşleşme sona erdi.'
-        });
-
-        io.to(match.user2.socketId).emit('match-ended', {
-          matchId: matchId,
-          message: 'Eşleşme sona erdi.'
-        });
-
-        // Eşleşmeyi temizle
-        const user1Info = activeUsers.get(match.user1.socketId);
-        const user2Info = activeUsers.get(match.user2.socketId);
-        if (user1Info) {
-          user1Info.inMatch = false;
-          user1Info.matchId = null;
-        }
-        if (user2Info) {
-          user2Info.inMatch = false;
-          user2Info.matchId = null;
-        }
-        deleteActiveMatch(matchId); // Timer interval'ini de temizler
-
-        console.log(`Eşleşme sona erdi: ${matchId}`);
-      }
-    } else {
-      // Diğer kullanıcının kararını bekle
-      socket.emit('decision-saved', { message: 'Kararınız kaydedildi, diğer kullanıcının kararını bekliyorsunuz...' });
+    if (!toSocketId) {
+      socket.emit('error', { message: 'Kullanıcı şu anda çevrimiçi değil' });
+      return;
     }
+
+    // Zaten bekleyen bir istek var mı kontrol et
+    for (const [requestId, request] of followRequests.entries()) {
+      if (request.fromUserId === fromUserId && request.toUserId === toUserId && request.status === 'pending') {
+        socket.emit('error', { message: 'Bu kullanıcıya zaten takip isteği gönderdiniz' });
+        return;
+      }
+    }
+
+    const requestId = uuidv4();
+    const request = {
+      requestId,
+      fromUserId,
+      toUserId,
+      fromSocketId: socket.id,
+      toSocketId,
+      status: 'pending',
+      createdAt: new Date()
+    };
+
+    followRequests.set(requestId, request);
+
+    // Karşı tarafa bildir
+    io.to(toSocketId).emit('follow-request-received', {
+      requestId,
+      fromUserId,
+      fromUserProfile: users.get(fromUserId),
+      message: `${users.get(fromUserId).username} size takip isteği gönderdi`
+    });
+
+    socket.emit('follow-request-sent', {
+      requestId,
+      toUserId,
+      message: 'Takip isteği gönderildi'
+    });
+
+    console.log(`Takip isteği gönderildi: ${fromUserId} -> ${toUserId}`);
   });
+
+  // Takip isteği kabul etme
+  socket.on('accept-follow-request', async (data) => {
+    const { requestId } = data;
+    const userInfo = activeUsers.get(socket.id);
+    
+    if (!userInfo) {
+      socket.emit('error', { message: 'Lütfen önce giriş yapın' });
+      return;
+    }
+
+    const request = followRequests.get(requestId);
+    if (!request) {
+      socket.emit('error', { message: 'Takip isteği bulunamadı' });
+      return;
+    }
+
+    if (request.toUserId !== userInfo.userId) {
+      socket.emit('error', { message: 'Bu takip isteği size ait değil' });
+      return;
+    }
+
+    if (request.status !== 'pending') {
+      socket.emit('error', { message: 'Bu takip isteği zaten işlenmiş' });
+      return;
+    }
+
+    // İsteği kabul et
+    request.status = 'accepted';
+    followRequests.set(requestId, request);
+
+    // Match oluştur
+    const matchId = uuidv4();
+    const fromUser = users.get(request.fromUserId);
+    const toUser = users.get(request.toUserId);
+
+    const match = {
+      id: matchId,
+      user1: {
+        socketId: request.fromSocketId,
+        userId: request.fromUserId,
+        profile: fromUser
+      },
+      user2: {
+        socketId: request.toSocketId,
+        userId: request.toUserId,
+        profile: toUser
+      },
+      startedAt: new Date(),
+      messages: []
+    };
+
+    activeMatches.set(matchId, match);
+
+    // Her iki kullanıcıyı da eşleşmeye bağla
+    const fromUserInfo = activeUsers.get(request.fromSocketId);
+    const toUserInfo = activeUsers.get(request.toSocketId);
+
+    if (fromUserInfo) {
+      fromUserInfo.inMatch = true;
+      fromUserInfo.matchId = matchId;
+    }
+    if (toUserInfo) {
+      toUserInfo.inMatch = true;
+      toUserInfo.matchId = matchId;
+    }
+
+    // Her iki kullanıcıya da eşleşme bildirimi gönder
+    io.to(request.fromSocketId).emit('match-found', {
+      matchId: matchId,
+      message: 'Takip isteğiniz kabul edildi! Eşleşme başladı.',
+      partnerProfile: toUser
+    });
+
+    io.to(request.toSocketId).emit('match-found', {
+      matchId: matchId,
+      message: 'Takip isteğini kabul ettiniz! Eşleşme başladı.',
+      partnerProfile: fromUser
+    });
+
+    // Eşleşmeyi kalıcı olarak kaydet
+    const completedMatch = {
+      id: matchId,
+      user1: {
+        userId: request.fromUserId,
+        username: fromUser.username,
+        profile: fromUser
+      },
+      user2: {
+        userId: request.toUserId,
+        username: toUser.username,
+        profile: toUser
+      },
+      startedAt: match.startedAt,
+      completedAt: new Date(),
+      messages: [],
+      lastMessageAt: match.startedAt
+    };
+
+    completedMatches.set(matchId, completedMatch);
+
+    if (!userMatches.has(request.fromUserId)) {
+      userMatches.set(request.fromUserId, []);
+    }
+    if (!userMatches.has(request.toUserId)) {
+      userMatches.set(request.toUserId, []);
+    }
+    userMatches.get(request.fromUserId).push(matchId);
+    userMatches.get(request.toUserId).push(matchId);
+    await saveMatches(completedMatches, userMatches);
+
+    console.log(`Takip isteği kabul edildi ve eşleşme oluşturuldu: ${matchId}`);
+  });
+
+  // Takip isteği reddetme
+  socket.on('reject-follow-request', (data) => {
+    const { requestId } = data;
+    const userInfo = activeUsers.get(socket.id);
+    
+    if (!userInfo) {
+      socket.emit('error', { message: 'Lütfen önce giriş yapın' });
+      return;
+    }
+
+    const request = followRequests.get(requestId);
+    if (!request) {
+      socket.emit('error', { message: 'Takip isteği bulunamadı' });
+      return;
+    }
+
+    if (request.toUserId !== userInfo.userId) {
+      socket.emit('error', { message: 'Bu takip isteği size ait değil' });
+      return;
+    }
+
+    if (request.status !== 'pending') {
+      socket.emit('error', { message: 'Bu takip isteği zaten işlenmiş' });
+      return;
+    }
+
+    // İsteği reddet
+    request.status = 'rejected';
+    followRequests.set(requestId, request);
+
+    // Gönderen kullanıcıya bildir
+    io.to(request.fromSocketId).emit('follow-request-rejected', {
+      requestId,
+      message: 'Takip isteğiniz reddedildi'
+    });
+
+    socket.emit('follow-request-rejection-sent', {
+      requestId,
+      message: 'Takip isteği reddedildi'
+    });
+
+    console.log(`Takip isteği reddedildi: ${requestId}`);
+  });
+
+  // Eski match-decision event'i kaldırıldı - artık takip isteği sistemi kullanılıyor
 
   // Mesaj gönderme (eşleşme içinde)
   socket.on('send-message', async (data) => {
