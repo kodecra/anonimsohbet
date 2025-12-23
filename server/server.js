@@ -1252,54 +1252,70 @@ io.on('connection', (socket) => {
         const remaining = Math.max(0, TIMER_DURATION - elapsed);
         const remainingSeconds = Math.ceil(remaining / 1000);
 
+        // SocketId'leri activeUsers map'inden güncel olarak al (set-profile event'i socketId'yi güncelleyebilir)
+        let user1SocketId = currentMatch.user1?.socketId;
+        let user2SocketId = currentMatch.user2?.socketId;
+        
+        // activeUsers map'inden güncel socketId'leri bul
+        for (const [socketId, userInfo] of activeUsers.entries()) {
+          if (userInfo.userId === currentMatch.user1?.userId && userInfo.matchId === matchId) {
+            user1SocketId = socketId;
+            // Match'teki socketId'yi de güncelle
+            if (currentMatch.user1) {
+              currentMatch.user1.socketId = socketId;
+            }
+          }
+          if (userInfo.userId === currentMatch.user2?.userId && userInfo.matchId === matchId) {
+            user2SocketId = socketId;
+            // Match'teki socketId'yi de güncelle
+            if (currentMatch.user2) {
+              currentMatch.user2.socketId = socketId;
+            }
+          }
+        }
+        
         // Her iki kullanıcıya da güncel timer değerini gönder
         console.log('⏱️ Timer güncelleme gönderiliyor:', { 
           matchId, 
           remainingSeconds, 
-          user1Socket: currentMatch.user1?.socketId, 
-          user2Socket: currentMatch.user2?.socketId,
+          user1Socket: user1SocketId, 
+          user2Socket: user2SocketId,
           user1UserId: currentMatch.user1?.userId,
           user2UserId: currentMatch.user2?.userId
         });
         
-        if (currentMatch.user1 && currentMatch.user1.socketId) {
-          const socketExists = io.sockets.sockets.has(currentMatch.user1.socketId);
-          console.log('📤 user1\'e timer-update gönderiliyor:', { 
-            socketId: currentMatch.user1.socketId, 
-            socketExists,
-            userId: currentMatch.user1.userId 
-          });
+        // user1'e gönder
+        if (user1SocketId) {
+          const socketExists = io.sockets.sockets.has(user1SocketId);
           if (socketExists) {
-            io.to(currentMatch.user1.socketId).emit('timer-update', {
+            io.to(user1SocketId).emit('timer-update', {
               matchId: matchId,
               remainingSeconds: remainingSeconds,
               remaining: remaining
             });
+            console.log('✅ user1\'e timer-update gönderildi:', user1SocketId);
           } else {
-            console.log('⚠️ user1 socketId geçersiz, socket bağlı değil!');
+            console.log('⚠️ user1 socketId geçersiz:', user1SocketId);
           }
         } else {
-          console.log('⚠️ user1 socketId yok!');
+          console.log('⚠️ user1 socketId bulunamadı!');
         }
         
-        if (currentMatch.user2 && currentMatch.user2.socketId) {
-          const socketExists = io.sockets.sockets.has(currentMatch.user2.socketId);
-          console.log('📤 user2\'ye timer-update gönderiliyor:', { 
-            socketId: currentMatch.user2.socketId, 
-            socketExists,
-            userId: currentMatch.user2.userId 
-          });
+        // user2'ye gönder
+        if (user2SocketId) {
+          const socketExists = io.sockets.sockets.has(user2SocketId);
           if (socketExists) {
-            io.to(currentMatch.user2.socketId).emit('timer-update', {
+            io.to(user2SocketId).emit('timer-update', {
               matchId: matchId,
               remainingSeconds: remainingSeconds,
               remaining: remaining
             });
+            console.log('✅ user2\'ye timer-update gönderildi:', user2SocketId);
           } else {
-            console.log('⚠️ user2 socketId geçersiz, socket bağlı değil!');
+            console.log('⚠️ user2 socketId geçersiz:', user2SocketId);
           }
         } else {
-          console.log('⚠️ user2 socketId yok!');
+          console.log('⚠️ user2 socketId bulunamadı!');
         }
 
         // Timer bittiğinde
