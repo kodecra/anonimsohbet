@@ -829,6 +829,19 @@ app.post('/api/profile/view', authenticateToken, async (req, res) => {
 });
 
 // Bildirim ayarları
+// Notifications endpoint'leri
+app.get('/api/notifications', authenticateToken, (req, res) => {
+  const userId = req.user.userId;
+  // Şimdilik boş array döndür (ileride bildirim sistemi eklenecek)
+  res.json({ notifications: [] });
+});
+
+app.get('/api/notifications/unread-count', authenticateToken, (req, res) => {
+  const userId = req.user.userId;
+  // Şimdilik 0 döndür (ileride bildirim sistemi eklenecek)
+  res.json({ unreadCount: 0 });
+});
+
 app.get('/api/notifications/settings', authenticateToken, (req, res) => {
   const userId = req.user.userId;
   const profile = users.get(userId);
@@ -1213,6 +1226,7 @@ io.on('connection', (socket) => {
         const remainingSeconds = Math.ceil(remaining / 1000);
 
         // Her iki kullanıcıya da güncel timer değerini gönder
+        console.log('⏱️ Timer güncelleme gönderiliyor:', { matchId, remainingSeconds, user1Socket: currentMatch.user1?.socketId, user2Socket: currentMatch.user2?.socketId });
         if (currentMatch.user1 && currentMatch.user1.socketId) {
           io.to(currentMatch.user1.socketId).emit('timer-update', {
             matchId: matchId,
@@ -1254,10 +1268,15 @@ io.on('connection', (socket) => {
       };
 
       // İlk güncellemeyi hemen gönder (0ms gecikme ile)
+      console.log('⏱️ Timer başlatılıyor, ilk güncelleme gönderiliyor...');
       sendTimerUpdate();
       
       // Sonra her saniye güncelle
-      match.timerInterval = setInterval(sendTimerUpdate, 1000);
+      match.timerInterval = setInterval(() => {
+        console.log('⏱️ Timer interval çalışıyor, matchId:', matchId);
+        sendTimerUpdate();
+      }, 1000);
+      console.log('⏱️ Timer interval başlatıldı:', match.timerInterval);
 
       console.log(`Eşleşme oluşturuldu: ${matchId} - ${user1.profile.username} & ${user2.profile.username}`);
     }
