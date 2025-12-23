@@ -13,6 +13,7 @@ const useDatabase = !!process.env.DATABASE_URL;
 
 let saveUsers, loadUsers, saveAuth, loadAuth, saveMatches, loadMatches, saveVerifications, loadVerifications, initDatabase;
 let saveNotification, loadNotifications, markNotificationAsRead, getUnreadNotificationCount;
+let saveComplaint, loadComplaints;
 
 if (useDatabase) {
   const db = require('./database');
@@ -29,6 +30,8 @@ if (useDatabase) {
   loadNotifications = db.loadNotifications;
   markNotificationAsRead = db.markNotificationAsRead;
   getUnreadNotificationCount = db.getUnreadNotificationCount;
+  saveComplaint = db.saveComplaint;
+  loadComplaints = db.loadComplaints;
   console.log('✅ PostgreSQL kullanılıyor');
 } else {
   const storage = require('./dataStorage');
@@ -853,7 +856,31 @@ app.post('/api/admin/verify-user', authenticateToken, async (req, res) => {
     return res.status(400).json({ error: 'Geçersiz parametreler' });
   }
 
-  const verification = pendingVerifications.get(targetUserId);
+  // Önce memory'den kontrol et, yoksa veritabanından yükle
+  let verification = pendingVerifications.get(targetUserId);
+  if (!verification && useDatabase) {
+    // Veritabanından yükle
+    const db = require('./database');
+    const result = await db.pool.query(
+      'SELECT * FROM verifications WHERE user_id = $1 AND status = $2',
+      [targetUserId, 'pending']
+    );
+    if (result.rows.length > 0) {
+      const row = result.rows[0];
+      verification = {
+        userId: row.user_id,
+        status: row.status,
+        poses: row.poses || [],
+        poseImages: row.pose_images || [],
+        selfieUrl: row.selfie_url,
+        filename: row.filename,
+        submittedAt: row.submitted_at
+      };
+      // Memory'e de ekle
+      pendingVerifications.set(targetUserId, verification);
+    }
+  }
+
   if (!verification) {
     return res.status(404).json({ error: 'Doğrulama bulunamadı' });
   }
@@ -867,15 +894,19 @@ app.post('/api/admin/verify-user', authenticateToken, async (req, res) => {
     targetProfile.verified = true;
     verification.status = 'approved';
     users.set(targetUserId, targetProfile);
+    pendingVerifications.set(targetUserId, verification);
     await saveUsers(users); // Hemen kaydet
     await saveVerifications(pendingVerifications); // Hemen kaydet
     res.json({ message: 'Kullanıcı onaylandı', verified: true });
   } else {
     verification.status = 'rejected';
+    pendingVerifications.set(targetUserId, verification);
     // Selfie dosyasını sil
-    const filePath = path.join(uploadsDir, verification.filename);
-    if (fs.existsSync(filePath)) {
-      fs.unlinkSync(filePath);
+    if (verification.filename) {
+      const filePath = path.join(uploadsDir, verification.filename);
+      if (fs.existsSync(filePath)) {
+        fs.unlinkSync(filePath);
+      }
     }
     await saveVerifications(pendingVerifications); // Hemen kaydet
     res.json({ message: 'Doğrulama reddedildi' });
@@ -918,7 +949,7 @@ app.get('/api/admin/users', authenticateToken, (req, res) => {
 });
 
 // Admin - Şikayetleri getir
-app.get('/api/admin/complaints', authenticateToken, (req, res) => {
+app.get('/api/admin/complaints', authenticateToken, async (req, res) => {
   const userId = req.user.userId;
   const profile = users.get(userId);
   
@@ -926,8 +957,16 @@ app.get('/api/admin/complaints', authenticateToken, (req, res) => {
     return res.status(403).json({ error: 'Bu işlem için yetkiniz yok' });
   }
 
-  // Şimdilik boş array döndür (şikayet sistemi henüz eklenmedi)
-  res.json({ complaints: [] });
+  try {
+    const { status } = req.query;
+    const complaints = useDatabase 
+      ? await loadComplaints(status || null)
+      : [];
+    res.json({ complaints });
+  } catch (error) {
+    console.error('Şikayet yükleme hatası:', error);
+    res.status(500).json({ error: 'Şikayetler yüklenemedi' });
+  }
 });
 
 // Mesaj için resim yükleme
@@ -998,7 +1037,7 @@ app.post('/api/users/unblock', authenticateToken, async (req, res) => {
 });
 
 // Kullanıcı şikayet etme
-app.post('/api/users/report', authenticateToken, (req, res) => {
+app.post('/api/users/report', authenticateToken, async (req, res) => {
   const userId = req.user.userId;
   const { targetUserId, reason } = req.body;
   
@@ -1006,18 +1045,37 @@ app.post('/api/users/report', authenticateToken, (req, res) => {
     return res.status(400).json({ error: 'Kullanıcı ID ve sebep gereklidir' });
   }
 
-  // Şikayeti kaydet (basit bir şekilde, ileride veritabanına taşınabilir)
-  const report = {
-    reporterId: userId,
-    targetUserId,
-    reason,
-    timestamp: new Date()
-  };
-  
-  // Burada şikayetleri bir dosyaya kaydedebilirsiniz veya veritabanına ekleyebilirsiniz
-  console.log('Kullanıcı şikayeti:', report);
-  
-  res.json({ message: 'Şikayet kaydedildi, incelenecektir' });
+  if (userId === targetUserId) {
+    return res.status(400).json({ error: 'Kendinize şikayet edemezsiniz' });
+  }
+
+  try {
+    const complaintId = uuidv4();
+    
+    if (useDatabase && saveComplaint) {
+      await saveComplaint({
+        complaintId,
+        reporterId: userId,
+        targetUserId,
+        reason,
+        status: 'pending'
+      });
+      console.log('✅ Şikayet veritabanına kaydedildi:', complaintId);
+    } else {
+      console.log('⚠️ Şikayet kaydedilemedi (veritabanı yok):', {
+        complaintId,
+        reporterId: userId,
+        targetUserId,
+        reason,
+        timestamp: new Date()
+      });
+    }
+    
+    res.json({ message: 'Şikayet kaydedildi, incelenecektir' });
+  } catch (error) {
+    console.error('Şikayet kaydetme hatası:', error);
+    res.status(500).json({ error: 'Şikayet kaydedilemedi' });
+  }
 });
 
 // İstatistikler

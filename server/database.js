@@ -126,6 +126,24 @@ async function initDatabase() {
       CREATE INDEX IF NOT EXISTS idx_notifications_read ON notifications(user_id, read);
     `);
 
+    // Complaints tablosu
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS complaints (
+        complaint_id VARCHAR(255) PRIMARY KEY,
+        reporter_id VARCHAR(255) NOT NULL,
+        target_user_id VARCHAR(255) NOT NULL,
+        reason TEXT,
+        status VARCHAR(50) DEFAULT 'pending',
+        created_at TIMESTAMP DEFAULT NOW()
+      )
+    `);
+    
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS idx_complaints_reporter_id ON complaints(reporter_id);
+      CREATE INDEX IF NOT EXISTS idx_complaints_target_user_id ON complaints(target_user_id);
+      CREATE INDEX IF NOT EXISTS idx_complaints_status ON complaints(status);
+    `);
+
     console.log('✅ Tablolar oluşturuldu/kontrol edildi');
   } catch (error) {
     console.error('❌ Tablo oluşturma hatası:', error);
@@ -592,6 +610,60 @@ async function getUnreadNotificationCount(userId) {
   }
 }
 
+// Şikayet kaydetme
+async function saveComplaint(complaint) {
+  try {
+    const { complaintId, reporterId, targetUserId, reason, status = 'pending' } = complaint;
+    await pool.query(
+      `INSERT INTO complaints (complaint_id, reporter_id, target_user_id, reason, status, created_at)
+       VALUES ($1, $2, $3, $4, $5, NOW())
+       ON CONFLICT (complaint_id) DO UPDATE SET
+         status = EXCLUDED.status`,
+      [complaintId, reporterId, targetUserId, reason, status]
+    );
+  } catch (error) {
+    console.error('❌ Şikayet kaydetme hatası:', error);
+    throw error;
+  }
+}
+
+// Şikayetleri yükle
+async function loadComplaints(status = null) {
+  try {
+    let query = `SELECT c.*, 
+                        r.username as reporter_username, r.email as reporter_email,
+                        t.username as target_username, t.email as target_email
+                 FROM complaints c
+                 LEFT JOIN users r ON c.reporter_id = r.user_id
+                 LEFT JOIN users t ON c.target_user_id = t.user_id`;
+    const params = [];
+    
+    if (status) {
+      query += ' WHERE c.status = $1';
+      params.push(status);
+    }
+    
+    query += ' ORDER BY c.created_at DESC';
+    
+    const result = await pool.query(query, params);
+    return result.rows.map(row => ({
+      complaintId: row.complaint_id,
+      reporterId: row.reporter_id,
+      reporterUsername: row.reporter_username,
+      reporterEmail: row.reporter_email,
+      targetUserId: row.target_user_id,
+      targetUsername: row.target_username,
+      targetEmail: row.target_email,
+      reason: row.reason,
+      status: row.status,
+      createdAt: row.created_at
+    }));
+  } catch (error) {
+    console.error('❌ Şikayet yükleme hatası:', error);
+    return [];
+  }
+}
+
 module.exports = {
   pool,
   initDatabase,
@@ -607,6 +679,8 @@ module.exports = {
   saveNotification,
   loadNotifications,
   markNotificationAsRead,
-  getUnreadNotificationCount
+  getUnreadNotificationCount,
+  saveComplaint,
+  loadComplaints
 };
 
