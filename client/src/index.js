@@ -20,10 +20,10 @@ root.render(
   <React.StrictMode>
     <ThemeProvider theme={socialMediaTheme}>
       <CssBaseline />
-      <MantineProvider theme={theme} defaultColorScheme="light">
-        <Notifications position="top-right" />
-        <App />
-      </MantineProvider>
+    <MantineProvider theme={theme} defaultColorScheme="light">
+      <Notifications position="top-right" />
+      <App />
+    </MantineProvider>
     </ThemeProvider>
   </React.StrictMode>
 );

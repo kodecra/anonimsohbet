@@ -55,6 +55,7 @@ function ChatScreen({ userId, profile: currentProfile, matchId, partnerProfile: 
   const [isCompletedMatch, setIsCompletedMatch] = useState(!!initialPartnerProfile);
   const [partnerProfile, setPartnerProfile] = useState(initialPartnerProfile);
   const [waitingForPartner, setWaitingForPartner] = useState(false);
+  const [continueRequestReceived, setContinueRequestReceived] = useState(false);
   const waitingForPartnerRef = useRef(false);
   const [userAnonymousId, setUserAnonymousId] = useState(null);
   const [partnerAnonymousId, setPartnerAnonymousId] = useState(null);
@@ -109,7 +110,6 @@ function ChatScreen({ userId, profile: currentProfile, matchId, partnerProfile: 
             console.log('✅ Completed match bulundu, profil yükleniyor:', partnerProfile);
             setIsCompletedMatch(true);
             setPartnerProfile(partnerProfile);
-            setTimer(null);
             
             // Mesaj geçmişini yükle
             if (data.match.messages && data.match.messages.length > 0) {
@@ -139,7 +139,6 @@ function ChatScreen({ userId, profile: currentProfile, matchId, partnerProfile: 
       console.log('✅ initialPartnerProfile var - completed match', initialPartnerProfile);
       setIsCompletedMatch(true);
       setPartnerProfile(initialPartnerProfile);
-      setTimer(null);
       
       // Mesaj geçmişini yükle
       console.log('✅ Mesaj geçmişi yükleniyor...', matchId);
@@ -288,13 +287,8 @@ function ChatScreen({ userId, profile: currentProfile, matchId, partnerProfile: 
       console.error('Socket error:', error);
       // "Eşleşme bulunamadı" hatası geldiğinde timer'ı durdur ve eşleşmeyi sonlandır
       if (error.message && error.message.includes('Eşleşme bulunamadı')) {
-        console.log('❌ Eşleşme bulunamadı hatası alındı, timer durduruluyor');
-        if (waitingTimerRef.current) {
-          clearInterval(waitingTimerRef.current);
-          waitingTimerRef.current = null;
-        }
+        console.log('❌ Eşleşme bulunamadı hatası alındı');
         setWaitingForPartner(false);
-        setShowDecision(false);
         onMatchEnded();
         return;
       }
@@ -330,17 +324,7 @@ function ChatScreen({ userId, profile: currentProfile, matchId, partnerProfile: 
 
     newSocket.on('match-ended', (data) => {
       console.log('❌ ChatScreen: match-ended event alındı', data);
-      // Timer'ları temizle
-      if (waitingTimerRef.current) {
-        clearInterval(waitingTimerRef.current);
-        waitingTimerRef.current = null;
-      }
-      if (timerRef.current) {
-        clearInterval(timerRef.current);
-        timerRef.current = null;
-      }
       setWaitingForPartner(false);
-      setShowDecision(false);
       onMatchEnded();
     });
 
@@ -356,12 +340,7 @@ function ChatScreen({ userId, profile: currentProfile, matchId, partnerProfile: 
       ]);
     });
 
-    newSocket.on('time-up', () => {
-      setShowDecision(true);
-      if (timerRef.current) {
-        clearInterval(timerRef.current);
-      }
-    });
+    // time-up event'i kaldırıldı - artık kullanılmıyor
 
     // Mesaj reaksiyonu güncellendi
     newSocket.on('message-reaction', (data) => {
@@ -390,20 +369,10 @@ function ChatScreen({ userId, profile: currentProfile, matchId, partnerProfile: 
     newSocket.on('match-continued', (data) => {
       console.log('✅ ChatScreen: match-continued event alındı', data);
       
-      // ÖNCE timer'ları durdur
-      if (timerRef.current) {
-        clearInterval(timerRef.current);
-        timerRef.current = null;
-      }
-      if (waitingTimerRef.current) {
-        clearInterval(waitingTimerRef.current);
-        waitingTimerRef.current = null;
-      }
-      
       // State'leri güncelle
-      setShowDecision(false);
       waitingForPartnerRef.current = false;
       setWaitingForPartner(false);
+      setContinueRequestReceived(false);
       setIsCompletedMatch(true); // ÖNCE isCompletedMatch'i true yap
       setPartnerProfile(data.partnerProfile); // SONRA partnerProfile'ı set et
       
@@ -456,21 +425,22 @@ function ChatScreen({ userId, profile: currentProfile, matchId, partnerProfile: 
       }
     });
     
-    // Partner devam ettiğinde (sadece bilgilendirme, timer devam eder)
-    newSocket.on('partner-continued', (data) => {
-      console.log('✅ ChatScreen: partner-continued event alındı', data);
-      // Partner devam etmek istiyor, match-continued event'i yakında gelecek
-      // Timer'ı durdurmuyoruz çünkü match-continued event'i geldiğinde durdurulacak
-      // Ama eğer match-continued gelmezse timer devam edecek ve eşleşme iptal olacak
+    // Devam isteği alındığında
+    newSocket.on('continue-request-received', (data) => {
+      console.log('✅ ChatScreen: continue-request-received event alındı', data);
+      setContinueRequestReceived(true);
+      setWaitingForPartner(false);
+    });
+
+    // Devam isteği reddedildiğinde
+    newSocket.on('continue-request-rejected', (data) => {
+      console.log('❌ ChatScreen: continue-request-rejected event alındı', data);
+      setWaitingForPartner(false);
+      setContinueRequestReceived(false);
+      onMatchEnded();
     });
 
     return () => {
-      if (timerRef.current) {
-        clearInterval(timerRef.current);
-      }
-      if (waitingTimerRef.current) {
-        clearInterval(waitingTimerRef.current);
-      }
       newSocket.close();
     };
   }, [userId, API_URL, onMatchEnded, onMatchContinued]);
@@ -491,7 +461,7 @@ function ChatScreen({ userId, profile: currentProfile, matchId, partnerProfile: 
       return;
     }
     
-    if (messageText.trim() && socket && matchId && !showDecision) {
+    if (messageText.trim() && socket && matchId) {
       // Socket bağlantısı kontrolü
       if (!socket.connected) {
         console.warn('Socket bağlı değil, mesaj gönderilemiyor');
@@ -540,8 +510,7 @@ function ChatScreen({ userId, profile: currentProfile, matchId, partnerProfile: 
       console.log('Mesaj gönderilemedi:', { 
         hasText: !!messageText.trim(), 
         hasSocket: !!socket, 
-        hasMatchId: !!matchId, 
-        showDecision 
+        hasMatchId: !!matchId
       });
     }
   };
@@ -564,47 +533,27 @@ function ChatScreen({ userId, profile: currentProfile, matchId, partnerProfile: 
     }, 1000);
   };
 
-  const handleDecision = (decision) => {
+  // Devam etmek istiyorum isteği gönder
+  const handleContinueRequest = () => {
     if (socket && matchId) {
-      if (decision === 'continue') {
-        socket.emit('match-decision', { matchId, decision });
-        setShowDecision(false);
-        // Karşı tarafın cevabını bekle, ama geri sayım başlatma
-        // Backend'den match-continued event'i geldiğinde otomatik geçiş yapılacak
-        setWaitingForPartner(true);
-        waitingForPartnerRef.current = true; // Ref'i de güncelle
-        setWaitingTimer(30); // Timer'ı 30 saniyeye çıkar
-        
-        // 30 saniye geri sayım başlat (sadece karşı taraf cevap vermezse)
-        if (waitingTimerRef.current) {
-          clearInterval(waitingTimerRef.current);
-        }
-        waitingTimerRef.current = setInterval(() => {
-          setWaitingTimer((prev) => {
-            // match-continued event'i geldiyse timer'ı durdur (ref ile kontrol)
-            if (!waitingForPartnerRef.current) {
-              clearInterval(waitingTimerRef.current);
-              waitingTimerRef.current = null;
-              return prev;
-            }
-            if (prev <= 1) {
-              clearInterval(waitingTimerRef.current);
-              waitingTimerRef.current = null;
-              // 30 saniye doldu, eşleşmeyi iptal et
-              socket.emit('match-decision', { matchId, decision: 'leave' });
-              setWaitingForPartner(false);
-              waitingForPartnerRef.current = false;
-              onMatchEnded();
-              return 0;
-            }
-            return prev - 1;
-          });
-        }, 1000);
-      } else {
-        socket.emit('match-decision', { matchId, decision });
-        setShowDecision(false);
-        onMatchEnded();
-      }
+      socket.emit('continue-request', { matchId });
+      setWaitingForPartner(true);
+      waitingForPartnerRef.current = true;
+    }
+  };
+
+  // Devam isteğini kabul et
+  const handleAcceptContinue = () => {
+    if (socket && matchId) {
+      socket.emit('accept-continue-request', { matchId });
+    }
+  };
+
+  // Devam isteğini reddet
+  const handleRejectContinue = () => {
+    if (socket && matchId) {
+      socket.emit('reject-continue-request', { matchId });
+      onMatchEnded();
     }
   };
 
@@ -995,25 +944,14 @@ function ChatScreen({ userId, profile: currentProfile, matchId, partnerProfile: 
             </Dropdown>
           </Space>
         )}
-        {!isCompletedMatch && !partnerProfile && !showDecision && !waitingForPartner && timer !== null && timer > 0 && (
-          <div style={{ textAlign: 'right', marginLeft: 'auto' }}>
-            <Title level={3} style={{ margin: 0, color: isDarkMode ? '#5E72E4' : '#1890ff', fontSize: '24px', fontWeight: 'bold' }}>
-              {timer}
-            </Title>
-            <Text type="secondary" style={{ fontSize: '11px', display: 'block', color: isDarkMode ? '#b8b8b8' : '#999' }}>
-              30 saniye sonra karar verilecek
-            </Text>
-          </div>
-        )}
-        {waitingForPartner && (
-          <div style={{ textAlign: 'right', marginLeft: 'auto' }}>
-            <Title level={3} style={{ margin: 0, color: '#ff9800', fontSize: '24px', fontWeight: 'bold' }}>
-              {waitingTimer}
-            </Title>
-            <Text type="secondary" style={{ fontSize: '11px', display: 'block', color: isDarkMode ? '#b8b8b8' : '#999' }}>
-              Karşı taraftan yanıt bekleniyor...
-            </Text>
-          </div>
+        {!isCompletedMatch && !partnerProfile && !waitingForPartner && (
+          <Button
+            type="primary"
+            onClick={handleContinueRequest}
+            style={{ marginLeft: 'auto' }}
+          >
+            Devam Etmek İstiyorum
+          </Button>
         )}
       </Header>
 
@@ -1343,8 +1281,8 @@ function ChatScreen({ userId, profile: currentProfile, matchId, partnerProfile: 
         ))}
       </Image.PreviewGroup>
 
-      {/* Decision or Input */}
-      {showDecision ? (
+      {/* Continue Request or Input */}
+      {continueRequestReceived ? (
         <Footer style={{ 
           background: isDarkMode ? '#1a1a2e' : '#fff', 
           padding: '24px',
@@ -1352,13 +1290,13 @@ function ChatScreen({ userId, profile: currentProfile, matchId, partnerProfile: 
           transition: 'background 0.3s ease, border-color 0.3s ease'
         }}>
           <Title level={4} style={{ textAlign: 'center', marginBottom: '16px', color: isDarkMode ? '#fff' : '#000' }}>
-            30 saniye doldu. Devam etmek istiyor musunuz?
+            Karşı taraf devam etmek istiyor
           </Title>
           <Space size="large" style={{ width: '100%', justifyContent: 'center' }}>
             <Button
               type="primary"
               size="large"
-              onClick={() => handleDecision('continue')}
+              onClick={handleAcceptContinue}
               style={{
                 height: '48px',
                 minWidth: '150px',
@@ -1366,18 +1304,18 @@ function ChatScreen({ userId, profile: currentProfile, matchId, partnerProfile: 
                 border: 'none'
               }}
             >
-              ✅ Devam Et
+              ✅ Kabul Et
             </Button>
             <Button
               danger
               size="large"
-              onClick={() => handleDecision('leave')}
+              onClick={handleRejectContinue}
               style={{
                 height: '48px',
                 minWidth: '150px'
               }}
             >
-              ❌ Çık
+              ❌ Reddet
             </Button>
           </Space>
         </Footer>
@@ -1391,9 +1329,6 @@ function ChatScreen({ userId, profile: currentProfile, matchId, partnerProfile: 
           <Title level={4} style={{ textAlign: 'center', marginBottom: '16px', color: '#ff9800' }}>
             Karşı taraftan yanıt bekleniyor...
           </Title>
-          <Text type="secondary" style={{ textAlign: 'center', display: 'block', color: isDarkMode ? '#b8b8b8' : '#999' }}>
-            {waitingTimer} saniye içinde yanıt gelmezse eşleşme iptal edilecek
-          </Text>
         </Footer>
       ) : (
         <Footer style={{ 
