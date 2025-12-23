@@ -45,7 +45,7 @@ const { Title, Text } = Typography;
 const { TextArea } = Input;
 const { Group: RadioGroup } = Radio;
 
-function ChatScreen({ userId, profile: currentProfile, matchId, partnerProfile: initialPartnerProfile, onMatchEnded, onMatchContinued, onGoBack, API_URL }) {
+function ChatScreen({ userId, profile: currentProfile, matchId: initialMatchId, partnerProfile: initialPartnerProfile, onMatchEnded, onMatchContinued, onGoBack, API_URL }) {
   const { isDarkMode } = React.useContext(ThemeContext);
   const [socket, setSocket] = useState(null);
   const [messages, setMessages] = useState([]);
@@ -59,6 +59,7 @@ function ChatScreen({ userId, profile: currentProfile, matchId, partnerProfile: 
   const waitingForPartnerRef = useRef(false);
   const [userAnonymousId, setUserAnonymousId] = useState(null);
   const [partnerAnonymousId, setPartnerAnonymousId] = useState(null);
+  const [currentMatchId, setCurrentMatchId] = useState(initialMatchId);
   const messagesEndRef = useRef(null);
   const typingTimeoutRef = useRef(null);
   const fileInputRef = useRef(null);
@@ -86,9 +87,10 @@ function ChatScreen({ userId, profile: currentProfile, matchId, partnerProfile: 
     }
     
     // Completed match kontrolü: initialPartnerProfile yoksa ama matchId varsa API'den kontrol et
-    if (!initialPartnerProfile && matchId && typeof matchId === 'string' && matchId.trim() !== '') {
+    const activeMatchId = currentMatchId || initialMatchId;
+    if (!initialPartnerProfile && activeMatchId && typeof activeMatchId === 'string' && activeMatchId.trim() !== '') {
       // matchId'nin geçerli olduğundan emin ol
-      const cleanMatchId = matchId.trim();
+      const cleanMatchId = activeMatchId.trim();
       fetch(`${API_URL}/api/matches/${cleanMatchId}`, {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('token')}`
@@ -136,15 +138,15 @@ function ChatScreen({ userId, profile: currentProfile, matchId, partnerProfile: 
         }
         setIsCompletedMatch(false);
       });
-    } else if (initialPartnerProfile && matchId) {
+    } else if (initialPartnerProfile && activeMatchId) {
       // initialPartnerProfile varsa zaten completed match
       console.log('✅ initialPartnerProfile var - completed match', initialPartnerProfile);
       setIsCompletedMatch(true);
       setPartnerProfile(initialPartnerProfile);
       
       // Mesaj geçmişini yükle
-      console.log('✅ Mesaj geçmişi yükleniyor...', matchId);
-      fetch(`${API_URL}/api/matches/${matchId}`, {
+      console.log('✅ Mesaj geçmişi yükleniyor...', activeMatchId);
+      fetch(`${API_URL}/api/matches/${activeMatchId}`, {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('token')}`
         }
@@ -176,22 +178,25 @@ function ChatScreen({ userId, profile: currentProfile, matchId, partnerProfile: 
 
     // Socket bağlantı durumunu kontrol et
     const checkAndSetProfile = () => {
+      const activeMatchId = currentMatchId || initialMatchId;
       if (newSocket.connected) {
-        console.log('ChatScreen: Socket bağlı, profil set ediliyor:', userId, matchId);
-        newSocket.emit('set-profile', { userId, matchId });
+        console.log('ChatScreen: Socket bağlı, profil set ediliyor:', userId, activeMatchId);
+        newSocket.emit('set-profile', { userId, matchId: activeMatchId });
       } else {
         console.log('ChatScreen: Socket henüz bağlı değil, bekleniyor...');
       }
     };
 
     newSocket.on('connect', () => {
-      console.log('ChatScreen: Socket bağlandı, socket.id:', newSocket.id, 'userId:', userId, 'matchId:', matchId);
+      const activeMatchId = currentMatchId || initialMatchId;
+      console.log('ChatScreen: Socket bağlandı, socket.id:', newSocket.id, 'userId:', userId, 'matchId:', activeMatchId);
       // set-profile event'ini gönder
-      newSocket.emit('set-profile', { userId, matchId });
+      newSocket.emit('set-profile', { userId, matchId: activeMatchId });
       
       // Socket bağlandığında mesajları tekrar yükle (kaybolma sorununu önlemek için)
-      if (matchId && typeof matchId === 'string' && matchId.trim() !== '' && (isCompletedMatch || partnerProfile)) {
-        const cleanMatchId = matchId.trim();
+      const activeMatchId = currentMatchId || initialMatchId;
+      if (activeMatchId && typeof activeMatchId === 'string' && activeMatchId.trim() !== '' && (isCompletedMatch || partnerProfile)) {
+        const cleanMatchId = activeMatchId.trim();
         console.log('✅ Socket bağlandı - mesaj geçmişi yükleniyor...', { matchId: cleanMatchId, isCompletedMatch, partnerProfile: !!partnerProfile });
         fetch(`${API_URL}/api/matches/${cleanMatchId}`, {
           headers: {
@@ -229,6 +234,10 @@ function ChatScreen({ userId, profile: currentProfile, matchId, partnerProfile: 
     // match-found event'ini dinle
     newSocket.on('match-found', (data) => {
       console.log('✅ ChatScreen: match-found event alındı', data);
+      if (data.matchId) {
+        setCurrentMatchId(data.matchId);
+        console.log('✅ ChatScreen: matchId güncellendi:', data.matchId);
+      }
       if (data.userAnonymousId) {
         setUserAnonymousId(data.userAnonymousId);
       }
@@ -268,8 +277,9 @@ function ChatScreen({ userId, profile: currentProfile, matchId, partnerProfile: 
       }
       
       // Mesajı okundu olarak işaretle
-      if (message.userId !== userId && newSocket && matchId) {
-        newSocket.emit('mark-message-read', { matchId, messageId: message.id });
+      const activeMatchId = currentMatchId || initialMatchId;
+      if (message.userId !== userId && newSocket && activeMatchId) {
+        newSocket.emit('mark-message-read', { matchId: activeMatchId, messageId: message.id });
       }
     });
     
@@ -398,10 +408,11 @@ function ChatScreen({ userId, profile: currentProfile, matchId, partnerProfile: 
       }
       
       // Completed match oldu, mesaj geçmişini yükle (mevcut mesajları koru)
-      const currentMatchId = data.matchId || matchId;
-      if (currentMatchId) {
-        console.log('✅ match-continued: Mesaj geçmişi yükleniyor...', currentMatchId);
-        fetch(`${API_URL}/api/matches/${currentMatchId}`, {
+      const updatedMatchId = data.matchId || currentMatchId || initialMatchId;
+      if (updatedMatchId) {
+        setCurrentMatchId(updatedMatchId);
+        console.log('✅ match-continued: Mesaj geçmişi yükleniyor...', updatedMatchId);
+        fetch(`${API_URL}/api/matches/${updatedMatchId}`, {
           headers: {
             'Authorization': `Bearer ${localStorage.getItem('token')}`
           }
@@ -500,18 +511,19 @@ function ChatScreen({ userId, profile: currentProfile, matchId, partnerProfile: 
       return;
     }
     
-    if (messageText.trim() && socket && matchId) {
+    const activeMatchId = currentMatchId || initialMatchId;
+    if (messageText.trim() && socket && activeMatchId) {
       // Socket bağlantısı kontrolü
       if (!socket.connected) {
         console.warn('Socket bağlı değil, mesaj gönderilemiyor');
         // Socket bağlantısını bekle
         socket.once('connect', () => {
           console.log('Socket bağlandı, mesaj gönderiliyor');
-          socket.emit('set-profile', { userId, matchId });
+          socket.emit('set-profile', { userId, matchId: activeMatchId });
           // Kısa bir gecikme ile mesaj gönder
           setTimeout(() => {
             socket.emit('send-message', {
-              matchId: matchId,
+              matchId: activeMatchId,
               text: messageText.trim(),
               userId: userId
             });
@@ -520,7 +532,7 @@ function ChatScreen({ userId, profile: currentProfile, matchId, partnerProfile: 
         return;
       }
       
-      console.log('Mesaj gönderiliyor:', { matchId, text: messageText.trim(), socketConnected: socket.connected });
+      console.log('Mesaj gönderiliyor:', { matchId: activeMatchId, text: messageText.trim(), socketConnected: socket.connected });
       
       // Optimistic update - mesajı hemen ekle
       const tempMessage = {
@@ -531,20 +543,20 @@ function ChatScreen({ userId, profile: currentProfile, matchId, partnerProfile: 
           : `Anonim-${userAnonymousId || '000000'}`,
         text: messageText.trim(),
         timestamp: new Date(),
-        matchId: matchId,
+        matchId: activeMatchId,
         isTemporary: true
       };
       setMessages((prev) => [...prev, tempMessage]);
       
       socket.emit('send-message', {
-        matchId: matchId,
+        matchId: activeMatchId,
         text: messageText.trim(),
         userId: userId  // Backend'de kullanıcı bulunamazsa otomatik set-profile için
       });
       
       setMessageText('');
       setIsTyping(false);
-      socket.emit('typing', { isTyping: false, matchId: matchId });
+      socket.emit('typing', { isTyping: false, matchId: activeMatchId });
     } else {
       console.log('Mesaj gönderilemedi:', { 
         hasText: !!messageText.trim(), 
@@ -556,10 +568,11 @@ function ChatScreen({ userId, profile: currentProfile, matchId, partnerProfile: 
 
   const handleTyping = (e) => {
     setMessageText(e.target.value);
+    const activeMatchId = currentMatchId || initialMatchId;
     if (!isTyping) {
       setIsTyping(true);
-      if (socket && matchId) {
-        socket.emit('typing', { isTyping: true, matchId: matchId });
+      if (socket && activeMatchId) {
+        socket.emit('typing', { isTyping: true, matchId: activeMatchId });
       }
     }
 
@@ -574,8 +587,11 @@ function ChatScreen({ userId, profile: currentProfile, matchId, partnerProfile: 
 
   // Devam etmek istiyorum isteği gönder
   const handleContinueRequest = () => {
-    if (socket && matchId) {
-      console.log('Devam isteği gönderiliyor:', { matchId, socketConnected: socket.connected });
+    // currentMatchId veya initialMatchId kullan
+    const activeMatchId = currentMatchId || initialMatchId;
+    
+    if (socket && activeMatchId) {
+      console.log('Devam isteği gönderiliyor:', { matchId: activeMatchId, socketConnected: socket.connected, currentMatchId, initialMatchId });
       
       // Socket bağlı değilse hata göster
       if (!socket.connected) {
@@ -583,26 +599,28 @@ function ChatScreen({ userId, profile: currentProfile, matchId, partnerProfile: 
         return;
       }
       
-      socket.emit('continue-request', { matchId });
+      socket.emit('continue-request', { matchId: activeMatchId });
       setWaitingForPartner(true);
       waitingForPartnerRef.current = true;
     } else {
-      console.error('Devam isteği gönderilemedi:', { hasSocket: !!socket, hasMatchId: !!matchId });
+      console.error('Devam isteği gönderilemedi:', { hasSocket: !!socket, hasMatchId: !!activeMatchId, currentMatchId, initialMatchId });
       antdMessage.error('Eşleşme bilgisi bulunamadı');
     }
   };
 
   // Devam isteğini kabul et
   const handleAcceptContinue = () => {
-    if (socket && matchId) {
-      socket.emit('accept-continue-request', { matchId });
+    const activeMatchId = currentMatchId || initialMatchId;
+    if (socket && activeMatchId) {
+      socket.emit('accept-continue-request', { matchId: activeMatchId });
     }
   };
 
   // Devam isteğini reddet
   const handleRejectContinue = () => {
-    if (socket && matchId) {
-      socket.emit('reject-continue-request', { matchId });
+    const activeMatchId = currentMatchId || initialMatchId;
+    if (socket && activeMatchId) {
+      socket.emit('reject-continue-request', { matchId: activeMatchId });
       onMatchEnded();
     }
   };
@@ -674,16 +692,18 @@ function ChatScreen({ userId, profile: currentProfile, matchId, partnerProfile: 
 
   // Mesaj sil
   const deleteMessage = (messageId) => {
-    if (socket && matchId) {
-      socket.emit('delete-message', { matchId, messageId });
+    const activeMatchId = currentMatchId || initialMatchId;
+    if (socket && activeMatchId) {
+      socket.emit('delete-message', { matchId: activeMatchId, messageId });
     }
   };
 
   // Mesaja reaksiyon ekle/kaldır
   const reactToMessage = (messageId, reaction) => {
-    if (socket && matchId && socket.connected) {
-      console.log('Reaksiyon gönderiliyor:', { matchId, messageId, reaction });
-      socket.emit('react-to-message', { matchId, messageId, reaction });
+    const activeMatchId = currentMatchId || initialMatchId;
+    if (socket && activeMatchId && socket.connected) {
+      console.log('Reaksiyon gönderiliyor:', { matchId: activeMatchId, messageId, reaction });
+      socket.emit('react-to-message', { matchId: activeMatchId, messageId, reaction });
     } else {
       console.warn('Reaksiyon gönderilemedi:', { socket: !!socket, matchId, connected: socket?.connected });
     }
@@ -946,11 +966,12 @@ function ChatScreen({ userId, profile: currentProfile, matchId, partnerProfile: 
                     icon: <CloseOutlined />,
                     danger: true,
                     onClick: async () => {
-                      if (matchId) {
+                      const activeMatchId = currentMatchId || initialMatchId;
+                      if (activeMatchId) {
                         try {
                           if (isCompletedMatch || partnerProfile) {
                             const token = localStorage.getItem('token');
-                            await axios.delete(`${API_URL}/api/matches/${matchId}`, {
+                            await axios.delete(`${API_URL}/api/matches/${activeMatchId}`, {
                               headers: {
                                 'Authorization': `Bearer ${token}`
                               }
@@ -963,7 +984,7 @@ function ChatScreen({ userId, profile: currentProfile, matchId, partnerProfile: 
                               onGoBack();
                             }
                           } else if (socket) {
-                            socket.emit('match-decision', { matchId, decision: 'leave' });
+                            socket.emit('match-decision', { matchId: activeMatchId, decision: 'leave' });
                             if (onMatchEnded) {
                               onMatchEnded();
                             }
