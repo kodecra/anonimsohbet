@@ -1564,8 +1564,14 @@ app.get('/api/matches', authenticateToken, (req, res) => {
     };
   }).filter(m => m !== null);
   
-  // Pending request'leri de ekle
-  const allMatches = [...matches, ...pendingRequestMatches];
+  // Pending request'leri de ekle (duplicate kontrolü ile)
+  // Zaten matches'te olan matchId'leri al
+  const existingMatchIds = new Set(matches.map(m => m.matchId));
+  
+  // Sadece duplicate olmayan pending request'leri ekle
+  const uniquePendingRequests = pendingRequestMatches.filter(pr => !existingMatchIds.has(pr.matchId));
+  
+  const allMatches = [...matches, ...uniquePendingRequests];
   
   // Sıralama: En son mesaj/istek alanı üstte
   allMatches.sort((a, b) => {
