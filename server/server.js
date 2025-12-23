@@ -1718,7 +1718,7 @@ io.on('connection', (socket) => {
   });
 
   // Mesaja reaksiyon ekle/kaldır
-  socket.on('react-to-message', (data) => {
+  socket.on('react-to-message', async (data) => {
     const userInfo = activeUsers.get(socket.id);
     if (!userInfo) return;
 
