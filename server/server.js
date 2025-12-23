@@ -12,6 +12,7 @@ const fs = require('fs');
 const useDatabase = !!process.env.DATABASE_URL;
 
 let saveUsers, loadUsers, saveAuth, loadAuth, saveMatches, loadMatches, saveVerifications, loadVerifications, initDatabase;
+let saveNotification, loadNotifications, markNotificationAsRead, getUnreadNotificationCount;
 
 if (useDatabase) {
   const db = require('./database');
@@ -24,6 +25,10 @@ if (useDatabase) {
   saveVerifications = db.saveVerifications;
   loadVerifications = db.loadVerifications;
   initDatabase = db.initDatabase;
+  saveNotification = db.saveNotification;
+  loadNotifications = db.loadNotifications;
+  markNotificationAsRead = db.markNotificationAsRead;
+  getUnreadNotificationCount = db.getUnreadNotificationCount;
   console.log('✅ PostgreSQL kullanılıyor');
 } else {
   const storage = require('./dataStorage');
@@ -35,6 +40,11 @@ if (useDatabase) {
   loadMatches = storage.loadMatches;
   saveVerifications = storage.saveVerifications;
   loadVerifications = storage.loadVerifications;
+  // JSON için basit bildirim fonksiyonları (geçici)
+  saveNotification = async () => {};
+  loadNotifications = async () => [];
+  markNotificationAsRead = async () => {};
+  getUnreadNotificationCount = async () => 0;
   console.log('⚠️ JSON dosyası kullanılıyor (DATABASE_URL bulunamadı - Render free tier için PostgreSQL kullanın!)');
 }
 const { uploadToFTP } = require('./ftpUpload');
@@ -827,16 +837,38 @@ app.post('/api/profile/view', authenticateToken, async (req, res) => {
 
 // Bildirim ayarları
 // Notifications endpoint'leri
-app.get('/api/notifications', authenticateToken, (req, res) => {
-  const userId = req.user.userId;
-  // Şimdilik boş array döndür (ileride bildirim sistemi eklenecek)
-  res.json({ notifications: [] });
+app.get('/api/notifications', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    const notifications = await loadNotifications(userId);
+    res.json({ notifications });
+  } catch (error) {
+    console.error('Bildirim yükleme hatası:', error);
+    res.status(500).json({ error: 'Bildirimler yüklenemedi' });
+  }
 });
 
-app.get('/api/notifications/unread-count', authenticateToken, (req, res) => {
-  const userId = req.user.userId;
-  // Şimdilik 0 döndür (ileride bildirim sistemi eklenecek)
-  res.json({ unreadCount: 0 });
+app.get('/api/notifications/unread-count', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    const unreadCount = await getUnreadNotificationCount(userId);
+    res.json({ unreadCount });
+  } catch (error) {
+    console.error('Okunmamış bildirim sayısı hatası:', error);
+    res.json({ unreadCount: 0 });
+  }
+});
+
+app.post('/api/notifications/:notificationId/read', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    const { notificationId } = req.params;
+    await markNotificationAsRead(notificationId, userId);
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Bildirim okundu işaretleme hatası:', error);
+    res.status(500).json({ error: 'Bildirim işaretlenemedi' });
+  }
 });
 
 app.get('/api/notifications/settings', authenticateToken, (req, res) => {
@@ -938,25 +970,68 @@ app.get('/api/matches', authenticateToken, (req, res) => {
   const userId = req.user.userId;
   const matchIds = userMatches.get(userId) || [];
   
-  const matches = matchIds.map(matchId => {
-    const match = completedMatches.get(matchId);
+  // Aktif eşleşmeleri de ekle (anonim eşleşmeler)
+  const activeMatchIds = [];
+  for (const [matchId, match] of activeMatches.entries()) {
+    if (match.user1.userId === userId || match.user2.userId === userId) {
+      activeMatchIds.push(matchId);
+    }
+  }
+  
+  const allMatchIds = [...new Set([...matchIds, ...activeMatchIds])];
+  
+  const matches = allMatchIds.map(matchId => {
+    // Önce activeMatches'te ara
+    let match = activeMatches.get(matchId);
+    let isActiveMatch = true;
+    
+    // Bulunamazsa completedMatches'te ara
+    if (!match) {
+      match = completedMatches.get(matchId);
+      isActiveMatch = false;
+    }
+    
     if (!match) return null;
 
     // Partner bilgisini bul
     const partner = match.user1.userId === userId ? match.user2 : match.user1;
+    const currentUser = match.user1.userId === userId ? match.user1 : match.user2;
     
+    // Eğer aktif eşleşme ve partner profile yoksa (anonim), anonim ID göster
+    if (isActiveMatch && !partner.profile) {
+      return {
+        matchId: match.id,
+        partner: {
+          userId: null,
+          username: `Anonim-${currentUser.anonymousId || '000000'}`,
+          photos: [],
+          verified: false,
+          isAnonymous: true
+        },
+        lastMessage: match.messages.length > 0 ? match.messages[match.messages.length - 1] : null,
+        lastMessageAt: match.messages.length > 0 
+          ? match.messages[match.messages.length - 1].timestamp 
+          : match.startedAt,
+        messageCount: match.messages.length,
+        startedAt: match.startedAt,
+        isActiveMatch: true
+      };
+    }
+    
+    // Completed match veya partner profile var
     return {
       matchId: match.id,
       partner: {
         userId: partner.userId,
         username: partner.username,
-        photos: partner.profile.photos || [],
-        verified: partner.profile.verified || false
+        photos: partner.profile?.photos || [],
+        verified: partner.profile?.verified || false
       },
       lastMessage: match.messages.length > 0 ? match.messages[match.messages.length - 1] : null,
       lastMessageAt: match.lastMessageAt,
       messageCount: match.messages.length,
-      startedAt: match.startedAt
+      startedAt: match.startedAt,
+      isActiveMatch: false
     };
   }).filter(m => m !== null).sort((a, b) => {
     // En son mesaj alanı üstte
@@ -1140,11 +1215,7 @@ io.on('connection', (socket) => {
     
     console.log('✅ start-matching: Kullanıcı bulundu:', userInfo.profile.username);
 
-    if (userInfo.inMatch) {
-      socket.emit('error', { message: 'Zaten bir eşleşmede bulunuyorsunuz' });
-      return;
-    }
-
+    // Kullanıcı mevcut eşleşmede olsa bile yeni eşleşme başlatabilir
     // Kuyruğa ekle
     if (!matchingQueue.find(u => u.socketId === socket.id)) {
       matchingQueue.push({
@@ -1162,18 +1233,24 @@ io.on('connection', (socket) => {
       const user2 = matchingQueue.shift();
 
       const matchId = uuidv4();
+      // Her kullanıcıya özel anonim ID oluştur (6 haneli)
+      const user1AnonymousId = Math.floor(100000 + Math.random() * 900000).toString();
+      const user2AnonymousId = Math.floor(100000 + Math.random() * 900000).toString();
+      
       // Match yapısını netleştir - user1 ve user2'de userId ve socketId olmalı
       const match = {
         id: matchId,
         user1: {
           socketId: user1.socketId,
           userId: user1.userId,
-          profile: user1.profile
+          profile: user1.profile,
+          anonymousId: user1AnonymousId
         },
         user2: {
           socketId: user2.socketId,
           userId: user2.userId,
-          profile: user2.profile
+          profile: user2.profile,
+          anonymousId: user2AnonymousId
         },
         startedAt: new Date(),
         messages: []
@@ -1212,12 +1289,16 @@ io.on('connection', (socket) => {
       // Her iki kullanıcıya eşleşme bildirimi gönder (anonim)
       io.to(user1.socketId).emit('match-found', {
         matchId: matchId,
-        message: 'Birisiyle eşleştiniz!'
+        message: 'Birisiyle eşleştiniz!',
+        userAnonymousId: user1AnonymousId,
+        partnerAnonymousId: user2AnonymousId
       });
 
       io.to(user2.socketId).emit('match-found', {
         matchId: matchId,
-        message: 'Birisiyle eşleştiniz!'
+        message: 'Birisiyle eşleştiniz!',
+        userAnonymousId: user2AnonymousId,
+        partnerAnonymousId: user1AnonymousId
       });
 
       console.log(`Eşleşme oluşturuldu: ${matchId} - ${user1.profile.username} & ${user2.profile.username}`);
@@ -1375,6 +1456,30 @@ io.on('connection', (socket) => {
     userMatches.get(match.user1.userId).push(matchId);
     userMatches.get(match.user2.userId).push(matchId);
     await saveMatches(completedMatches, userMatches);
+
+    // Bildirim gönder: İsteği gönderen kullanıcıya (fromUserId) bildirim gönder
+    const notificationId = uuidv4();
+    await saveNotification({
+      notificationId,
+      userId: request.fromUserId,
+      type: 'continue-request-accepted',
+      title: 'Eşleşme İsteği Kabul Edildi',
+      message: `${user2Profile.firstName} ${user2Profile.lastName} eşleşme isteğinizi kabul etti.`,
+      matchId: matchId,
+      fromUserId: request.toUserId
+    });
+
+    // Eğer kullanıcı çevrimiçi değilse, bildirim veritabanında kalacak ve sonra gösterilecek
+    // Çevrimiçiyse socket ile bildirim gönder
+    if (io.sockets.sockets.has(request.fromSocketId)) {
+      io.to(request.fromSocketId).emit('notification', {
+        id: notificationId,
+        type: 'continue-request-accepted',
+        title: 'Eşleşme İsteği Kabul Edildi',
+        message: `${user2Profile.firstName} ${user2Profile.lastName} eşleşme isteğinizi kabul etti.`,
+        matchId: matchId
+      });
+    }
 
     // Her iki kullanıcıya da eşleşme onaylandı bildirimi gönder
     io.to(match.user1.socketId).emit('match-continued', {

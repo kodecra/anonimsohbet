@@ -497,6 +497,79 @@ async function loadVerifications() {
   }
 }
 
+// Bildirim kaydetme
+async function saveNotification(notification) {
+  try {
+    const { notificationId, userId, type, title, message, matchId, fromUserId } = notification;
+    await pool.query(
+      `INSERT INTO notifications (notification_id, user_id, type, title, message, match_id, from_user_id, read, created_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW())
+       ON CONFLICT (notification_id) DO UPDATE SET
+         read = EXCLUDED.read`,
+      [notificationId, userId, type, title, message, matchId || null, fromUserId || null, false]
+    );
+  } catch (error) {
+    console.error('❌ Bildirim kaydetme hatası:', error);
+    throw error;
+  }
+}
+
+// Kullanıcının bildirimlerini yükle
+async function loadNotifications(userId) {
+  try {
+    const result = await pool.query(
+      `SELECT * FROM notifications 
+       WHERE user_id = $1 
+       ORDER BY created_at DESC 
+       LIMIT 100`,
+      [userId]
+    );
+    return result.rows.map(row => ({
+      id: row.notification_id,
+      userId: row.user_id,
+      type: row.type,
+      title: row.title,
+      message: row.message,
+      matchId: row.match_id,
+      fromUserId: row.from_user_id,
+      read: row.read,
+      createdAt: row.created_at
+    }));
+  } catch (error) {
+    console.error('❌ Bildirim yükleme hatası:', error);
+    return [];
+  }
+}
+
+// Bildirimi okundu olarak işaretle
+async function markNotificationAsRead(notificationId, userId) {
+  try {
+    await pool.query(
+      `UPDATE notifications SET read = true 
+       WHERE notification_id = $1 AND user_id = $2`,
+      [notificationId, userId]
+    );
+  } catch (error) {
+    console.error('❌ Bildirim okundu işaretleme hatası:', error);
+    throw error;
+  }
+}
+
+// Okunmamış bildirim sayısı
+async function getUnreadNotificationCount(userId) {
+  try {
+    const result = await pool.query(
+      `SELECT COUNT(*) as count FROM notifications 
+       WHERE user_id = $1 AND read = false`,
+      [userId]
+    );
+    return parseInt(result.rows[0].count) || 0;
+  } catch (error) {
+    console.error('❌ Okunmamış bildirim sayısı hatası:', error);
+    return 0;
+  }
+}
+
 module.exports = {
   pool,
   initDatabase,
@@ -508,6 +581,10 @@ module.exports = {
   loadMatches,
   saveVerifications,
   loadVerifications,
-  addUserMatch
+  addUserMatch,
+  saveNotification,
+  loadNotifications,
+  markNotificationAsRead,
+  getUnreadNotificationCount
 };
 
