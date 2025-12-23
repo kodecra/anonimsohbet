@@ -225,13 +225,65 @@ app.post('/api/register', async (req, res) => {
 
 // Giriş yap
 app.post('/api/login', async (req, res) => {
-  const { email, password } = req.body;
+  const { email, username, phoneNumber, password } = req.body;
   
-  if (!email || !password) {
-    return res.status(400).json({ error: 'Email ve şifre gereklidir' });
+  if (!password) {
+    return res.status(400).json({ error: 'Şifre gereklidir' });
   }
 
-  const auth = userAuth.get(email.toLowerCase());
+  // Email, username veya phoneNumber'dan biri olmalı
+  if (!email && !username && !phoneNumber) {
+    return res.status(400).json({ error: 'Email, kullanıcı adı veya telefon numarası gereklidir' });
+  }
+
+  let userEmail = null;
+  let userId = null;
+
+  // Email ile login
+  if (email) {
+    userEmail = email.toLowerCase();
+    const auth = userAuth.get(userEmail);
+    if (!auth) {
+      return res.status(401).json({ error: 'Email veya şifre hatalı' });
+    }
+    userId = auth.userId;
+  } 
+  // Username veya phoneNumber ile login
+  else {
+    // Users map'inde username veya phoneNumber'a göre ara
+    let foundProfile = null;
+    for (const [uid, profile] of users.entries()) {
+      if (username && profile.username && profile.username.toLowerCase() === username.toLowerCase()) {
+        foundProfile = profile;
+        userId = uid;
+        break;
+      }
+      if (phoneNumber && profile.phoneNumber === phoneNumber) {
+        foundProfile = profile;
+        userId = uid;
+        break;
+      }
+    }
+
+    if (!foundProfile) {
+      return res.status(401).json({ error: 'Kullanıcı adı/telefon veya şifre hatalı' });
+    }
+
+    // userId'ye göre userAuth'dan email'i bul
+    for (const [emailKey, auth] of userAuth.entries()) {
+      if (auth.userId === userId) {
+        userEmail = emailKey;
+        break;
+      }
+    }
+
+    if (!userEmail) {
+      return res.status(401).json({ error: 'Kullanıcı adı/telefon veya şifre hatalı' });
+    }
+  }
+
+  // Şifre kontrolü
+  const auth = userAuth.get(userEmail);
   if (!auth) {
     return res.status(401).json({ error: 'Email veya şifre hatalı' });
   }
@@ -241,12 +293,12 @@ app.post('/api/login', async (req, res) => {
     return res.status(401).json({ error: 'Email veya şifre hatalı' });
   }
 
-  const profile = users.get(auth.userId);
+  const profile = users.get(userId);
   if (!profile) {
     return res.status(404).json({ error: 'Profil bulunamadı' });
   }
 
-  const token = jwt.sign({ userId: auth.userId, email: email.toLowerCase() }, JWT_SECRET, { expiresIn: '7d' });
+  const token = jwt.sign({ userId, email: userEmail }, JWT_SECRET, { expiresIn: '7d' });
 
   res.json({ 
     token,
