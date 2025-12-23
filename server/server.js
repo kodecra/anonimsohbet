@@ -1059,10 +1059,27 @@ io.on('connection', (socket) => {
     if (matchId) {
       const match = activeMatches.get(matchId);
       if (match) {
+        const oldSocketId1 = match.user1.socketId;
+        const oldSocketId2 = match.user2.socketId;
+        
         if (match.user1.userId === userId) {
           match.user1.socketId = socket.id;
+          console.log('🔄 set-profile: user1 socketId güncellendi:', { 
+            userId, 
+            oldSocketId: oldSocketId1, 
+            newSocketId: socket.id,
+            matchId,
+            timerStarted: match.timerStarted
+          });
         } else if (match.user2.userId === userId) {
           match.user2.socketId = socket.id;
+          console.log('🔄 set-profile: user2 socketId güncellendi:', { 
+            userId, 
+            oldSocketId: oldSocketId2, 
+            newSocketId: socket.id,
+            matchId,
+            timerStarted: match.timerStarted
+          });
         }
         currentMatchId = matchId;
       }
@@ -1246,23 +1263,41 @@ io.on('connection', (socket) => {
         });
         
         if (currentMatch.user1 && currentMatch.user1.socketId) {
-          console.log('📤 user1\'e timer-update gönderiliyor:', currentMatch.user1.socketId);
-          io.to(currentMatch.user1.socketId).emit('timer-update', {
-            matchId: matchId,
-            remainingSeconds: remainingSeconds,
-            remaining: remaining
+          const socketExists = io.sockets.sockets.has(currentMatch.user1.socketId);
+          console.log('📤 user1\'e timer-update gönderiliyor:', { 
+            socketId: currentMatch.user1.socketId, 
+            socketExists,
+            userId: currentMatch.user1.userId 
           });
+          if (socketExists) {
+            io.to(currentMatch.user1.socketId).emit('timer-update', {
+              matchId: matchId,
+              remainingSeconds: remainingSeconds,
+              remaining: remaining
+            });
+          } else {
+            console.log('⚠️ user1 socketId geçersiz, socket bağlı değil!');
+          }
         } else {
           console.log('⚠️ user1 socketId yok!');
         }
         
         if (currentMatch.user2 && currentMatch.user2.socketId) {
-          console.log('📤 user2\'ye timer-update gönderiliyor:', currentMatch.user2.socketId);
-          io.to(currentMatch.user2.socketId).emit('timer-update', {
-            matchId: matchId,
-            remainingSeconds: remainingSeconds,
-            remaining: remaining
+          const socketExists = io.sockets.sockets.has(currentMatch.user2.socketId);
+          console.log('📤 user2\'ye timer-update gönderiliyor:', { 
+            socketId: currentMatch.user2.socketId, 
+            socketExists,
+            userId: currentMatch.user2.userId 
           });
+          if (socketExists) {
+            io.to(currentMatch.user2.socketId).emit('timer-update', {
+              matchId: matchId,
+              remainingSeconds: remainingSeconds,
+              remaining: remaining
+            });
+          } else {
+            console.log('⚠️ user2 socketId geçersiz, socket bağlı değil!');
+          }
         } else {
           console.log('⚠️ user2 socketId yok!');
         }

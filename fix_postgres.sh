@@ -14,3 +14,4 @@ sed -i "s|AnonimSohbet2024!Secure|AnonimSohbet2024Secure|g" .env
 echo "✅ PostgreSQL kullanıcısı oluşturuldu ve .env güncellendi!"
 
 
+
