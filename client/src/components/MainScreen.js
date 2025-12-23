@@ -358,7 +358,7 @@ function MainScreen({ userId, profile, token, onMatchFound, onMatchContinued, on
                 }} 
               />
               <Space>
-                <Badge count={unreadNotificationCount > 0 ? unreadNotificationCount : 0} size="small" offset={[-2, 2]}>
+                <Badge count={unreadNotificationCount > 0 ? unreadNotificationCount : null} size="small" offset={[-2, 2]}>
                   <Button
                     type="text"
                     icon={<BellOutlined />}
@@ -366,7 +366,13 @@ function MainScreen({ userId, profile, token, onMatchFound, onMatchContinued, on
                       setShowNotifications(true);
                       loadNotifications();
                     }}
-                    style={{ fontSize: '18px', color: isDarkMode ? '#fff' : '#000' }}
+                    style={{ 
+                      fontSize: '18px', 
+                      color: isDarkMode ? '#fff' : '#000',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center'
+                    }}
                   />
                 </Badge>
                 <Switch

@@ -1447,6 +1447,43 @@ io.on('connection', (socket) => {
           } else {
             match.user2.socketId = socket.id;
           }
+          
+          // Bekleyen continue request'leri kontrol et ve güncelle
+          for (const [requestId, request] of followRequests.entries()) {
+            if (request.matchId === mid && request.status === 'pending') {
+              // Bu kullanıcıya gönderilen request var mı?
+              if (request.toUserId === userId) {
+                request.toSocketId = socket.id;
+                followRequests.set(requestId, request);
+                // Request'i bildir
+                socket.emit('continue-request-received', {
+                  requestId,
+                  matchId: mid,
+                  message: 'Karşı taraf devam etmek istiyor'
+                });
+                console.log(`✅ Bekleyen continue request bildirildi: ${requestId} -> ${userId}`);
+              }
+              // Bu kullanıcının gönderdiği request var mı? Partner socketId'yi güncelle
+              else if (request.fromUserId === userId && request.toSocketId === null) {
+                // Partner'ın socketId'sini bul
+                const partnerUserId = request.toUserId;
+                for (const [sId, user] of activeUsers.entries()) {
+                  if (user.userId === partnerUserId && io.sockets.sockets.has(sId)) {
+                    request.toSocketId = sId;
+                    followRequests.set(requestId, request);
+                    // Partner'a bildir
+                    io.to(sId).emit('continue-request-received', {
+                      requestId,
+                      matchId: mid,
+                      message: 'Karşı taraf devam etmek istiyor'
+                    });
+                    console.log(`✅ Bekleyen continue request partner'a bildirildi: ${requestId} -> ${partnerUserId}`);
+                    break;
+                  }
+                }
+              }
+            }
+          }
           currentMatchId = mid;
           break;
         }
@@ -1609,12 +1646,26 @@ io.on('connection', (socket) => {
   socket.on('continue-request', (data) => {
     const { matchId } = data;
     
-    // Önce match'i bul
-    const match = activeMatches.get(matchId);
+    console.log(`🔵 continue-request event alındı: matchId=${matchId}, socketId=${socket.id}`);
+    console.log(`   activeMatches size: ${activeMatches.size}`);
+    console.log(`   activeMatches keys:`, Array.from(activeMatches.keys()));
+    
+    // Önce match'i bul (activeMatches'te)
+    let match = activeMatches.get(matchId);
+    
+    // Bulunamazsa completedMatches'te ara (eski eşleşmeler için)
     if (!match) {
-      socket.emit('error', { message: 'Eşleşme bulunamadı' });
+      match = completedMatches.get(matchId);
+      console.log(`   Match activeMatches'te bulunamadı, completedMatches'te aranıyor...`);
+    }
+    
+    if (!match) {
+      console.log(`   ❌ Match bulunamadı: ${matchId}`);
+      socket.emit('error', { message: 'Eşleşme bulunamadı. Lütfen sayfayı yenileyin.' });
       return;
     }
+    
+    console.log(`   ✅ Match bulundu: ${matchId}`);
 
     // Kullanıcıyı bul (socket.id veya userId ile)
     let userInfo = activeUsers.get(socket.id);
@@ -1658,16 +1709,35 @@ io.on('connection', (socket) => {
 
     // Hangi kullanıcı olduğunu belirle
     const isUser1 = match.user1.userId === userInfo.userId;
-    const partnerSocketId = isUser1 ? match.user2.socketId : match.user1.socketId;
+    let partnerSocketId = isUser1 ? match.user2.socketId : match.user1.socketId;
+    const partnerUserId = isUser1 ? match.user2.userId : match.user1.userId;
 
-    if (!partnerSocketId) {
-      socket.emit('error', { message: 'Eşleşme partneri bulunamadı' });
-      return;
+    console.log(`   Kullanıcı bilgisi: isUser1=${isUser1}, partnerUserId=${partnerUserId}, partnerSocketId=${partnerSocketId}`);
+
+    // Eğer partner socketId yoksa veya socket bağlı değilse, activeUsers'dan bul
+    if (!partnerSocketId || !io.sockets.sockets.has(partnerSocketId)) {
+      console.log(`   ⚠️ Partner socketId bulunamadı veya bağlı değil, activeUsers'da aranıyor: ${partnerUserId}`);
+      for (const [socketId, user] of activeUsers.entries()) {
+        if (user.userId === partnerUserId && io.sockets.sockets.has(socketId)) {
+          partnerSocketId = socketId;
+          // Match'teki socketId'yi güncelle (sadece activeMatches'te ise)
+          if (activeMatches.has(matchId)) {
+            if (isUser1) {
+              match.user2.socketId = socketId;
+            } else {
+              match.user1.socketId = socketId;
+            }
+            activeMatches.set(matchId, match);
+          }
+          console.log(`   ✅ Partner socketId güncellendi: ${partnerSocketId}`);
+          break;
+        }
+      }
     }
 
     // Zaten bekleyen bir istek var mı kontrol et
     for (const [requestId, request] of followRequests.entries()) {
-      if (request.matchId === matchId && request.status === 'pending') {
+      if (request.matchId === matchId && request.status === 'pending' && request.fromUserId === userInfo.userId) {
         socket.emit('error', { message: 'Zaten bir devam isteği gönderdiniz' });
         return;
       }
@@ -1678,7 +1748,7 @@ io.on('connection', (socket) => {
       requestId,
       matchId,
       fromUserId: userInfo.userId,
-      toUserId: isUser1 ? match.user2.userId : match.user1.userId,
+      toUserId: partnerUserId,
       fromSocketId: socket.id,
       toSocketId: partnerSocketId,
       status: 'pending',
@@ -1687,20 +1757,32 @@ io.on('connection', (socket) => {
 
     followRequests.set(requestId, request);
 
-    // Karşı tarafa bildir
-    io.to(partnerSocketId).emit('continue-request-received', {
-      requestId,
-      matchId,
-      message: 'Karşı taraf devam etmek istiyor'
-    });
-
-    socket.emit('continue-request-sent', {
-      requestId,
-      matchId,
-      message: 'Devam isteği gönderildi'
-    });
-
-    console.log(`Devam isteği gönderildi: ${matchId} - ${userInfo.userId}`);
+    // Partner çevrimiçiyse bildir, değilse sadece request'i kaydet
+    if (partnerSocketId && io.sockets.sockets.has(partnerSocketId)) {
+      // Karşı tarafa bildir
+      io.to(partnerSocketId).emit('continue-request-received', {
+        requestId,
+        matchId,
+        message: 'Karşı taraf devam etmek istiyor'
+      });
+      
+      socket.emit('continue-request-sent', {
+        requestId,
+        matchId,
+        message: 'Devam isteği gönderildi'
+      });
+      
+      console.log(`✅ Devam isteği gönderildi (partner çevrimiçi): ${matchId} - ${userInfo.userId}`);
+    } else {
+      // Partner çevrimdışı, request kaydedildi
+      socket.emit('continue-request-sent', {
+        requestId,
+        matchId,
+        message: 'Devam isteği kaydedildi. Partner giriş yaptığında bildirim alacak.'
+      });
+      
+      console.log(`⚠️ Devam isteği kaydedildi (partner çevrimdışı): ${matchId} - ${userInfo.userId}`);
+    }
   });
 
   // Devam isteğini kabul etme
