@@ -331,7 +331,6 @@ function ProfileEdit({ profile, token, onProfileUpdated, onClose, API_URL }) {
           padding: '24px'
         }}
         footer={null}
-        width={800}
         closeIcon={<CloseOutlined />}
       >
         <Form
@@ -666,6 +665,61 @@ function ProfileEdit({ profile, token, onProfileUpdated, onClose, API_URL }) {
               )}
             </Row>
           </Form.Item>
+
+          {/* Anonim Numarası Sıfırlama */}
+          <Card
+            style={{
+              marginBottom: '24px',
+              backgroundColor: isDarkMode ? '#2e2e2e' : '#fff7e6',
+              border: isDarkMode ? '1px solid #424242' : '1px solid #ffd591',
+              color: isDarkMode ? '#fff' : '#000'
+            }}
+          >
+            <Title level={5} style={{ marginBottom: '8px', color: isDarkMode ? '#fff' : '#000' }}>
+              Anonim Numarası
+            </Title>
+            <Text type="secondary" style={{ display: 'block', marginBottom: '12px' }}>
+              Mevcut anonim numaranız: <Text strong>{profile.anonymousNumber || 'Yükleniyor...'}</Text>
+            </Text>
+            <Text type="secondary" style={{ display: 'block', marginBottom: '16px', fontSize: '12px' }}>
+              Anonim numaranızı sıfırlarsanız, eşleşmeler tabında görünen numaranız değişecektir.
+            </Text>
+            <Button
+              danger
+              onClick={() => {
+                Modal.confirm({
+                  title: 'Anonim Numarasını Sıfırla',
+                  content: 'Anonim numaranızı sıfırlamak istediğinizden emin misiniz? Bu işlem geri alınamaz ve eşleşmeler tabında görünen numaranız değişecektir.',
+                  okText: 'Evet, Sıfırla',
+                  cancelText: 'İptal',
+                  okButtonProps: { danger: true },
+                  onOk: async () => {
+                    try {
+                      setLoading(true);
+                      const response = await axios.post(`${API_URL}/api/profile/reset-anonymous-number`, {}, {
+                        headers: {
+                          'Authorization': `Bearer ${token}`
+                        }
+                      });
+                      
+                      message.success(`Anonim numaranız sıfırlandı. Yeni numaranız: ${response.data.newAnonymousNumber}`);
+                      
+                      if (onProfileUpdated) {
+                        onProfileUpdated(response.data.profile, false); // Modal kapanmasın
+                      }
+                    } catch (err) {
+                      message.error(err.response?.data?.error || 'Anonim numarası sıfırlanamadı');
+                    } finally {
+                      setLoading(false);
+                    }
+                  }
+                });
+              }}
+              disabled={loading}
+            >
+              Anonim Numaramı Sıfırla
+            </Button>
+          </Card>
 
           {/* Actions */}
           <Form.Item style={{ marginTop: '24px', marginBottom: 0 }}>

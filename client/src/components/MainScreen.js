@@ -225,6 +225,13 @@ function MainScreen({ userId, profile, token, onMatchFound, onMatchContinued, on
       loadNotifications();
     });
 
+    // Anonim numarası güncellendi event'ini dinle
+    newSocket.on('anonymous-number-updated', (data) => {
+      console.log('Anonim numarası güncellendi:', data);
+      // Eşleşmeler listesini yenile
+      setChatsRefreshKey(prev => prev + 1);
+    });
+
     // Eşleşme sona erdi
     newSocket.on('match-ended', () => {
       setMatchId(null);
