@@ -144,6 +144,51 @@ async function initDatabase() {
       CREATE INDEX IF NOT EXISTS idx_complaints_status ON complaints(status);
     `);
 
+    // Active matches tablosu (anonim eşleşmeler - henüz tamamlanmamış)
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS active_matches (
+        match_id VARCHAR(255) PRIMARY KEY,
+        user1_id VARCHAR(255) NOT NULL,
+        user1_socket_id VARCHAR(255),
+        user1_anonymous_id VARCHAR(20),
+        user2_id VARCHAR(255) NOT NULL,
+        user2_socket_id VARCHAR(255),
+        user2_anonymous_id VARCHAR(20),
+        user1_decision VARCHAR(20),
+        user2_decision VARCHAR(20),
+        timer_started BOOLEAN DEFAULT false,
+        messages JSONB DEFAULT '[]'::jsonb,
+        started_at TIMESTAMP DEFAULT NOW(),
+        updated_at TIMESTAMP DEFAULT NOW()
+      )
+    `);
+    
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS idx_active_matches_user1 ON active_matches(user1_id);
+      CREATE INDEX IF NOT EXISTS idx_active_matches_user2 ON active_matches(user2_id);
+    `);
+
+    // Follow requests tablosu (devam istekleri)
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS follow_requests (
+        request_id VARCHAR(255) PRIMARY KEY,
+        match_id VARCHAR(255),
+        from_user_id VARCHAR(255) NOT NULL,
+        to_user_id VARCHAR(255) NOT NULL,
+        from_socket_id VARCHAR(255),
+        to_socket_id VARCHAR(255),
+        status VARCHAR(20) DEFAULT 'pending',
+        created_at TIMESTAMP DEFAULT NOW()
+      )
+    `);
+    
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS idx_follow_requests_from_user ON follow_requests(from_user_id);
+      CREATE INDEX IF NOT EXISTS idx_follow_requests_to_user ON follow_requests(to_user_id);
+      CREATE INDEX IF NOT EXISTS idx_follow_requests_status ON follow_requests(status);
+      CREATE INDEX IF NOT EXISTS idx_follow_requests_match ON follow_requests(match_id);
+    `);
+
     console.log('✅ Tablolar oluşturuldu/kontrol edildi');
   } catch (error) {
     console.error('❌ Tablo oluşturma hatası:', error);
@@ -664,6 +709,192 @@ async function loadComplaints(status = null) {
   }
 }
 
+// ============== ACTIVE MATCHES (Anonim Eşleşmeler) ==============
+
+// Aktif eşleşme kaydet
+async function saveActiveMatch(matchId, match) {
+  if (!pool) return false;
+  
+  try {
+    const user1Id = match.user1?.userId || match.user1;
+    const user2Id = match.user2?.userId || match.user2;
+    
+    await pool.query(`
+      INSERT INTO active_matches (
+        match_id, user1_id, user1_socket_id, user1_anonymous_id,
+        user2_id, user2_socket_id, user2_anonymous_id,
+        user1_decision, user2_decision, timer_started, messages, started_at, updated_at
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, NOW())
+      ON CONFLICT (match_id) DO UPDATE SET
+        user1_socket_id = EXCLUDED.user1_socket_id,
+        user2_socket_id = EXCLUDED.user2_socket_id,
+        user1_decision = EXCLUDED.user1_decision,
+        user2_decision = EXCLUDED.user2_decision,
+        timer_started = EXCLUDED.timer_started,
+        messages = EXCLUDED.messages,
+        updated_at = NOW()
+    `, [
+      matchId,
+      user1Id,
+      match.user1?.socketId || null,
+      match.user1?.anonymousId || null,
+      user2Id,
+      match.user2?.socketId || null,
+      match.user2?.anonymousId || null,
+      match.user1Decision || null,
+      match.user2Decision || null,
+      match.timerStarted || false,
+      JSON.stringify(match.messages || []),
+      match.startedAt ? new Date(match.startedAt) : new Date()
+    ]);
+    return true;
+  } catch (error) {
+    console.error('saveActiveMatch hatası:', error);
+    return false;
+  }
+}
+
+// Tüm aktif eşleşmeleri yükle
+async function loadActiveMatches() {
+  if (!pool) return new Map();
+  
+  try {
+    const result = await pool.query('SELECT * FROM active_matches');
+    const activeMatchesMap = new Map();
+    
+    for (const row of result.rows) {
+      activeMatchesMap.set(row.match_id, {
+        id: row.match_id,
+        user1: {
+          userId: row.user1_id,
+          socketId: row.user1_socket_id,
+          anonymousId: row.user1_anonymous_id
+        },
+        user2: {
+          userId: row.user2_id,
+          socketId: row.user2_socket_id,
+          anonymousId: row.user2_anonymous_id
+        },
+        user1Decision: row.user1_decision,
+        user2Decision: row.user2_decision,
+        timerStarted: row.timer_started,
+        messages: row.messages || [],
+        startedAt: row.started_at,
+        updatedAt: row.updated_at
+      });
+    }
+    
+    console.log(`✅ ${activeMatchesMap.size} aktif eşleşme yüklendi`);
+    return activeMatchesMap;
+  } catch (error) {
+    console.error('loadActiveMatches hatası:', error);
+    return new Map();
+  }
+}
+
+// Aktif eşleşme sil
+async function deleteActiveMatch(matchId) {
+  if (!pool) return false;
+  
+  try {
+    await pool.query('DELETE FROM active_matches WHERE match_id = $1', [matchId]);
+    return true;
+  } catch (error) {
+    console.error('deleteActiveMatch hatası:', error);
+    return false;
+  }
+}
+
+// ============== FOLLOW REQUESTS (Devam İstekleri) ==============
+
+// Follow request kaydet
+async function saveFollowRequest(requestId, request) {
+  if (!pool) return false;
+  
+  try {
+    await pool.query(`
+      INSERT INTO follow_requests (
+        request_id, match_id, from_user_id, to_user_id,
+        from_socket_id, to_socket_id, status, created_at
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+      ON CONFLICT (request_id) DO UPDATE SET
+        from_socket_id = EXCLUDED.from_socket_id,
+        to_socket_id = EXCLUDED.to_socket_id,
+        status = EXCLUDED.status
+    `, [
+      requestId,
+      request.matchId || null,
+      request.fromUserId,
+      request.toUserId,
+      request.fromSocketId || null,
+      request.toSocketId || null,
+      request.status || 'pending',
+      request.createdAt ? new Date(request.createdAt) : new Date()
+    ]);
+    return true;
+  } catch (error) {
+    console.error('saveFollowRequest hatası:', error);
+    return false;
+  }
+}
+
+// Tüm follow requests yükle
+async function loadFollowRequests() {
+  if (!pool) return new Map();
+  
+  try {
+    const result = await pool.query('SELECT * FROM follow_requests');
+    const followRequestsMap = new Map();
+    
+    for (const row of result.rows) {
+      followRequestsMap.set(row.request_id, {
+        matchId: row.match_id,
+        fromUserId: row.from_user_id,
+        toUserId: row.to_user_id,
+        fromSocketId: row.from_socket_id,
+        toSocketId: row.to_socket_id,
+        status: row.status,
+        createdAt: row.created_at
+      });
+    }
+    
+    console.log(`✅ ${followRequestsMap.size} follow request yüklendi`);
+    return followRequestsMap;
+  } catch (error) {
+    console.error('loadFollowRequests hatası:', error);
+    return new Map();
+  }
+}
+
+// Follow request sil
+async function deleteFollowRequest(requestId) {
+  if (!pool) return false;
+  
+  try {
+    await pool.query('DELETE FROM follow_requests WHERE request_id = $1', [requestId]);
+    return true;
+  } catch (error) {
+    console.error('deleteFollowRequest hatası:', error);
+    return false;
+  }
+}
+
+// Follow request güncelle
+async function updateFollowRequestStatus(requestId, status) {
+  if (!pool) return false;
+  
+  try {
+    await pool.query(
+      'UPDATE follow_requests SET status = $1 WHERE request_id = $2',
+      [status, requestId]
+    );
+    return true;
+  } catch (error) {
+    console.error('updateFollowRequestStatus hatası:', error);
+    return false;
+  }
+}
+
 module.exports = {
   pool,
   initDatabase,
@@ -681,6 +912,14 @@ module.exports = {
   markNotificationAsRead,
   getUnreadNotificationCount,
   saveComplaint,
-  loadComplaints
+  loadComplaints,
+  // Yeni eklenenler
+  saveActiveMatch,
+  loadActiveMatches,
+  deleteActiveMatch,
+  saveFollowRequest,
+  loadFollowRequests,
+  deleteFollowRequest,
+  updateFollowRequestStatus
 };
 

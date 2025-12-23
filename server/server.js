@@ -14,6 +14,9 @@ const useDatabase = !!process.env.DATABASE_URL;
 let saveUsers, loadUsers, saveAuth, loadAuth, saveMatches, loadMatches, saveVerifications, loadVerifications, initDatabase;
 let saveNotification, loadNotifications, markNotificationAsRead, getUnreadNotificationCount;
 let saveComplaint, loadComplaints;
+// Yeni: Active matches ve follow requests için
+let saveActiveMatchDB, loadActiveMatchesDB, deleteActiveMatchDB;
+let saveFollowRequestDB, loadFollowRequestsDB, deleteFollowRequestDB, updateFollowRequestStatusDB;
 
 if (useDatabase) {
   const db = require('./database');
@@ -32,6 +35,14 @@ if (useDatabase) {
   getUnreadNotificationCount = db.getUnreadNotificationCount;
   saveComplaint = db.saveComplaint;
   loadComplaints = db.loadComplaints;
+  // Yeni fonksiyonlar
+  saveActiveMatchDB = db.saveActiveMatch;
+  loadActiveMatchesDB = db.loadActiveMatches;
+  deleteActiveMatchDB = db.deleteActiveMatch;
+  saveFollowRequestDB = db.saveFollowRequest;
+  loadFollowRequestsDB = db.loadFollowRequests;
+  deleteFollowRequestDB = db.deleteFollowRequest;
+  updateFollowRequestStatusDB = db.updateFollowRequestStatus;
   console.log('✅ PostgreSQL kullanılıyor');
 } else {
   const storage = require('./dataStorage');
@@ -48,6 +59,14 @@ if (useDatabase) {
   loadNotifications = async () => [];
   markNotificationAsRead = async () => {};
   getUnreadNotificationCount = async () => 0;
+  // JSON için active matches ve follow requests (geçici - memory'de kalır)
+  saveActiveMatchDB = async () => {};
+  loadActiveMatchesDB = async () => new Map();
+  deleteActiveMatchDB = async () => {};
+  saveFollowRequestDB = async () => {};
+  loadFollowRequestsDB = async () => new Map();
+  deleteFollowRequestDB = async () => {};
+  updateFollowRequestStatusDB = async () => {};
   console.log('⚠️ JSON dosyası kullanılıyor (DATABASE_URL bulunamadı - Render free tier için PostgreSQL kullanın!)');
 }
 const { uploadToFTP } = require('./ftpUpload');
@@ -112,6 +131,11 @@ app.use('/uploads', express.static(uploadsDir));
 // Veri yapıları - Kalıcı depolamadan yükle (async için Promise kullan)
 let users, userAuth, completedMatches, userMatches, pendingVerifications;
 
+const activeUsers = new Map(); // socketId -> user info (geçici - socket bağlantısı kesilince zaten sıfırlanmalı)
+const matchingQueue = []; // Eşleşme bekleyen kullanıcılar (geçici - artık kullanılmayacak)
+let activeMatches = new Map(); // matchId -> match info (ARTIK KALICI!)
+let followRequests = new Map(); // requestId -> { fromUserId, toUserId, ... } (ARTIK KALICI!)
+
 // Async yükleme (PostgreSQL için)
 (async () => {
   try {
@@ -121,12 +145,21 @@ let users, userAuth, completedMatches, userMatches, pendingVerifications;
     completedMatches = matchesData.completedMatches;
     userMatches = matchesData.userMatches;
     pendingVerifications = await loadVerifications();
+    
+    // YENİ: Aktif eşleşmeleri ve follow request'leri de yükle
+    if (useDatabase) {
+      activeMatches = await loadActiveMatchesDB();
+      followRequests = await loadFollowRequestsDB();
+    }
+    
     console.log('✅ Veriler yüklendi:', {
       users: users.size,
       auth: userAuth.size,
       completedMatches: completedMatches.size,
       userMatches: userMatches.size,
-      verifications: pendingVerifications.size
+      verifications: pendingVerifications.size,
+      activeMatches: activeMatches.size,
+      followRequests: followRequests.size
     });
   } catch (error) {
     console.error('❌ Veri yükleme hatası:', error);
@@ -136,17 +169,17 @@ let users, userAuth, completedMatches, userMatches, pendingVerifications;
     completedMatches = new Map();
     userMatches = new Map();
     pendingVerifications = new Map();
+    activeMatches = new Map();
+    followRequests = new Map();
   }
 })();
 
-const activeUsers = new Map(); // socketId -> user info (geçici)
-const matchingQueue = []; // Eşleşme bekleyen kullanıcılar (geçici - artık kullanılmayacak)
-const activeMatches = new Map(); // matchId -> match info (geçici)
-const followRequests = new Map(); // requestId -> { fromUserId, toUserId, fromSocketId, toSocketId, status: 'pending'|'accepted'|'rejected', createdAt }
-
-// Match silme helper function
-function deleteActiveMatch(matchId) {
+// Match silme helper function (veritabanına da kaydeder)
+async function deleteActiveMatch(matchId) {
   activeMatches.delete(matchId);
+  if (useDatabase) {
+    await deleteActiveMatchDB(matchId);
+  }
   console.log(`🗑️ Aktif eşleşme silindi: ${matchId}`);
 }
 
@@ -715,9 +748,11 @@ app.post('/api/profile/reset-anonymous-number', authenticateToken, async (req, r
     if (match.user1.userId === userId) {
       match.user1.anonymousId = newAnonymousNumber;
       activeMatches.set(matchId, match);
+      if (useDatabase) await saveActiveMatchDB(matchId, match);
     } else if (match.user2.userId === userId) {
       match.user2.anonymousId = newAnonymousNumber;
       activeMatches.set(matchId, match);
+      if (useDatabase) await saveActiveMatchDB(matchId, match);
     }
   }
 
@@ -1297,7 +1332,7 @@ app.delete('/api/matches/:matchId', authenticateToken, async (req, res) => {
   
   // Active match ise sil ve kullanıcıların activeUsers'dan matchId'sini temizle
   if (activeMatches.has(matchId)) {
-    deleteActiveMatch(matchId);
+    await deleteActiveMatch(matchId);
     // Her iki kullanıcının da activeUsers'dan matchId'sini temizle
     for (const [socketId, userInfo] of activeUsers.entries()) {
       if ((userInfo.userId === userId || userInfo.userId === partnerId) && userInfo.matchId === matchId) {
@@ -1312,6 +1347,7 @@ app.delete('/api/matches/:matchId', authenticateToken, async (req, res) => {
   for (const [requestId, request] of followRequests.entries()) {
     if (request.matchId === matchId) {
       followRequests.delete(requestId);
+      if (useDatabase) deleteFollowRequestDB(requestId);
     }
   }
   
@@ -1779,6 +1815,7 @@ io.on('connection', (socket) => {
               if (request.toUserId === userId) {
                 request.toSocketId = socket.id;
                 followRequests.set(requestId, request);
+                if (useDatabase) saveFollowRequestDB(requestId, request);
                 // Request'i bildir
                 socket.emit('continue-request-received', {
                   requestId,
@@ -1795,6 +1832,7 @@ io.on('connection', (socket) => {
                   if (user.userId === partnerUserId && io.sockets.sockets.has(sId)) {
                     request.toSocketId = sId;
                     followRequests.set(requestId, request);
+                    if (useDatabase) saveFollowRequestDB(requestId, request);
                     // Partner'a bildir
                     io.to(sId).emit('continue-request-received', {
                       requestId,
@@ -1904,6 +1942,8 @@ io.on('connection', (socket) => {
       };
 
       activeMatches.set(matchId, match);
+      // Veritabanına kaydet
+      if (useDatabase) await saveActiveMatchDB(matchId, match);
       console.log('✅✅✅ MATCH OLUŞTURULDU:', matchId);
       console.log('   user1:', { userId: user1.userId, socketId: user1.socketId, username: user1.profile?.username });
       console.log('   user2:', { userId: user2.userId, socketId: user2.socketId, username: user2.profile?.username });
@@ -1912,7 +1952,7 @@ io.on('connection', (socket) => {
       // Match'in gerçekten kaydedildiğini doğrula
       const verifyMatch = activeMatches.get(matchId);
       if (verifyMatch) {
-        console.log('   ✅ Match activeMatches\'e başarıyla kaydedildi');
+        console.log('   ✅ Match activeMatches\'e başarıyla kaydedildi (DB\'ye de)');
       } else {
         console.log('   ❌ HATA: Match activeMatches\'e kaydedilemedi!');
       }
@@ -2257,6 +2297,7 @@ io.on('connection', (socket) => {
               match.user1.socketId = socketId;
             }
             activeMatches.set(matchId, match);
+            if (useDatabase) saveActiveMatchDB(matchId, match);
           }
           console.log(`   ✅ Partner socketId güncellendi: ${partnerSocketId}`);
           break;
@@ -2285,6 +2326,8 @@ io.on('connection', (socket) => {
     };
 
     followRequests.set(requestId, request);
+    // Veritabanına kaydet
+    if (useDatabase) await saveFollowRequestDB(requestId, request);
 
     // Partner çevrimiçiyse bildir, değilse sadece request'i kaydet
     if (partnerSocketId && io.sockets.sockets.has(partnerSocketId)) {
@@ -2418,6 +2461,7 @@ io.on('connection', (socket) => {
     // İsteği kabul et
     request.status = 'accepted';
     followRequests.set(request.requestId, request);
+    if (useDatabase) await updateFollowRequestStatusDB(request.requestId, 'accepted');
 
     const user1Profile = users.get(match.user1.userId);
     const user2Profile = users.get(match.user2.userId);
@@ -2496,7 +2540,7 @@ io.on('connection', (socket) => {
   });
 
   // Devam isteğini reddetme
-  socket.on('reject-continue-request', (data) => {
+  socket.on('reject-continue-request', async (data) => {
     const { matchId } = data;
     const userInfo = activeUsers.get(socket.id);
     
@@ -2533,6 +2577,7 @@ io.on('connection', (socket) => {
     // İsteği reddet
     request.status = 'rejected';
     followRequests.set(request.requestId, request);
+    if (useDatabase) await updateFollowRequestStatusDB(request.requestId, 'rejected');
 
     // Gönderen kullanıcıya bildir
     io.to(request.fromSocketId).emit('continue-request-rejected', {
@@ -2562,7 +2607,7 @@ io.on('connection', (socket) => {
       user2Info.inMatch = false;
       user2Info.matchId = null;
     }
-    deleteActiveMatch(matchId);
+    await deleteActiveMatch(matchId);
 
     console.log(`Devam isteği reddedildi: ${matchId}`);
   });
@@ -2779,6 +2824,7 @@ io.on('connection', (socket) => {
         };
         
         activeMatches.set(matchId, match);
+        if (useDatabase) saveActiveMatchDB(matchId, match);
         console.log('✅✅✅ EN SON ÇARE İLE MATCH OLUŞTURULDU:', matchId);
       }
       
@@ -2871,6 +2917,9 @@ io.on('connection', (socket) => {
       completedMatch.messages.push(message);
       completedMatch.lastMessageAt = new Date();
       await saveMatches(completedMatches, userMatches); // Hemen kaydet
+    } else if (activeMatches.has(match.id) && useDatabase) {
+      // Active match ise de mesajları kaydet (deploy sonrası kaybolmasın)
+      await saveActiveMatchDB(match.id, match);
     }
 
     // Online status güncelle
@@ -3028,7 +3077,7 @@ io.on('connection', (socket) => {
   });
 
   // Bağlantı kopması
-  socket.on('disconnect', () => {
+  socket.on('disconnect', async () => {
     const userInfo = activeUsers.get(socket.id);
     if (userInfo) {
       // Online durumunu güncelle
@@ -3063,7 +3112,7 @@ io.on('connection', (socket) => {
             partnerInfo.inMatch = false;
             partnerInfo.matchId = null;
           }
-          deleteActiveMatch(userInfo.matchId); // Timer interval'ini de temizler
+          await deleteActiveMatch(userInfo.matchId); // Timer interval'ini de temizler
         }
       }
 
