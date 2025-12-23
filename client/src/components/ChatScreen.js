@@ -211,34 +211,8 @@ function ChatScreen({ userId, profile: currentProfile, matchId: initialMatchId, 
       console.log('✅ initialPartnerProfile var - completed match', initialPartnerProfile);
       setIsCompletedMatch(true);
       setPartnerProfile(initialPartnerProfile);
-      
-      // Mesaj geçmişini yükle
-      console.log('✅ Mesaj geçmişi yükleniyor...', activeMatchId);
-      fetch(`${API_URL}/api/matches/${activeMatchId}`, {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
-        }
-      })
-      .then(response => {
-        if (response.ok) {
-          return response.json();
-        }
-        throw new Error('Mesaj geçmişi yüklenemedi');
-      })
-      .then(data => {
-        console.log('✅ Mesaj geçmişi API response:', data);
-        if (data && data.match && data.match.messages && data.match.messages.length > 0) {
-          console.log(`✅ ${data.match.messages.length} mesaj yüklendi`);
-          setMessages(data.match.messages);
-        } else {
-          console.log('⚠️ Mesaj geçmişi boş veya bulunamadı');
-          setMessages([]); // Boş array set et
-        }
-      })
-      .catch(err => {
-        console.error('❌ Mesaj geçmişi yüklenemedi:', err);
-        setMessages([]); // Hata durumunda boş array
-      });
+      // Not: Mesaj geçmişi zaten App.js'den geliyor veya yukarıdaki fetch'te yükleniyor
+      // Duplicate yüklemeyi önlemek için burada tekrar fetch yapmıyoruz
     }
     
     const newSocket = io(API_URL);
@@ -260,37 +234,7 @@ function ChatScreen({ userId, profile: currentProfile, matchId: initialMatchId, 
       console.log('ChatScreen: Socket bağlandı, socket.id:', newSocket.id, 'userId:', userId, 'matchId:', activeMatchId);
       // set-profile event'ini gönder
       newSocket.emit('set-profile', { userId, matchId: activeMatchId });
-      
-      // Socket bağlandığında mesajları tekrar yükle (kaybolma sorununu önlemek için)
-      if (activeMatchId && typeof activeMatchId === 'string' && activeMatchId.trim() !== '' && (isCompletedMatch || partnerProfile)) {
-        const cleanMatchId = activeMatchId.trim();
-        console.log('✅ Socket bağlandı - mesaj geçmişi yükleniyor...', { matchId: cleanMatchId, isCompletedMatch, partnerProfile: !!partnerProfile });
-        fetch(`${API_URL}/api/matches/${cleanMatchId}`, {
-          headers: {
-            'Authorization': `Bearer ${localStorage.getItem('token')}`
-          }
-        })
-        .then(response => {
-          if (response.ok) {
-            return response.json();
-          }
-          throw new Error('Mesaj geçmişi yüklenemedi');
-        })
-        .then(data => {
-          console.log('✅ Socket bağlandı - mesaj geçmişi yüklendi', data);
-          if (data && data.match && data.match.messages && data.match.messages.length > 0) {
-            console.log(`✅ ${data.match.messages.length} mesaj yüklendi`);
-            setMessages(data.match.messages);
-          } else {
-            console.log('⚠️ Socket bağlandığında mesaj geçmişi boş');
-            // Mevcut mesajları koru, boş array set etme
-          }
-        })
-        .catch(err => {
-          console.error('❌ Socket bağlandığında mesaj geçmişi yüklenemedi:', err);
-          // Hata durumunda mevcut mesajları koru
-        });
-      }
+      // Not: Mesaj geçmişi zaten ilk API çağrısında yükleniyor, tekrar yüklemeye gerek yok
     });
 
     // profile-set event'ini dinle
@@ -1182,7 +1126,10 @@ function ChatScreen({ userId, profile: currentProfile, matchId: initialMatchId, 
         background: isDarkMode ? '#16213e' : '#f0f2f5',
         transition: 'background 0.3s ease'
       }}>
-        {messages.map((message) => {
+        {/* Duplicate mesajları filtrele */}
+        {messages.filter((message, index, self) => 
+          index === self.findIndex(m => m.id === message.id)
+        ).map((message) => {
           // Mesaj gönderenin profil bilgisini bul
           const messageSenderProfile = message.userId === userId 
             ? currentProfile 
