@@ -1812,26 +1812,35 @@ io.on('connection', (socket) => {
     
     // Eğer matchId verilmişse, match'teki socketId'yi güncelle
     if (matchId) {
-      const match = activeMatches.get(matchId);
+      // Önce activeMatches'te ara
+      let match = activeMatches.get(matchId);
+      let isCompletedMatch = false;
+      
+      // activeMatches'te yoksa completedMatches'te ara
+      if (!match) {
+        match = completedMatches.get(matchId);
+        isCompletedMatch = true;
+      }
+      
       if (match) {
-        const oldSocketId1 = match.user1.socketId;
-        const oldSocketId2 = match.user2.socketId;
+        const u1Id = match.user1?.userId || match.user1?.user?.userId;
+        const u2Id = match.user2?.userId || match.user2?.user?.userId;
         
-        if (match.user1.userId === userId) {
-          match.user1.socketId = socket.id;
+        if (u1Id === userId) {
+          if (match.user1) match.user1.socketId = socket.id;
           console.log('🔄 set-profile: user1 socketId güncellendi:', { 
             userId, 
-            oldSocketId: oldSocketId1, 
             newSocketId: socket.id,
-            matchId
+            matchId,
+            isCompletedMatch
           });
-        } else if (match.user2.userId === userId) {
-          match.user2.socketId = socket.id;
+        } else if (u2Id === userId) {
+          if (match.user2) match.user2.socketId = socket.id;
           console.log('🔄 set-profile: user2 socketId güncellendi:', { 
             userId, 
-            oldSocketId: oldSocketId2, 
             newSocketId: socket.id,
-            matchId
+            matchId,
+            isCompletedMatch
           });
         }
         
