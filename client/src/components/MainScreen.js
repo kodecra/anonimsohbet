@@ -105,10 +105,21 @@ function MainScreen({ userId, profile, token, onMatchFound, onMatchContinued, on
         headers: { 'Authorization': `Bearer ${token}` }
       });
       
-      // Sadece devam etmemiş eşleşmeleri filtrele (isActiveMatch: true ve partner.isAnonymous: true)
-      const pending = (response.data.matches || []).filter(match => 
-        match.isActiveMatch && match.partner?.isAnonymous
-      );
+      // Devam etmemiş eşleşmeleri filtrele:
+      // 1. isActiveMatch: true ve partner.isAnonymous: true (devam etmek istemiyorum butonuna basılmamış)
+      // 2. isPendingRequest: true ve requestStatus: 'sent' (devam etmek istiyorum butonuna basılmış ama karşı taraftan cevap gelmemiş)
+      // 3. isPendingRequest: true ve requestStatus: 'received' (karşı taraf devam etmek istiyorum butonuna basmış ama biz cevaplamamışız - kırmızı badge)
+      const pending = (response.data.matches || []).filter(match => {
+        // Aktif eşleşme ve anonim (devam etmek istemiyorum butonuna basılmamış)
+        if (match.isActiveMatch && match.partner?.isAnonymous && !match.isPendingRequest) {
+          return true;
+        }
+        // Pending request (devam etmek istiyorum butonuna basılmış)
+        if (match.isPendingRequest) {
+          return true;
+        }
+        return false;
+      });
       
       setPendingMatches(pending);
     } catch (error) {
@@ -815,50 +826,82 @@ function MainScreen({ userId, profile, token, onMatchFound, onMatchContinued, on
                         </Title>
                         <AntList
                           dataSource={pendingMatches}
-                          renderItem={(match) => (
-                            <AntList.Item
-                              style={{
-                                cursor: 'pointer',
-                                padding: '12px',
-                                borderRadius: '8px',
-                                marginBottom: '8px',
-                                background: isDarkMode ? '#2d3748' : '#f8f9fa',
-                                border: `1px solid ${isDarkMode ? '#424242' : '#e0e0e0'}`
-                              }}
-                              onClick={() => onMatchFound(match.matchId)}
-                            >
-                              <AntList.Item.Meta
-                                avatar={
-                                  <Avatar 
-                                    size={50}
-                                    style={{
-                                      background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                                      color: '#fff',
-                                      fontWeight: 'bold'
-                                    }}
-                                  >
-                                    {match.partner?.username?.charAt(0) || 'A'}
-                                  </Avatar>
-                                }
-                                title={
-                                  <span style={{ 
-                                    color: isDarkMode ? '#fff' : '#000',
-                                    fontWeight: 600
-                                  }}>
-                                    {match.partner?.username || 'Anonim'}
-                                  </span>
-                                }
-                                description={
-                                  <span style={{ 
-                                    color: isDarkMode ? '#999' : '#666',
-                                    fontSize: '12px'
-                                  }}>
-                                    Devam etmek için tıklayın
-                                  </span>
-                                }
-                              />
-                            </AntList.Item>
-                          )}
+                          renderItem={(match) => {
+                            // Kırmızı badge gösterilecek mi? (karşı taraf devam etmek istiyorum butonuna basmış ama biz cevaplamamışız)
+                            const needsResponse = match.isPendingRequest && match.requestStatus === 'received';
+                            const isWaitingForResponse = match.isPendingRequest && match.requestStatus === 'sent';
+                            
+                            return (
+                              <AntList.Item
+                                style={{
+                                  cursor: 'pointer',
+                                  padding: '12px',
+                                  borderRadius: '8px',
+                                  marginBottom: '8px',
+                                  background: isDarkMode ? '#2d3748' : '#f8f9fa',
+                                  border: `1px solid ${needsResponse ? '#ff4d4f' : (isDarkMode ? '#424242' : '#e0e0e0')}`
+                                }}
+                                onClick={() => onMatchFound(match.matchId)}
+                              >
+                                <AntList.Item.Meta
+                                  avatar={
+                                    <Badge 
+                                      count={needsResponse ? 1 : 0} 
+                                      offset={[-5, 5]}
+                                      style={{ 
+                                        backgroundColor: '#ff4d4f',
+                                        boxShadow: needsResponse ? '0 0 0 2px #fff' : 'none'
+                                      }}
+                                    >
+                                      <Avatar 
+                                        size={50}
+                                        style={{
+                                          background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                                          color: '#fff',
+                                          fontWeight: 'bold'
+                                        }}
+                                      >
+                                        {match.partner?.username?.charAt(0) || 'A'}
+                                      </Avatar>
+                                    </Badge>
+                                  }
+                                  title={
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                      <span style={{ 
+                                        color: isDarkMode ? '#fff' : '#000',
+                                        fontWeight: 600
+                                      }}>
+                                        {match.partner?.username || 'Anonim'}
+                                      </span>
+                                      {needsResponse && (
+                                        <Tag color="red" style={{ margin: 0 }}>
+                                          Yanıt Bekliyor
+                                        </Tag>
+                                      )}
+                                      {isWaitingForResponse && (
+                                        <Tag color="blue" style={{ margin: 0 }}>
+                                          Cevap Bekleniyor
+                                        </Tag>
+                                      )}
+                                    </div>
+                                  }
+                                  description={
+                                    <span style={{ 
+                                      color: isDarkMode ? '#999' : '#666',
+                                      fontSize: '12px'
+                                    }}>
+                                      {needsResponse 
+                                        ? 'Devam etmek isteğinize yanıt verin' 
+                                        : isWaitingForResponse
+                                        ? 'Karşı tarafın cevabını bekliyorsunuz'
+                                        : 'Devam etmek için tıklayın'
+                                      }
+                                    </span>
+                                  }
+                                />
+                              </AntList.Item>
+                            );
+                          }}
                         />
                       </Card>
                     )}

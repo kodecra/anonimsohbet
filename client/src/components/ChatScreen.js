@@ -557,10 +557,11 @@ function ChatScreen({ userId, profile: currentProfile, matchId: initialMatchId, 
       setIsTyping(false);
       socket.emit('typing', { isTyping: false, matchId: activeMatchId });
     } else {
+      const activeMatchId = currentMatchId || initialMatchId;
       console.log('Mesaj gönderilemedi:', { 
         hasText: !!messageText.trim(), 
         hasSocket: !!socket, 
-        hasMatchId: !!matchId
+        hasMatchId: !!activeMatchId
       });
     }
   };
@@ -578,8 +579,9 @@ function ChatScreen({ userId, profile: currentProfile, matchId: initialMatchId, 
     clearTimeout(typingTimeoutRef.current);
     typingTimeoutRef.current = setTimeout(() => {
       setIsTyping(false);
-      if (socket && matchId) {
-        socket.emit('typing', { isTyping: false, matchId: matchId });
+      const activeMatchId = currentMatchId || initialMatchId;
+      if (socket && activeMatchId) {
+        socket.emit('typing', { isTyping: false, matchId: activeMatchId });
       }
     }, 1000);
   };
@@ -704,7 +706,7 @@ function ChatScreen({ userId, profile: currentProfile, matchId: initialMatchId, 
       console.log('Reaksiyon gönderiliyor:', { matchId: activeMatchId, messageId, reaction });
       socket.emit('react-to-message', { matchId: activeMatchId, messageId, reaction });
     } else {
-      console.warn('Reaksiyon gönderilemedi:', { socket: !!socket, matchId, connected: socket?.connected });
+      console.warn('Reaksiyon gönderilemedi:', { socket: !!socket, matchId: activeMatchId, connected: socket?.connected });
     }
   };
 
@@ -725,7 +727,8 @@ function ChatScreen({ userId, profile: currentProfile, matchId: initialMatchId, 
 
   // Medya gönder
   const sendMediaMessage = async () => {
-    if (!selectedMedia || !socket || !matchId || uploadingMedia) return;
+    const activeMatchId = currentMatchId || initialMatchId;
+    if (!selectedMedia || !socket || !activeMatchId || uploadingMedia) return;
 
     setUploadingMedia(true);
     try {
@@ -744,7 +747,7 @@ function ChatScreen({ userId, profile: currentProfile, matchId: initialMatchId, 
 
       // Socket üzerinden medya mesajı gönder
       socket.emit('send-message', {
-        matchId,
+        matchId: activeMatchId,
         text: messageText.trim() || '',
         userId,
         mediaUrl,
@@ -760,7 +763,7 @@ function ChatScreen({ userId, profile: currentProfile, matchId: initialMatchId, 
           : `Anonim-${userAnonymousId || '000000'}`,
         text: messageText.trim() || '',
         timestamp: new Date(),
-        matchId,
+        matchId: activeMatchId,
         mediaUrl,
         mediaType,
         isTemporary: true
