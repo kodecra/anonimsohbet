@@ -2548,13 +2548,15 @@ io.on('connection', (socket) => {
     await saveMatches(completedMatches, userMatches);
 
     // Bildirim gönder: İsteği gönderen kullanıcıya (fromUserId) bildirim gönder
+    // İsteği kabul eden kişinin (userInfo) profili gösterilmeli
+    const accepterProfile = userInfo.profile;
     const notificationId = uuidv4();
     await saveNotification({
       notificationId,
       userId: request.fromUserId,
       type: 'continue-request-accepted',
       title: 'Eşleşme İsteği Kabul Edildi',
-      message: `${user2Profile.firstName} ${user2Profile.lastName} eşleşme isteğinizi kabul etti.`,
+      message: `${accepterProfile.firstName} ${accepterProfile.lastName} eşleşme isteğinizi kabul etti.`,
       matchId: matchId,
       fromUserId: request.toUserId
     });
@@ -2566,7 +2568,7 @@ io.on('connection', (socket) => {
         id: notificationId,
         type: 'continue-request-accepted',
         title: 'Eşleşme İsteği Kabul Edildi',
-        message: `${user2Profile.firstName} ${user2Profile.lastName} eşleşme isteğinizi kabul etti.`,
+        message: `${accepterProfile.firstName} ${accepterProfile.lastName} eşleşme isteğinizi kabul etti.`,
         matchId: matchId
       });
     }

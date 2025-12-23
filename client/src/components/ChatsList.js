@@ -75,6 +75,9 @@ function ChatsList({ token, onSelectChat, API_URL, refreshTrigger }) {
 
   const markMatchAsRead = async (matchId) => {
     try {
+      // Önce local state'i güncelle (hemen sıfırla)
+      setUnreadCounts(prev => ({ ...prev, [matchId]: 0 }));
+      
       // Bu match'e ait tüm bildirimleri okundu olarak işaretle
       const response = await axios.get(`${API_URL}/api/notifications`, {
         headers: {
