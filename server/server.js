@@ -969,6 +969,66 @@ app.get('/api/admin/complaints', authenticateToken, async (req, res) => {
   }
 });
 
+// Admin - Önceki eşleşmeleri temizle (hiçbir kullanıcının listesinde olmayan eşleşmeleri sil)
+app.post('/api/admin/cleanup-matches', authenticateToken, async (req, res) => {
+  const userId = req.user.userId;
+  const profile = users.get(userId);
+  
+  if (!isAdmin(profile)) {
+    return res.status(403).json({ error: 'Bu işlem için yetkiniz yok' });
+  }
+
+  try {
+    // Tüm kullanıcıların match listelerini topla
+    const allUserMatchIds = new Set();
+    for (const [uid, matchIds] of userMatches.entries()) {
+      matchIds.forEach(matchId => allUserMatchIds.add(matchId));
+    }
+    
+    // Active matches'leri de ekle
+    for (const [matchId, match] of activeMatches.entries()) {
+      allUserMatchIds.add(matchId);
+    }
+    
+    // Follow requests'leri de ekle
+    for (const [requestId, request] of followRequests.entries()) {
+      if (request.matchId) {
+        allUserMatchIds.add(request.matchId);
+      }
+    }
+    
+    // Hiçbir kullanıcının listesinde olmayan eşleşmeleri bul ve sil
+    let deletedCount = 0;
+    const matchesToDelete = [];
+    
+    for (const [matchId, match] of completedMatches.entries()) {
+      if (!allUserMatchIds.has(matchId)) {
+        matchesToDelete.push(matchId);
+        deletedCount++;
+      }
+    }
+    
+    // Eşleşmeleri sil
+    for (const matchId of matchesToDelete) {
+      completedMatches.delete(matchId);
+    }
+    
+    // Veritabanına kaydet
+    await saveMatches(completedMatches, userMatches);
+    
+    console.log(`✅ ${deletedCount} adet kullanılmayan eşleşme temizlendi`);
+    
+    res.json({ 
+      success: true, 
+      message: `${deletedCount} adet kullanılmayan eşleşme temizlendi`,
+      deletedCount 
+    });
+  } catch (error) {
+    console.error('Eşleşme temizleme hatası:', error);
+    res.status(500).json({ error: 'Eşleşmeler temizlenemedi' });
+  }
+});
+
 // Mesaj için resim yükleme
 app.post('/api/messages/upload-media', authenticateToken, upload.single('media'), async (req, res) => {
   if (!req.file) {
@@ -1209,33 +1269,45 @@ app.delete('/api/matches/:matchId', authenticateToken, async (req, res) => {
     return res.status(403).json({ error: 'Bu eşleşmede değilsiniz' });
   }
   
-  // Eşleşmeyi kullanıcının listesinden çıkar (Instagram unfollow mantığı)
-  // Eşleşme veritabanında kalacak, sadece kullanıcının listesinden çıkarılacak
+  // Eşleşmeyi tamamen sil (her iki kullanıcının listesinden de çıkar)
   const userMatchIds = userMatches.get(userId) || [];
   const filteredMatchIds = userMatchIds.filter(id => id !== matchId);
   userMatches.set(userId, filteredMatchIds);
   
-  // Partner'ın listesinden çıkarma - her kullanıcı kendi listesini yönetir
-  // (Instagram'da da birisi unfollow yapınca diğerinin listesinden çıkmaz)
+  // Partner'ın listesinden de çıkar
+  const partnerId = user1Id === userId ? user2Id : user1Id;
+  if (partnerId) {
+    const partnerMatchIds = userMatches.get(partnerId) || [];
+    const filteredPartnerMatchIds = partnerMatchIds.filter(id => id !== matchId);
+    userMatches.set(partnerId, filteredPartnerMatchIds);
+  }
   
-  // Eşleşmeyi SİLME - sadece kullanıcının listesinden çıkar
-  // completedMatches'te kalacak, böylece tekrar eşleşme yapılabilir
-  // Active match ise sadece kullanıcının activeUsers'dan matchId'sini temizle
+  // Eşleşmeyi tamamen sil (completedMatches'ten)
+  completedMatches.delete(matchId);
+  
+  // Active match ise sil ve kullanıcıların activeUsers'dan matchId'sini temizle
   if (activeMatches.has(matchId)) {
-    // Active match ise, kullanıcının activeUsers'dan matchId'sini temizle
+    deleteActiveMatch(matchId);
+    // Her iki kullanıcının da activeUsers'dan matchId'sini temizle
     for (const [socketId, userInfo] of activeUsers.entries()) {
-      if (userInfo.userId === userId && userInfo.matchId === matchId) {
+      if ((userInfo.userId === userId || userInfo.userId === partnerId) && userInfo.matchId === matchId) {
         userInfo.matchId = null;
         userInfo.inMatch = false;
         activeUsers.set(socketId, userInfo);
       }
     }
-    // Active match'i silme - partner hala eşleşmede olabilir
+  }
+  
+  // Follow request'leri de temizle (eğer bu matchId ile ilgili ise)
+  for (const [requestId, request] of followRequests.entries()) {
+    if (request.matchId === matchId) {
+      followRequests.delete(requestId);
+    }
   }
   
   await saveMatches(completedMatches, userMatches);
   
-  console.log(`Eşleşme kullanıcının listesinden çıkarıldı: ${matchId} (Kullanıcı: ${userId})`);
+  console.log(`Eşleşme tamamen silindi: ${matchId} (Kullanıcı: ${userId})`);
   
   res.json({ success: true, message: 'Eşleşmeden çıkıldı' });
 });
