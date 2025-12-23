@@ -328,10 +328,23 @@ function ChatScreen({ userId, profile: currentProfile, matchId: initialMatchId, 
       
       // Mesajı ekle
       setMessages((prev) => {
-        // Geçici mesajı gerçek mesajla değiştir
-        const filtered = prev.filter(m => !m.isTemporary || m.text !== message.text);
-        // Mesaj zaten varsa ekleme
-        const exists = filtered.find(m => m.id === message.id);
+        // Geçici mesajı gerçek mesajla değiştir (aynı text ve aynı userId ile)
+        const filtered = prev.filter(m => {
+          if (m.isTemporary && m.text === message.text && m.userId === message.userId) {
+            return false; // Geçici mesajı kaldır
+          }
+          return true;
+        });
+        // Mesaj zaten varsa ekleme (id veya aynı text+userId+yakın timestamp ile kontrol)
+        const exists = filtered.find(m => {
+          if (m.id === message.id) return true;
+          // Aynı text, userId ve 5 saniye içinde gönderilmiş mesaj varsa duplicate
+          if (m.text === message.text && m.userId === message.userId) {
+            const timeDiff = Math.abs(new Date(m.timestamp) - new Date(message.timestamp));
+            if (timeDiff < 5000) return true;
+          }
+          return false;
+        });
         if (!exists) {
           return [...filtered, message];
         }
@@ -360,8 +373,20 @@ function ChatScreen({ userId, profile: currentProfile, matchId: initialMatchId, 
       console.log('Mesaj gönderildi (confirmation):', message);
       // Geçici mesajı gerçek mesajla değiştir
       setMessages((prev) => {
-        const filtered = prev.filter(m => !m.isTemporary || m.text !== message.text);
-        const exists = filtered.find(m => m.id === message.id);
+        const filtered = prev.filter(m => {
+          if (m.isTemporary && m.text === message.text && m.userId === message.userId) {
+            return false;
+          }
+          return true;
+        });
+        const exists = filtered.find(m => {
+          if (m.id === message.id) return true;
+          if (m.text === message.text && m.userId === message.userId) {
+            const timeDiff = Math.abs(new Date(m.timestamp) - new Date(message.timestamp));
+            if (timeDiff < 5000) return true;
+          }
+          return false;
+        });
         if (!exists) {
           return [...filtered, message];
         }

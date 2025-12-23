@@ -929,10 +929,6 @@ app.post('/api/admin/verify-user', authenticateToken, async (req, res) => {
     }
   }
 
-  if (!verification) {
-    return res.status(404).json({ error: 'Doğrulama bulunamadı' });
-  }
-
   const targetProfile = users.get(targetUserId);
   if (!targetProfile) {
     return res.status(404).json({ error: 'Kullanıcı bulunamadı' });
@@ -940,23 +936,37 @@ app.post('/api/admin/verify-user', authenticateToken, async (req, res) => {
 
   if (action === 'approve') {
     targetProfile.verified = true;
-    verification.status = 'approved';
     users.set(targetUserId, targetProfile);
-    pendingVerifications.set(targetUserId, verification);
     await saveUsers(users); // Hemen kaydet
-    await saveVerifications(pendingVerifications); // Hemen kaydet
+    
+    // Eğer verification varsa güncelle
+    if (verification) {
+      verification.status = 'approved';
+      pendingVerifications.set(targetUserId, verification);
+      await saveVerifications(pendingVerifications);
+    }
+    
     res.json({ message: 'Kullanıcı onaylandı', verified: true });
   } else {
-    verification.status = 'rejected';
-    pendingVerifications.set(targetUserId, verification);
-    // Selfie dosyasını sil
-    if (verification.filename) {
-      const filePath = path.join(uploadsDir, verification.filename);
-      if (fs.existsSync(filePath)) {
-        fs.unlinkSync(filePath);
+    // Reject - verification varsa güncelle
+    if (verification) {
+      verification.status = 'rejected';
+      pendingVerifications.set(targetUserId, verification);
+      // Selfie dosyasını sil
+      if (verification.filename) {
+        const filePath = path.join(uploadsDir, verification.filename);
+        if (fs.existsSync(filePath)) {
+          fs.unlinkSync(filePath);
+        }
       }
+      await saveVerifications(pendingVerifications);
     }
-    await saveVerifications(pendingVerifications); // Hemen kaydet
+    
+    // Kullanıcının verified durumunu false yap
+    targetProfile.verified = false;
+    users.set(targetUserId, targetProfile);
+    await saveUsers(users);
+    
     res.json({ message: 'Doğrulama reddedildi' });
   }
 });
