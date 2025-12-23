@@ -1175,6 +1175,16 @@ io.on('connection', (socket) => {
       console.log('   user2:', { userId: user2.userId, socketId: user2.socketId, username: user2.profile?.username });
       console.log('   activeMatches size:', activeMatches.size);
       console.log('   activeMatches keys:', Array.from(activeMatches.keys()));
+      
+      // Socket bağlantılarını kontrol et
+      const user1SocketExists = io.sockets.sockets.has(user1.socketId);
+      const user2SocketExists = io.sockets.sockets.has(user2.socketId);
+      console.log('   🔌 Socket kontrolü:', { 
+        user1SocketExists, 
+        user2SocketExists,
+        user1SocketId: user1.socketId,
+        user2SocketId: user2.socketId
+      });
 
       // Her iki kullanıcıyı da eşleşmeye bağla
       const user1Info = activeUsers.get(user1.socketId);
