@@ -74,6 +74,7 @@ function MainScreen({ userId, profile, token, onMatchFound, onMatchContinued, on
   const [showNotifications, setShowNotifications] = useState(false);
   const [notifications, setNotifications] = useState([]);
   const [unreadNotificationCount, setUnreadNotificationCount] = useState(0);
+  const [pendingMatches, setPendingMatches] = useState([]); // Devam etmemiş eşleşmeler
   const timerRef = useRef(null);
 
   // Temel ilgi alanları listesi (ProfileEdit ile aynı)
@@ -93,8 +94,28 @@ function MainScreen({ userId, profile, token, onMatchFound, onMatchContinued, on
       loadStatistics();
       loadNotifications();
       loadUnreadNotificationCount();
+      loadPendingMatches();
     }
-  }, [token]);
+  }, [token, activeTab]);
+
+  // Devam etmemiş eşleşmeleri yükle
+  const loadPendingMatches = async () => {
+    try {
+      const response = await axios.get(`${API_URL}/api/matches`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      
+      // Sadece devam etmemiş eşleşmeleri filtrele (isActiveMatch: true ve partner.isAnonymous: true)
+      const pending = (response.data.matches || []).filter(match => 
+        match.isActiveMatch && match.partner?.isAnonymous
+      );
+      
+      setPendingMatches(pending);
+    } catch (error) {
+      console.error('Devam etmemiş eşleşmeler yüklenemedi:', error);
+      setPendingMatches([]);
+    }
+  };
 
   // Bildirimleri yükle
   const loadNotifications = async () => {
@@ -216,6 +237,7 @@ function MainScreen({ userId, profile, token, onMatchFound, onMatchContinued, on
       console.log('✅ matches-updated event alındı, sohbetler listesi yenileniyor...');
       setChatsRefreshKey(prev => prev + 1); // ChatsList'i yenile
       loadStatistics(); // İstatistikleri güncelle
+      loadPendingMatches(); // Devam etmemiş eşleşmeleri yenile
     });
 
     // Bildirim event'ini dinle
@@ -230,6 +252,7 @@ function MainScreen({ userId, profile, token, onMatchFound, onMatchContinued, on
       console.log('Anonim numarası güncellendi:', data);
       // Eşleşmeler listesini yenile
       setChatsRefreshKey(prev => prev + 1);
+      loadPendingMatches(); // Devam etmemiş eşleşmeleri yenile
     });
 
     // Eşleşme sona erdi
@@ -777,6 +800,69 @@ function MainScreen({ userId, profile, token, onMatchFound, onMatchContinued, on
               <div>
                 {!isMatching && !matchId && (
                   <>
+                    {/* Devam Etmemiş Eşleşmeler */}
+                    {pendingMatches.length > 0 && (
+                      <Card style={{ 
+                        marginBottom: '16px', 
+                        borderRadius: '12px',
+                        background: isDarkMode ? '#1a1a2e' : '#fff'
+                      }}>
+                        <Title level={5} style={{ 
+                          marginBottom: '12px',
+                          color: isDarkMode ? '#fff' : '#000'
+                        }}>
+                          Devam Etmemiş Eşleşmeler
+                        </Title>
+                        <AntList
+                          dataSource={pendingMatches}
+                          renderItem={(match) => (
+                            <AntList.Item
+                              style={{
+                                cursor: 'pointer',
+                                padding: '12px',
+                                borderRadius: '8px',
+                                marginBottom: '8px',
+                                background: isDarkMode ? '#2d3748' : '#f8f9fa',
+                                border: `1px solid ${isDarkMode ? '#424242' : '#e0e0e0'}`
+                              }}
+                              onClick={() => onMatchFound(match.matchId)}
+                            >
+                              <AntList.Item.Meta
+                                avatar={
+                                  <Avatar 
+                                    size={50}
+                                    style={{
+                                      background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                                      color: '#fff',
+                                      fontWeight: 'bold'
+                                    }}
+                                  >
+                                    {match.partner?.username?.charAt(0) || 'A'}
+                                  </Avatar>
+                                }
+                                title={
+                                  <span style={{ 
+                                    color: isDarkMode ? '#fff' : '#000',
+                                    fontWeight: 600
+                                  }}>
+                                    {match.partner?.username || 'Anonim'}
+                                  </span>
+                                }
+                                description={
+                                  <span style={{ 
+                                    color: isDarkMode ? '#999' : '#666',
+                                    fontSize: '12px'
+                                  }}>
+                                    Devam etmek için tıklayın
+                                  </span>
+                                }
+                              />
+                            </AntList.Item>
+                          )}
+                        />
+                      </Card>
+                    )}
+                    
                     <Button
                       block
                       type="default"

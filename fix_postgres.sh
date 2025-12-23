@@ -15,3 +15,4 @@ echo "✅ PostgreSQL kullanıcısı oluşturuldu ve .env güncellendi!"
 
 
 
+

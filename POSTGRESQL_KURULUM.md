@@ -247,3 +247,4 @@ Artık backend PostgreSQL kullanarak çalışacak! 🎉
 
 
 
+

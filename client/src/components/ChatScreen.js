@@ -194,7 +194,6 @@ function ChatScreen({ userId, profile: currentProfile, matchId: initialMatchId, 
       newSocket.emit('set-profile', { userId, matchId: activeMatchId });
       
       // Socket bağlandığında mesajları tekrar yükle (kaybolma sorununu önlemek için)
-      const activeMatchId = currentMatchId || initialMatchId;
       if (activeMatchId && typeof activeMatchId === 'string' && activeMatchId.trim() !== '' && (isCompletedMatch || partnerProfile)) {
         const cleanMatchId = activeMatchId.trim();
         console.log('✅ Socket bağlandı - mesaj geçmişi yükleniyor...', { matchId: cleanMatchId, isCompletedMatch, partnerProfile: !!partnerProfile });
