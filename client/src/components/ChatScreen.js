@@ -249,8 +249,9 @@ function ChatScreen({ userId, profile: currentProfile, matchId, partnerProfile: 
 
     // Server'dan gelen timer güncellemelerini dinle
     newSocket.on('timer-update', (data) => {
-      console.log('⏱️ Server timer-update alındı:', data);
+      console.log('⏱️ Client: timer-update event alındı:', data, 'current matchId:', matchId);
       if (data.matchId === matchId) {
+        console.log('✅ Client: matchId eşleşti, timer güncelleniyor:', data.remainingSeconds);
         // Server'dan gelen değeri direkt kullan
         setTimer(data.remainingSeconds);
         
@@ -258,6 +259,8 @@ function ChatScreen({ userId, profile: currentProfile, matchId, partnerProfile: 
         if (data.remainingSeconds <= 0) {
           setShowDecision(true);
         }
+      } else {
+        console.log('❌ Client: matchId eşleşmedi!', { received: data.matchId, current: matchId });
       }
     });
 
@@ -510,7 +513,7 @@ function ChatScreen({ userId, profile: currentProfile, matchId, partnerProfile: 
 
   // Timer - Artık tamamen server-side yönetiliyor, client sadece server'dan gelen değeri gösteriyor
   useEffect(() => {
-    console.log('🔄 Timer useEffect çalışıyor:', { isCompletedMatch, partnerProfile: !!partnerProfile, showDecision, waitingForPartner, matchId });
+    console.log('🔄 Timer useEffect çalışıyor:', { isCompletedMatch, partnerProfile: !!partnerProfile, showDecision, waitingForPartner, matchId, currentTimer: timer });
     
     // Completed match kontrolü: isCompletedMatch true ise veya partnerProfile varsa timer'ı temizle
     if (isCompletedMatch || partnerProfile) {
@@ -520,14 +523,16 @@ function ChatScreen({ userId, profile: currentProfile, matchId, partnerProfile: 
       return;
     }
 
-    // Yeni eşleşme için başlangıç değeri (server'dan timer-update gelecek)
+    // Yeni eşleşme için sadece ilk başlangıç değeri (server'dan timer-update gelecek ve override edecek)
     if (!isCompletedMatch && !partnerProfile && !showDecision && !waitingForPartner && matchId) {
-      // İlk değer olarak 30 saniye göster (server'dan güncelleme gelecek)
+      // Sadece timer hiç set edilmemişse 30 göster (server'dan güncelleme gelecek)
+      // Timer-update event'i geldiğinde bu değeri override edecek
       if (timer === null || timer === undefined) {
+        console.log('⏱️ İlk timer değeri set ediliyor: 30 (server\'dan güncelleme bekleniyor)');
         setTimer(30);
       }
     }
-  }, [isCompletedMatch, showDecision, waitingForPartner, matchId, partnerProfile]); // timer-update event'i ile güncellenecek
+  }, [isCompletedMatch, showDecision, waitingForPartner, matchId, partnerProfile]); // timer state'i dependency'de yok, sadece timer-update event'i ile güncellenecek
 
   // Mesajlar değiştiğinde scroll
   useEffect(() => {
