@@ -7,6 +7,11 @@ import MainScreen from './components/MainScreen';
 import ChatScreen from './components/ChatScreen';
 import AdminPanel from './components/AdminPanel';
 import './App.css';
+import './theme.css';
+import './dating-theme.css';
+import './social-media-theme.css';
+import './socialv-theme.css';
+import './modern-social-ui.css';
 
 const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000';
 
@@ -98,10 +103,19 @@ function App() {
           }
         }
       })
-      .catch(() => {
-        localStorage.removeItem('token');
-        localStorage.removeItem('userId');
-        setScreen('auth');
+      .catch((err) => {
+        console.error('Token doğrulama hatası:', err.response?.status, err.response?.data);
+        // 401 veya 403 hatası - token geçersiz
+        if (err.response?.status === 401 || err.response?.status === 403) {
+          localStorage.removeItem('token');
+          localStorage.removeItem('userId');
+          setScreen('auth');
+        } else {
+          // Diğer hatalar - tekrar dene veya auth'a yönlendir
+          localStorage.removeItem('token');
+          localStorage.removeItem('userId');
+          setScreen('auth');
+        }
       });
     } else {
       setScreen('auth');
@@ -136,29 +150,48 @@ function App() {
     setMatchId(newMatchId);
     // Partner profilini API'den yükle - Completed match kontrolü için
     let partnerProfileData = null;
-    try {
-      const response = await axios.get(`${API_URL}/api/matches/${newMatchId}`, {
-        headers: {
-          'Authorization': `Bearer ${token}`
+    
+    // Retry mekanizması: 404 hatası alındığında birkaç kez tekrar dene
+    let retries = 0;
+    const maxRetries = 3;
+    const retryDelay = 500; // 500ms
+    
+    while (retries < maxRetries) {
+      try {
+        const response = await axios.get(`${API_URL}/api/matches/${newMatchId}`, {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        });
+        console.log('✅ handleMatchFound: Match data alındı', response.data);
+        if (response.data && response.data.match) {
+          // Backend'den gelen partner bilgisini kullan (aktif eşleşmede null, completed'de dolu)
+          if (response.data.match.partner) {
+            partnerProfileData = response.data.match.partner;
+            console.log('✅ Completed match - partner profile alındı');
+          } else {
+            console.log('✅ Aktif eşleşme - partner profile null (anonim)');
+          }
         }
-      });
-      if (response.data && response.data.match) {
-        // Partner bilgisini bul
-        const partner = response.data.match.user1.userId === userId 
-          ? response.data.match.user2 
-          : response.data.match.user1;
-        // Partner profile varsa completed match'tir
-        if (partner && partner.profile) {
-          partnerProfileData = partner.profile;
+        break; // Başarılı, retry döngüsünden çık
+      } catch (error) {
+        retries++;
+        if (error.response && error.response.status === 404 && retries < maxRetries) {
+          console.log(`⚠️ Match bulunamadı (404), ${retryDelay}ms sonra tekrar deneniyor... (${retries}/${maxRetries})`);
+          await new Promise(resolve => setTimeout(resolve, retryDelay));
+          continue; // Tekrar dene
+        } else {
+          console.error('Partner profil yüklenemedi:', error);
+          // Hata durumunda yeni eşleşme olarak kabul et (partnerProfileData null kalır)
+          break; // Retry döngüsünden çık
         }
       }
-    } catch (error) {
-      console.error('Partner profil yüklenemedi:', error);
-      // Hata durumunda yeni eşleşme olarak kabul et (partnerProfileData null kalır)
     }
     
     // Partner profile'ı set et ve sonra chat ekranına geç
+    console.log('✅ handleMatchFound: Partner profile set ediliyor', partnerProfileData);
     setPartnerProfile(partnerProfileData);
+    // Partner profile varsa completed match'tir, mesajlar yüklenecek
     setScreen('chat');
   };
 
@@ -170,6 +203,11 @@ function App() {
     setMatchId(null);
     setPartnerProfile(null);
     setScreen('main');
+    // MainScreen'e dönüldüğünde listeyi yenilemek için kısa bir gecikme
+    setTimeout(() => {
+      // matches-updated event'i tetiklenmesi için window'a event gönder
+      window.dispatchEvent(new Event('matches-should-refresh'));
+    }, 100);
   };
 
   const handleLogout = () => {

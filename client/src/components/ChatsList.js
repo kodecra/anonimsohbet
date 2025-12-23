@@ -13,6 +13,7 @@ import {
   Dropdown,
   Button,
   Modal,
+  Radio,
   message as antdMessage
 } from 'antd';
 import { 
@@ -24,14 +25,17 @@ import {
   CloseOutlined,
   EyeOutlined
 } from '@ant-design/icons';
+import { Badge } from 'antd';
+import { ThemeContext } from '../App';
 import './ChatsList.css';
 
 const { Text } = Typography;
-const { Search } = Input;
+const { Search, TextArea } = Input;
 
 const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000';
 
 function ChatsList({ token, onSelectChat, API_URL, refreshTrigger }) {
+  const { isDarkMode } = React.useContext(ThemeContext);
   const [matches, setMatches] = useState([]);
   const [filteredMatches, setFilteredMatches] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -39,10 +43,61 @@ function ChatsList({ token, onSelectChat, API_URL, refreshTrigger }) {
   const [searchQuery, setSearchQuery] = useState('');
   const [viewProfileModal, setViewProfileModal] = useState(false);
   const [selectedPartner, setSelectedPartner] = useState(null);
+  const [unreadCounts, setUnreadCounts] = useState({}); // matchId -> count
 
   useEffect(() => {
     loadMatches();
   }, [token, refreshTrigger]);
+
+  // Okunmamış mesaj sayılarını yükle
+  useEffect(() => {
+    if (matches.length > 0) {
+      loadUnreadCounts();
+    }
+  }, [matches, token]);
+
+  const loadUnreadCounts = async () => {
+    const counts = {};
+    for (const match of matches) {
+      try {
+        const response = await axios.get(`${API_URL}/api/matches/${match.matchId}/unread-count`, {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        });
+        counts[match.matchId] = response.data.count || 0;
+      } catch (error) {
+        counts[match.matchId] = 0;
+      }
+    }
+    setUnreadCounts(counts);
+  };
+
+  const markMatchAsRead = async (matchId) => {
+    try {
+      // Bu match'e ait tüm bildirimleri okundu olarak işaretle
+      const response = await axios.get(`${API_URL}/api/notifications`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      const notifications = response.data.notifications || [];
+      const matchNotifications = notifications.filter(n => n.matchId === matchId && !n.read);
+      
+      for (const notification of matchNotifications) {
+        await axios.post(`${API_URL}/api/notifications/${notification.id}/read`, {}, {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        });
+      }
+      
+      // Okunmamış sayıyı güncelle
+      setUnreadCounts(prev => ({ ...prev, [matchId]: 0 }));
+    } catch (error) {
+      console.error('Bildirim okundu işaretleme hatası:', error);
+    }
+  };
 
   const loadMatches = async () => {
     try {
@@ -71,10 +126,25 @@ function ChatsList({ token, onSelectChat, API_URL, refreshTrigger }) {
     }
     
     const query = searchQuery.toLowerCase();
-    const filtered = matches.filter(match => 
-      match.partner.username.toLowerCase().includes(query) ||
-      (match.lastMessage && match.lastMessage.text.toLowerCase().includes(query))
-    );
+    const filtered = matches.filter(match => {
+      // Kullanıcı adı, isim, soyisim araması
+      const usernameMatch = (match.partner?.username || '').toLowerCase().includes(query);
+      const firstNameMatch = (match.partner?.firstName || '').toLowerCase().includes(query);
+      const lastNameMatch = (match.partner?.lastName || '').toLowerCase().includes(query);
+      
+      // Son mesaj içeriği araması
+      const lastMessageMatch = match.lastMessage && match.lastMessage.text.toLowerCase().includes(query);
+      
+      // Tüm mesajlar içinde arama (match.messages varsa)
+      let messagesMatch = false;
+      if (match.messages && Array.isArray(match.messages)) {
+        messagesMatch = match.messages.some(msg => 
+          msg.text && msg.text.toLowerCase().includes(query)
+        );
+      }
+      
+      return usernameMatch || firstNameMatch || lastNameMatch || lastMessageMatch || messagesMatch;
+    });
     setFilteredMatches(filtered);
   }, [searchQuery, matches]);
 
@@ -94,27 +164,45 @@ function ChatsList({ token, onSelectChat, API_URL, refreshTrigger }) {
     }
   };
 
+  const [showReportModal, setShowReportModal] = useState(false);
+  const [reportTargetUserId, setReportTargetUserId] = useState(null);
+  const [reportTargetUsername, setReportTargetUsername] = useState('');
+  const [reportReasonType, setReportReasonType] = useState(null);
+  const [reportCustomReason, setReportCustomReason] = useState('');
+
   // Şikayet et
   const handleReportUser = async (partnerUserId, partnerUsername, e) => {
     e.stopPropagation();
-    Modal.confirm({
-      title: 'Şikayet Et',
-      content: `${partnerUsername} kullanıcısını şikayet etmek istediğinizden emin misiniz?`,
-      okText: 'Şikayet Et',
-      cancelText: 'İptal',
-      onOk: async () => {
-        try {
-          await axios.post(`${API_URL}/api/users/report`, 
-            { targetUserId: partnerUserId, reason: 'Kullanıcı şikayeti' },
-            { headers: { 'Authorization': `Bearer ${token}` } }
-          );
-          antdMessage.success('Şikayet gönderildi');
-        } catch (error) {
-          console.error('Şikayet hatası:', error);
-          antdMessage.error('Şikayet gönderilemedi');
-        }
-      }
-    });
+    setReportTargetUserId(partnerUserId);
+    setReportTargetUsername(partnerUsername);
+    setShowReportModal(true);
+  };
+
+  const submitReport = async () => {
+    if (!reportReasonType && !reportCustomReason.trim()) {
+      antdMessage.warning('Lütfen bir sebep seçin veya yazın');
+      return;
+    }
+
+    try {
+      await axios.post(`${API_URL}/api/users/report`, 
+        { 
+          targetUserId: reportTargetUserId, 
+          reasonType: reportReasonType,
+          customReason: reportCustomReason.trim() || null
+        },
+        { headers: { 'Authorization': `Bearer ${token}` } }
+      );
+      antdMessage.success('Şikayet gönderildi');
+      setShowReportModal(false);
+      setReportTargetUserId(null);
+      setReportTargetUsername('');
+      setReportReasonType(null);
+      setReportCustomReason('');
+    } catch (error) {
+      console.error('Şikayet gönderme hatası:', error);
+      antdMessage.error('Şikayet gönderilemedi');
+    }
   };
 
   // Eşleşmeden çık
@@ -220,7 +308,7 @@ function ChatsList({ token, onSelectChat, API_URL, refreshTrigger }) {
   return (
     <div>
       <div style={{ padding: '16px', borderBottom: '1px solid #f0f0f0' }}>
-        <Search
+        <Input
           placeholder="Sohbet ara..."
           allowClear
           value={searchQuery}
@@ -248,7 +336,13 @@ function ChatsList({ token, onSelectChat, API_URL, refreshTrigger }) {
             if (e.target.closest('.ant-dropdown') || e.target.closest('.ant-btn') || e.target.closest('.ant-dropdown-menu')) {
               return;
             }
-            onSelectChat(match.matchId);
+            // Pending request ise gerçek matchId'yi kullan
+            const actualMatchId = match.isPendingRequest && match.matchId ? match.matchId : match.matchId;
+            onSelectChat(actualMatchId);
+            // Sohbete girildiğinde bildirimleri okundu olarak işaretle
+            if (unreadCounts[match.matchId] > 0) {
+              markMatchAsRead(match.matchId);
+            }
           }}
           style={{
             cursor: 'pointer',
@@ -259,7 +353,7 @@ function ChatsList({ token, onSelectChat, API_URL, refreshTrigger }) {
             justifyContent: 'space-between'
           }}
           onMouseEnter={(e) => {
-            e.currentTarget.style.backgroundColor = '#f8f9fa';
+            e.currentTarget.style.backgroundColor = isDarkMode ? '#2e2e2e' : '#f8f9fa';
           }}
           onMouseLeave={(e) => {
             e.currentTarget.style.backgroundColor = 'transparent';
@@ -267,46 +361,77 @@ function ChatsList({ token, onSelectChat, API_URL, refreshTrigger }) {
         >
           <List.Item.Meta
             avatar={
-              <div style={{ position: 'relative' }}>
-                {match.partner.photos && match.partner.photos.length > 0 ? (
-                  <Avatar
-                    src={`${API_URL}${match.partner.photos[0].url}`}
-                    size={60}
-                    onError={(e) => {
-                      if (e && e.target) {
-                        e.target.src = 'https://via.placeholder.com/60';
-                      }
-                    }}
-                  />
-                ) : (
-                  <Avatar size={60} style={{ backgroundColor: '#1890ff' }}>
-                    {match.partner.username.charAt(0).toUpperCase()}
-                  </Avatar>
-                )}
-                {match.partner.verified && (
-                  <SafetyCertificateOutlined
-                    style={{
-                      position: 'absolute',
-                      bottom: 0,
-                      right: 0,
-                      backgroundColor: '#52c41a',
-                      color: 'white',
-                      borderRadius: '50%',
-                      padding: '2px',
-                      fontSize: '14px'
-                    }}
-                  />
-                )}
-              </div>
+              <Badge count={unreadCounts[match.matchId] || 0} offset={[-5, 5]}>
+                <div style={{ position: 'relative' }}>
+                  {match.partner.photos && match.partner.photos.length > 0 ? (
+                    <Avatar
+                      src={match.partner.photos[0].url && match.partner.photos[0].url.startsWith('http')
+                        ? match.partner.photos[0].url
+                        : `${API_URL}${match.partner.photos[0].url}`}
+                      size={60}
+                      onError={(e) => {
+                        if (e && e.target) {
+                          e.target.src = 'https://via.placeholder.com/60';
+                        }
+                      }}
+                    />
+                  ) : (
+                    <Avatar size={60} style={{ backgroundColor: '#1890ff' }}>
+                      {match.partner?.username ? match.partner.username.charAt(0).toUpperCase() : '?'}
+                    </Avatar>
+                  )}
+                  {match.partner.verified && (
+                    <SafetyCertificateOutlined
+                      style={{
+                        position: 'absolute',
+                        bottom: 0,
+                        right: 0,
+                        backgroundColor: '#52c41a',
+                        color: 'white',
+                        borderRadius: '50%',
+                        padding: '2px',
+                        fontSize: '14px'
+                      }}
+                    />
+                  )}
+                </div>
+              </Badge>
             }
             title={
               <Space>
-                <Text strong>{match.partner.username}</Text>
+                {match.isPendingRequest && (
+                  <Tag color="orange" style={{ marginRight: '4px' }}>
+                    {match.requestStatus === 'sent' ? 'Beklemede' : 'Yanıt Bekliyor'}
+                  </Tag>
+                )}
+                <Text strong>
+                  {(() => {
+                    const partner = match.partner;
+                    if (!partner) return 'Bilinmeyen Kullanıcı';
+                    const firstName = partner.firstName || '';
+                    const lastName = partner.lastName || '';
+                    const username = partner.username || '';
+                    if (firstName || lastName) {
+                      const fullName = `${firstName} ${lastName}`.trim();
+                      return username ? `${fullName} (@${username})` : fullName;
+                    }
+                    return username ? `@${username}` : 'Bilinmeyen Kullanıcı';
+                  })()}
+                </Text>
               </Space>
             }
             description={
               <div>
-                {match.lastMessage && (
+                {match.isPendingRequest ? (
+                  <Text 
+                    type="secondary" 
+                    style={{ display: 'block', maxWidth: '200px', marginBottom: '4px' }}
+                  >
+                    {match.requestStatus === 'sent' 
+                      ? 'Yanıt bekleniyor...' 
+                      : 'Devam isteği bekleniyor'}
+                  </Text>
+                ) : match.lastMessage ? (
                   <Text 
                     type="secondary" 
                     ellipsis 
@@ -316,7 +441,7 @@ function ChatsList({ token, onSelectChat, API_URL, refreshTrigger }) {
                       ? match.lastMessage.text.substring(0, 50) + '...'
                       : match.lastMessage.text}
                   </Text>
-                )}
+                ) : null}
                 <Text type="secondary" style={{ fontSize: '12px' }}>
                   {formatDate(match.lastMessageAt)}
                 </Text>
@@ -342,7 +467,7 @@ function ChatsList({ token, onSelectChat, API_URL, refreshTrigger }) {
                   danger: true,
                   onClick: ({ domEvent }) => {
                     domEvent.stopPropagation();
-                    handleLeaveMatch(match.matchId, match.partner.username, domEvent);
+                    handleLeaveMatch(match.matchId, match.partner?.username || 'Bilinmeyen Kullanıcı', domEvent);
                   }
                 },
                 {
@@ -352,7 +477,7 @@ function ChatsList({ token, onSelectChat, API_URL, refreshTrigger }) {
                   danger: true,
                   onClick: ({ domEvent }) => {
                     domEvent.stopPropagation();
-                    handleBlockUser(match.partner.userId, match.partner.username, domEvent);
+                    handleBlockUser(match.partner?.userId, match.partner?.username || 'Bilinmeyen Kullanıcı', domEvent);
                   }
                 },
                 {
@@ -361,7 +486,7 @@ function ChatsList({ token, onSelectChat, API_URL, refreshTrigger }) {
                   icon: <WarningOutlined />,
                   onClick: ({ domEvent }) => {
                     domEvent.stopPropagation();
-                    handleReportUser(match.partner.userId, match.partner.username, domEvent);
+                    handleReportUser(match.partner?.userId, match.partner?.username || 'Bilinmeyen Kullanıcı', domEvent);
                   }
                 }
               ]
@@ -388,7 +513,23 @@ function ChatsList({ token, onSelectChat, API_URL, refreshTrigger }) {
         title="Profil Bilgileri"
         open={viewProfileModal}
         onCancel={() => setViewProfileModal(false)}
-        footer={null}
+        footer={[
+          <Button key="close" onClick={() => setViewProfileModal(false)}>
+            Kapat
+          </Button>,
+          <Button 
+            key="view" 
+            type="primary" 
+            onClick={() => {
+              setViewProfileModal(false);
+              // Profil görüntüleme modalını açmak için ChatScreen'e geç
+              // Bu özellik için MainScreen'den bir callback gerekebilir
+              // Şimdilik modal'da profil bilgilerini gösteriyoruz
+            }}
+          >
+            Profili Görüntüle
+          </Button>
+        ]}
         width={500}
       >
         {selectedPartner && (
@@ -396,7 +537,9 @@ function ChatsList({ token, onSelectChat, API_URL, refreshTrigger }) {
             <div style={{ textAlign: 'center', marginBottom: '24px' }}>
               {selectedPartner.photos && selectedPartner.photos.length > 0 ? (
                 <Avatar
-                  src={`${API_URL}${selectedPartner.photos[0].url}`}
+                  src={selectedPartner.photos[0].url && selectedPartner.photos[0].url.startsWith('http')
+                    ? selectedPartner.photos[0].url
+                    : `${API_URL}${selectedPartner.photos[0].url}`}
                   size={120}
                   style={{ marginBottom: '16px' }}
                 />
@@ -473,6 +616,54 @@ function ChatsList({ token, onSelectChat, API_URL, refreshTrigger }) {
             </Space>
           </div>
         )}
+      </Modal>
+
+      {/* Şikayet Modal */}
+      <Modal
+        title="Şikayet Et"
+        open={showReportModal}
+        onCancel={() => {
+          setShowReportModal(false);
+          setReportTargetUserId(null);
+          setReportTargetUsername('');
+          setReportReasonType(null);
+          setReportCustomReason('');
+        }}
+        onOk={submitReport}
+        okText="Şikayet Gönder"
+        cancelText="İptal"
+      >
+        <Space direction="vertical" style={{ width: '100%' }} size="large">
+          <div>
+            <Text strong style={{ display: 'block', marginBottom: '12px' }}>
+              Şikayet Sebebi
+            </Text>
+            <Radio.Group 
+              value={reportReasonType} 
+              onChange={(e) => setReportReasonType(e.target.value)}
+              style={{ width: '100%' }}
+            >
+              <Space direction="vertical" style={{ width: '100%' }}>
+                <Radio value="fake_account">Sahte Hesap</Radio>
+                <Radio value="inappropriate_username">Uygunsuz Kullanıcı Adı</Radio>
+                <Radio value="inappropriate_photo">Uygunsuz Fotoğraf</Radio>
+                <Radio value="other">Diğer</Radio>
+              </Space>
+            </Radio.Group>
+          </div>
+          
+          <div>
+            <Text strong style={{ display: 'block', marginBottom: '8px' }}>
+              Açıklama (İsteğe Bağlı)
+            </Text>
+            <TextArea
+              rows={4}
+              placeholder="Şikayet sebebinizi detaylı olarak açıklayın..."
+              value={reportCustomReason}
+              onChange={(e) => setReportCustomReason(e.target.value)}
+            />
+          </div>
+        </Space>
       </Modal>
     </div>
   );

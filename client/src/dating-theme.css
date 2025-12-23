@@ -1,0 +1,517 @@
+/* Modern Dating App Theme - Tinder/Bumble Style */
+
+:root {
+  /* Dating App Color Palette */
+  --dating-primary: #FF4458; /* Tinder Red */
+  --dating-primary-dark: #E63946;
+  --dating-primary-light: #FF6B7A;
+  --dating-secondary: #4ECDC4; /* Teal accent */
+  --dating-accent: #FFD93D; /* Yellow accent */
+  
+  /* Background Colors */
+  --dating-bg-main: #FFFFFF;
+  --dating-bg-secondary: #F8F9FA;
+  --dating-bg-card: #FFFFFF;
+  --dating-bg-gradient: linear-gradient(135deg, #FF4458 0%, #FF6B7A 50%, #FFD93D 100%);
+  
+  /* Text Colors */
+  --dating-text-primary: #1A1A1A;
+  --dating-text-secondary: #6C757D;
+  --dating-text-light: #FFFFFF;
+  --dating-text-muted: #ADB5BD;
+  
+  /* Border & Shadow */
+  --dating-border: #E9ECEF;
+  --dating-shadow-sm: 0 2px 4px rgba(0, 0, 0, 0.1);
+  --dating-shadow-md: 0 4px 12px rgba(0, 0, 0, 0.15);
+  --dating-shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.2);
+  --dating-shadow-xl: 0 12px 48px rgba(255, 68, 88, 0.3);
+  
+  /* Spacing */
+  --dating-spacing-xs: 0.5rem;
+  --dating-spacing-sm: 0.75rem;
+  --dating-spacing-md: 1rem;
+  --dating-spacing-lg: 1.5rem;
+  --dating-spacing-xl: 2rem;
+  
+  /* Border Radius */
+  --dating-radius-sm: 8px;
+  --dating-radius-md: 12px;
+  --dating-radius-lg: 16px;
+  --dating-radius-xl: 24px;
+  --dating-radius-full: 9999px;
+  
+  /* Transitions */
+  --dating-transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Dark Mode */
+[data-theme="dark"] {
+  --dating-bg-main: #0F0F0F;
+  --dating-bg-secondary: #1A1A1A;
+  --dating-bg-card: #242424;
+  --dating-text-primary: #FFFFFF;
+  --dating-text-secondary: #B0B0B0;
+  --dating-border: #333333;
+}
+
+/* Global Styles */
+.dating-app {
+  font-family: 'Poppins', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  background: var(--dating-bg-secondary);
+  min-height: 100vh;
+}
+
+/* Gradient Background */
+.dating-gradient-bg {
+  background: var(--dating-bg-gradient);
+  min-height: 100vh;
+}
+
+/* Card Styles */
+.dating-card {
+  background: var(--dating-bg-card);
+  border-radius: var(--dating-radius-lg);
+  box-shadow: var(--dating-shadow-md);
+  border: 1px solid var(--dating-border);
+  transition: var(--dating-transition);
+  overflow: hidden;
+}
+
+.dating-card:hover {
+  box-shadow: var(--dating-shadow-lg);
+  transform: translateY(-4px);
+}
+
+.dating-card-interactive {
+  cursor: pointer;
+  user-select: none;
+}
+
+.dating-card-interactive:active {
+  transform: scale(0.98);
+}
+
+/* Button Styles */
+.dating-btn {
+  border: none;
+  border-radius: var(--dating-radius-full);
+  padding: var(--dating-spacing-sm) var(--dating-spacing-xl);
+  font-weight: 600;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: var(--dating-transition);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--dating-spacing-sm);
+  box-shadow: var(--dating-shadow-sm);
+}
+
+.dating-btn-primary {
+  background: var(--dating-primary);
+  color: var(--dating-text-light);
+}
+
+.dating-btn-primary:hover {
+  background: var(--dating-primary-dark);
+  box-shadow: var(--dating-shadow-md);
+  transform: translateY(-2px);
+}
+
+.dating-btn-primary:active {
+  transform: translateY(0);
+}
+
+.dating-btn-secondary {
+  background: var(--dating-bg-card);
+  color: var(--dating-text-primary);
+  border: 2px solid var(--dating-border);
+}
+
+.dating-btn-secondary:hover {
+  background: var(--dating-bg-secondary);
+  border-color: var(--dating-primary);
+}
+
+.dating-btn-large {
+  padding: var(--dating-spacing-md) var(--dating-spacing-xl);
+  font-size: 1.1rem;
+  width: 100%;
+}
+
+.dating-btn-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: var(--dating-radius-full);
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Avatar Styles */
+.dating-avatar {
+  width: 60px;
+  height: 60px;
+  border-radius: var(--dating-radius-full);
+  object-fit: cover;
+  border: 3px solid var(--dating-primary);
+  box-shadow: var(--dating-shadow-md);
+}
+
+.dating-avatar-large {
+  width: 120px;
+  height: 120px;
+  border-width: 4px;
+}
+
+.dating-avatar-small {
+  width: 40px;
+  height: 40px;
+  border-width: 2px;
+}
+
+/* Profile Card (Swipe Card Style) */
+.dating-profile-card {
+  background: var(--dating-bg-card);
+  border-radius: var(--dating-radius-xl);
+  overflow: hidden;
+  box-shadow: var(--dating-shadow-xl);
+  position: relative;
+  max-width: 400px;
+  margin: 0 auto;
+}
+
+.dating-profile-image {
+  width: 100%;
+  height: 500px;
+  object-fit: cover;
+  display: block;
+}
+
+.dating-profile-info {
+  padding: var(--dating-spacing-lg);
+  background: linear-gradient(to top, var(--dating-bg-card) 0%, transparent 100%);
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  color: var(--dating-text-light);
+}
+
+.dating-profile-name {
+  font-size: 2rem;
+  font-weight: 700;
+  margin-bottom: var(--dating-spacing-xs);
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+.dating-profile-age {
+  font-size: 1.5rem;
+  opacity: 0.9;
+}
+
+.dating-profile-bio {
+  font-size: 1rem;
+  line-height: 1.5;
+  margin-top: var(--dating-spacing-sm);
+  opacity: 0.95;
+}
+
+/* Action Buttons (Like/Pass) */
+.dating-actions {
+  display: flex;
+  justify-content: center;
+  gap: var(--dating-spacing-lg);
+  padding: var(--dating-spacing-xl);
+}
+
+.dating-action-btn {
+  width: 64px;
+  height: 64px;
+  border-radius: var(--dating-radius-full);
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: var(--dating-shadow-lg);
+  transition: var(--dating-transition);
+  font-size: 1.5rem;
+}
+
+.dating-action-btn:hover {
+  transform: scale(1.1);
+}
+
+.dating-action-btn:active {
+  transform: scale(0.95);
+}
+
+.dating-action-pass {
+  background: #FFFFFF;
+  color: #FF4458;
+  border: 3px solid #FF4458;
+}
+
+.dating-action-super-like {
+  background: #4ECDC4;
+  color: #FFFFFF;
+}
+
+.dating-action-like {
+  background: var(--dating-primary);
+  color: #FFFFFF;
+}
+
+/* Chat Styles */
+.dating-chat-container {
+  background: var(--dating-bg-main);
+  border-radius: var(--dating-radius-lg);
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  box-shadow: var(--dating-shadow-md);
+}
+
+.dating-chat-header {
+  padding: var(--dating-spacing-md) var(--dating-spacing-lg);
+  border-bottom: 1px solid var(--dating-border);
+  display: flex;
+  align-items: center;
+  gap: var(--dating-spacing-md);
+  background: var(--dating-bg-card);
+}
+
+.dating-chat-messages {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--dating-spacing-lg);
+  background: var(--dating-bg-secondary);
+}
+
+.dating-message {
+  margin-bottom: var(--dating-spacing-md);
+  display: flex;
+  gap: var(--dating-spacing-sm);
+}
+
+.dating-message-own {
+  flex-direction: row-reverse;
+}
+
+.dating-message-bubble {
+  max-width: 70%;
+  padding: var(--dating-spacing-sm) var(--dating-spacing-md);
+  border-radius: var(--dating-radius-lg);
+  word-wrap: break-word;
+}
+
+.dating-message-other .dating-message-bubble {
+  background: var(--dating-bg-card);
+  color: var(--dating-text-primary);
+  border-bottom-left-radius: 4px;
+}
+
+.dating-message-own .dating-message-bubble {
+  background: var(--dating-primary);
+  color: var(--dating-text-light);
+  border-bottom-right-radius: 4px;
+}
+
+.dating-chat-input {
+  padding: var(--dating-spacing-md) var(--dating-spacing-lg);
+  border-top: 1px solid var(--dating-border);
+  background: var(--dating-bg-card);
+  display: flex;
+  gap: var(--dating-spacing-sm);
+}
+
+.dating-input {
+  flex: 1;
+  border: 2px solid var(--dating-border);
+  border-radius: var(--dating-radius-full);
+  padding: var(--dating-spacing-sm) var(--dating-spacing-lg);
+  font-size: 1rem;
+  transition: var(--dating-transition);
+  background: var(--dating-bg-main);
+  color: var(--dating-text-primary);
+}
+
+.dating-input:focus {
+  outline: none;
+  border-color: var(--dating-primary);
+  box-shadow: 0 0 0 3px rgba(255, 68, 88, 0.1);
+}
+
+/* Match Animation */
+.dating-match-animation {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.9);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+  animation: fadeIn 0.3s ease;
+}
+
+.dating-match-content {
+  text-align: center;
+  color: var(--dating-text-light);
+}
+
+.dating-match-title {
+  font-size: 4rem;
+  font-weight: 700;
+  margin-bottom: var(--dating-spacing-lg);
+  background: var(--dating-bg-gradient);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.dating-match-subtitle {
+  font-size: 1.5rem;
+  margin-bottom: var(--dating-spacing-xl);
+  opacity: 0.9;
+}
+
+/* Badge Styles */
+.dating-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: var(--dating-spacing-xs) var(--dating-spacing-sm);
+  border-radius: var(--dating-radius-full);
+  font-size: 0.75rem;
+  font-weight: 600;
+  background: var(--dating-primary);
+  color: var(--dating-text-light);
+}
+
+.dating-badge-verified {
+  background: var(--dating-secondary);
+}
+
+.dating-badge-premium {
+  background: var(--dating-accent);
+  color: var(--dating-text-primary);
+}
+
+/* Tab Styles */
+.dating-tabs {
+  display: flex;
+  border-bottom: 2px solid var(--dating-border);
+  background: var(--dating-bg-card);
+}
+
+.dating-tab {
+  flex: 1;
+  padding: var(--dating-spacing-md);
+  text-align: center;
+  cursor: pointer;
+  border: none;
+  background: transparent;
+  color: var(--dating-text-secondary);
+  font-weight: 600;
+  font-size: 1rem;
+  transition: var(--dating-transition);
+  position: relative;
+}
+
+.dating-tab.active {
+  color: var(--dating-primary);
+}
+
+.dating-tab.active::after {
+  content: '';
+  position: absolute;
+  bottom: -2px;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: var(--dating-primary);
+  border-radius: 2px 2px 0 0;
+}
+
+/* Animations */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes slideUp {
+  from {
+    transform: translateY(20px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+@keyframes pulse {
+  0%, 100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.05);
+  }
+}
+
+.dating-animate-fade-in {
+  animation: fadeIn 0.3s ease;
+}
+
+.dating-animate-slide-up {
+  animation: slideUp 0.3s ease;
+}
+
+.dating-animate-pulse {
+  animation: pulse 2s ease-in-out infinite;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .dating-profile-image {
+    height: 400px;
+  }
+  
+  .dating-profile-name {
+    font-size: 1.5rem;
+  }
+  
+  .dating-match-title {
+    font-size: 2.5rem;
+  }
+}
+
+/* Utility Classes */
+.dating-text-gradient {
+  background: var(--dating-bg-gradient);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.dating-shadow-glow {
+  box-shadow: var(--dating-shadow-xl);
+}
+
+.dating-rounded-full {
+  border-radius: var(--dating-radius-full);
+}
+
+
+
+

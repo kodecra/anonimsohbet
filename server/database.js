@@ -26,6 +26,11 @@ async function initDatabase() {
         user_id VARCHAR(255) PRIMARY KEY,
         email VARCHAR(255) UNIQUE NOT NULL,
         username VARCHAR(255) NOT NULL,
+        first_name VARCHAR(255),
+        last_name VARCHAR(255),
+        gender VARCHAR(50),
+        phone_number VARCHAR(20),
+        birth_date DATE,
         age INTEGER,
         bio TEXT,
         interests TEXT[],
@@ -37,6 +42,23 @@ async function initDatabase() {
         created_at TIMESTAMP DEFAULT NOW(),
         updated_at TIMESTAMP DEFAULT NOW()
       )
+    `);
+    
+    // Eksik kolonları ekle (migration için)
+    await pool.query(`
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS first_name VARCHAR(255);
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS last_name VARCHAR(255);
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS gender VARCHAR(50);
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS phone_number VARCHAR(20);
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS birth_date DATE;
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS anonymous_number VARCHAR(7);
+    `);
+    
+    // Mevcut kullanıcılara anonim numarası ver (eğer yoksa)
+    await pool.query(`
+      UPDATE users 
+      SET anonymous_number = LPAD(FLOOR(RANDOM() * 9000000 + 1000000)::TEXT, 7, '0')
+      WHERE anonymous_number IS NULL OR anonymous_number = '';
     `);
 
     // Auth tablosu
@@ -83,6 +105,45 @@ async function initDatabase() {
       )
     `);
 
+    // Notifications tablosu
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS notifications (
+        notification_id VARCHAR(255) PRIMARY KEY,
+        user_id VARCHAR(255) NOT NULL,
+        type VARCHAR(50) NOT NULL,
+        title VARCHAR(255),
+        message TEXT,
+        match_id VARCHAR(255),
+        from_user_id VARCHAR(255),
+        read BOOLEAN DEFAULT false,
+        created_at TIMESTAMP DEFAULT NOW()
+      )
+    `);
+    
+    // Index ekle
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS idx_notifications_user_id ON notifications(user_id);
+      CREATE INDEX IF NOT EXISTS idx_notifications_read ON notifications(user_id, read);
+    `);
+
+    // Complaints tablosu
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS complaints (
+        complaint_id VARCHAR(255) PRIMARY KEY,
+        reporter_id VARCHAR(255) NOT NULL,
+        target_user_id VARCHAR(255) NOT NULL,
+        reason TEXT,
+        status VARCHAR(50) DEFAULT 'pending',
+        created_at TIMESTAMP DEFAULT NOW()
+      )
+    `);
+    
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS idx_complaints_reporter_id ON complaints(reporter_id);
+      CREATE INDEX IF NOT EXISTS idx_complaints_target_user_id ON complaints(target_user_id);
+      CREATE INDEX IF NOT EXISTS idx_complaints_status ON complaints(status);
+    `);
+
     console.log('✅ Tablolar oluşturuldu/kontrol edildi');
   } catch (error) {
     console.error('❌ Tablo oluşturma hatası:', error);
@@ -102,12 +163,17 @@ async function saveUsers(usersMap) {
     for (const [userId, profile] of usersMap.entries()) {
       await client.query(`
         INSERT INTO users (
-          user_id, email, username, age, bio, interests, photos,
-          verified, profile_views, notification_settings, blocked_users,
+          user_id, email, username, first_name, last_name, gender, phone_number, birth_date, age, bio, interests, photos,
+          verified, profile_views, notification_settings, blocked_users, anonymous_number,
           created_at, updated_at
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
         ON CONFLICT (user_id) DO UPDATE SET
           username = EXCLUDED.username,
+          first_name = EXCLUDED.first_name,
+          last_name = EXCLUDED.last_name,
+          gender = EXCLUDED.gender,
+          phone_number = EXCLUDED.phone_number,
+          birth_date = EXCLUDED.birth_date,
           age = EXCLUDED.age,
           bio = EXCLUDED.bio,
           interests = EXCLUDED.interests,
@@ -116,11 +182,17 @@ async function saveUsers(usersMap) {
           profile_views = EXCLUDED.profile_views,
           notification_settings = EXCLUDED.notification_settings,
           blocked_users = EXCLUDED.blocked_users,
+          anonymous_number = EXCLUDED.anonymous_number,
           updated_at = EXCLUDED.updated_at
       `, [
         userId,
         profile.email,
         profile.username,
+        profile.firstName || null,
+        profile.lastName || null,
+        profile.gender || null,
+        profile.phoneNumber || null,
+        profile.birthDate ? new Date(profile.birthDate) : null,
         profile.age || null,
         profile.bio || null,
         profile.interests || [],
@@ -129,6 +201,7 @@ async function saveUsers(usersMap) {
         profile.profileViews || 0,
         JSON.stringify(profile.notificationSettings || {}),
         profile.blockedUsers || [],
+        profile.anonymousNumber || null,
         profile.createdAt ? new Date(profile.createdAt) : new Date(),
         new Date()
       ]);
@@ -154,10 +227,26 @@ async function loadUsers() {
     const usersMap = new Map();
     
     for (const row of result.rows) {
+      // Eğer anonim numarası yoksa otomatik oluştur (eski kullanıcılar için)
+      let anonymousNumber = row.anonymous_number;
+      if (!anonymousNumber) {
+        anonymousNumber = Math.floor(1000000 + Math.random() * 9000000).toString();
+        // Veritabanına kaydet (async olarak)
+        pool.query(
+          'UPDATE users SET anonymous_number = $1 WHERE user_id = $2',
+          [anonymousNumber, row.user_id]
+        ).catch(err => console.error('Anonim numarası kaydedilemedi:', err));
+      }
+      
       usersMap.set(row.user_id, {
         userId: row.user_id,
         email: row.email,
         username: row.username,
+        firstName: row.first_name || null,
+        lastName: row.last_name || null,
+        gender: row.gender || null,
+        phoneNumber: row.phone_number || null,
+        birthDate: row.birth_date ? row.birth_date.toISOString().split('T')[0] : null,
         age: row.age,
         bio: row.bio,
         interests: row.interests || [],
@@ -166,6 +255,7 @@ async function loadUsers() {
         profileViews: row.profile_views || 0,
         notificationSettings: row.notification_settings || {},
         blockedUsers: row.blocked_users || [],
+        anonymousNumber: anonymousNumber,
         createdAt: row.created_at,
         updatedAt: row.updated_at
       });
@@ -261,10 +351,8 @@ async function saveMatches(completedMatches, userMatches) {
       ]);
     }
     
-    // User matches - önce temizle
-    await client.query('DELETE FROM user_matches');
-    
-    // Sonra ekle
+    // User matches - sadece ekle (DELETE yapmıyoruz, race condition'ı önlemek için)
+    // Her kullanıcı için tüm matchId'leri ekle
     for (const [userId, matchIds] of userMatches.entries()) {
       for (const matchId of matchIds) {
         await client.query(`
@@ -283,6 +371,23 @@ async function saveMatches(completedMatches, userMatches) {
     return false;
   } finally {
     client.release();
+  }
+}
+
+// Sadece yeni bir eşleşmeyi ekle (race condition'ı önlemek için)
+async function addUserMatch(userId, matchId) {
+  if (!pool) return false;
+  
+  try {
+    await pool.query(`
+      INSERT INTO user_matches (user_id, match_id)
+      VALUES ($1, $2)
+      ON CONFLICT DO NOTHING
+    `, [userId, matchId]);
+    return true;
+  } catch (error) {
+    console.error('addUserMatch hatası:', error);
+    return false;
   }
 }
 
@@ -432,6 +537,133 @@ async function loadVerifications() {
   }
 }
 
+// Bildirim kaydetme
+async function saveNotification(notification) {
+  try {
+    const { notificationId, userId, type, title, message, matchId, fromUserId } = notification;
+    await pool.query(
+      `INSERT INTO notifications (notification_id, user_id, type, title, message, match_id, from_user_id, read, created_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW())
+       ON CONFLICT (notification_id) DO UPDATE SET
+         read = EXCLUDED.read`,
+      [notificationId, userId, type, title, message, matchId || null, fromUserId || null, false]
+    );
+  } catch (error) {
+    console.error('❌ Bildirim kaydetme hatası:', error);
+    throw error;
+  }
+}
+
+// Kullanıcının bildirimlerini yükle
+async function loadNotifications(userId) {
+  try {
+    const result = await pool.query(
+      `SELECT * FROM notifications 
+       WHERE user_id = $1 
+       ORDER BY created_at DESC 
+       LIMIT 100`,
+      [userId]
+    );
+    return result.rows.map(row => ({
+      id: row.notification_id,
+      userId: row.user_id,
+      type: row.type,
+      title: row.title,
+      message: row.message,
+      matchId: row.match_id,
+      fromUserId: row.from_user_id,
+      read: row.read,
+      createdAt: row.created_at
+    }));
+  } catch (error) {
+    console.error('❌ Bildirim yükleme hatası:', error);
+    return [];
+  }
+}
+
+// Bildirimi okundu olarak işaretle
+async function markNotificationAsRead(notificationId, userId) {
+  try {
+    await pool.query(
+      `UPDATE notifications SET read = true 
+       WHERE notification_id = $1 AND user_id = $2`,
+      [notificationId, userId]
+    );
+  } catch (error) {
+    console.error('❌ Bildirim okundu işaretleme hatası:', error);
+    throw error;
+  }
+}
+
+// Okunmamış bildirim sayısı
+async function getUnreadNotificationCount(userId) {
+  try {
+    const result = await pool.query(
+      `SELECT COUNT(*) as count FROM notifications 
+       WHERE user_id = $1 AND read = false`,
+      [userId]
+    );
+    return parseInt(result.rows[0].count) || 0;
+  } catch (error) {
+    console.error('❌ Okunmamış bildirim sayısı hatası:', error);
+    return 0;
+  }
+}
+
+// Şikayet kaydetme
+async function saveComplaint(complaint) {
+  try {
+    const { complaintId, reporterId, targetUserId, reason, status = 'pending' } = complaint;
+    await pool.query(
+      `INSERT INTO complaints (complaint_id, reporter_id, target_user_id, reason, status, created_at)
+       VALUES ($1, $2, $3, $4, $5, NOW())
+       ON CONFLICT (complaint_id) DO UPDATE SET
+         status = EXCLUDED.status`,
+      [complaintId, reporterId, targetUserId, reason, status]
+    );
+  } catch (error) {
+    console.error('❌ Şikayet kaydetme hatası:', error);
+    throw error;
+  }
+}
+
+// Şikayetleri yükle
+async function loadComplaints(status = null) {
+  try {
+    let query = `SELECT c.*, 
+                        r.username as reporter_username, r.email as reporter_email,
+                        t.username as target_username, t.email as target_email
+                 FROM complaints c
+                 LEFT JOIN users r ON c.reporter_id = r.user_id
+                 LEFT JOIN users t ON c.target_user_id = t.user_id`;
+    const params = [];
+    
+    if (status) {
+      query += ' WHERE c.status = $1';
+      params.push(status);
+    }
+    
+    query += ' ORDER BY c.created_at DESC';
+    
+    const result = await pool.query(query, params);
+    return result.rows.map(row => ({
+      complaintId: row.complaint_id,
+      reporterId: row.reporter_id,
+      reporterUsername: row.reporter_username,
+      reporterEmail: row.reporter_email,
+      targetUserId: row.target_user_id,
+      targetUsername: row.target_username,
+      targetEmail: row.target_email,
+      reason: row.reason,
+      status: row.status,
+      createdAt: row.created_at
+    }));
+  } catch (error) {
+    console.error('❌ Şikayet yükleme hatası:', error);
+    return [];
+  }
+}
+
 module.exports = {
   pool,
   initDatabase,
@@ -442,6 +674,13 @@ module.exports = {
   saveMatches,
   loadMatches,
   saveVerifications,
-  loadVerifications
+  loadVerifications,
+  addUserMatch,
+  saveNotification,
+  loadNotifications,
+  markNotificationAsRead,
+  getUnreadNotificationCount,
+  saveComplaint,
+  loadComplaints
 };
 

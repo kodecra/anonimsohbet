@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import { Form, Input, Button, Card, Typography, Alert, Divider } from 'antd';
-import { UserOutlined, LockOutlined } from '@ant-design/icons';
+import { Form, Input, Button, Card, Typography, Alert, Divider, Space } from 'antd';
+import { UserOutlined, LockOutlined, GoogleOutlined } from '@ant-design/icons';
 import './Login.css';
 
 const { Title, Text } = Typography;
@@ -10,14 +10,29 @@ function LoginAntd({ onLogin, onSwitchToRegister, API_URL }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [form] = Form.useForm();
+  const [windowWidth, setWindowWidth] = useState(window.innerWidth);
+
+  useEffect(() => {
+    const handleResize = () => {
+      setWindowWidth(window.innerWidth);
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   const handleLogin = async (values) => {
     setError('');
     setLoading(true);
 
     try {
+      const usernameOrPhone = values.username.trim();
+      
+      // Kullanıcı adı mı telefon numarası mı kontrol et
+      const isPhone = /^[0-9]{10,15}$/.test(usernameOrPhone);
+      
       const response = await axios.post(`${API_URL}/api/login`, {
-        email: values.email.trim(),
+        username: isPhone ? null : usernameOrPhone,
+        phoneNumber: isPhone ? usernameOrPhone : null,
         password: values.password
       });
 
@@ -33,27 +48,91 @@ function LoginAntd({ onLogin, onSwitchToRegister, API_URL }) {
 
   return (
     <div className="login-container" style={{ 
-      minHeight: '100vh', 
-      display: 'flex', 
-      alignItems: 'center', 
-      justifyContent: 'center',
-      background: 'linear-gradient(135deg, #40a9ff 0%, #1890ff 100%)',
-      padding: '20px'
-    }}>
-      <Card 
-        style={{ 
-          width: '100%', 
-          maxWidth: 420,
-          borderRadius: '16px',
-          boxShadow: '0 8px 24px rgba(0,0,0,0.12)'
-        }}
-      >
-        <div style={{ textAlign: 'center', marginBottom: '32px' }}>
-          <Title level={2} style={{ color: '#1890ff', marginBottom: '8px' }}>
-            🎭 Anonim Sohbet
+        minHeight: '100vh', 
+        display: 'flex',
+        flexDirection: windowWidth < 768 ? 'column' : 'row',
+        background: '#000000',
+        color: '#ffffff'
+      }}>
+      {/* Left Side - Logo */}
+      <div style={{
+        flex: windowWidth < 768 ? 'none' : 1,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: windowWidth < 768 ? '40px 20px' : '40px',
+        minHeight: windowWidth < 768 ? '200px' : 'auto'
+      }}>
+        <img 
+          src="/logo.png" 
+          alt="Soulbate Logo" 
+          style={{ 
+            height: windowWidth < 768 ? '80px' : windowWidth < 1024 ? '160px' : '200px', 
+            width: windowWidth < 768 ? '80%' : 'auto',
+            maxWidth: windowWidth < 768 ? '200px' : 'none',
+            objectFit: 'contain',
+            filter: 'brightness(0) invert(1)'
+          }} 
+        />
+      </div>
+
+      {/* Right Side - Login Form */}
+      <div style={{
+        flex: windowWidth < 768 ? 'none' : 1,
+        display: 'flex',
+        flexDirection: 'column',
+        justifyContent: 'center',
+        padding: windowWidth < 768 ? '20px' : '40px',
+        maxWidth: windowWidth < 768 ? '100%' : '600px',
+        width: '100%'
+      }}>
+        <div style={{ marginBottom: windowWidth < 768 ? '32px' : '48px' }}>
+          <Title level={1} style={{ 
+            color: '#ffffff', 
+            marginBottom: '16px', 
+            fontSize: windowWidth < 768 ? '36px' : windowWidth < 1024 ? '48px' : '64px', 
+            fontWeight: 700,
+            lineHeight: 1.2
+          }}>
+            Ruh Eşinizi Bulun
           </Title>
-          <Text type="secondary">Giriş Yap</Text>
+          <Title level={2} style={{ 
+            color: '#ffffff', 
+            fontSize: windowWidth < 768 ? '20px' : windowWidth < 1024 ? '24px' : '31px', 
+            fontWeight: 700,
+            lineHeight: 1.3
+          }}>
+            Anonim sohbet ile gerçek bağlantılar kurun.
+          </Title>
         </div>
+
+        <div style={{ marginBottom: '24px' }}>
+          <Button
+            block
+            size="large"
+            icon={<GoogleOutlined />}
+            style={{
+              height: '52px',
+              fontSize: '15px',
+              fontWeight: 600,
+              borderRadius: '26px',
+              backgroundColor: '#ffffff',
+              color: '#000000',
+              border: 'none',
+              marginBottom: '12px'
+            }}
+            onClick={() => {
+              // Google login - ileride implement edilebilir
+              alert('Google ile giriş yakında eklenecek');
+            }}
+          >
+            Google ile kaydol
+          </Button>
+        </div>
+
+        <Divider style={{ borderColor: '#2f3336', margin: '16px 0' }}>
+          <Text style={{ color: '#71767b' }}>VEYA</Text>
+        </Divider>
 
         {error && (
           <Alert
@@ -61,7 +140,12 @@ function LoginAntd({ onLogin, onSwitchToRegister, API_URL }) {
             description={error}
             type="error"
             showIcon
-            style={{ marginBottom: '24px' }}
+            style={{ 
+              marginBottom: '24px',
+              backgroundColor: '#f4212e',
+              borderColor: '#f4212e',
+              color: '#ffffff'
+            }}
             closable
             onClose={() => setError('')}
           />
@@ -76,22 +160,27 @@ function LoginAntd({ onLogin, onSwitchToRegister, API_URL }) {
           autoComplete="off"
         >
           <Form.Item
-            name="email"
-            label="Email"
+            name="username"
             rules={[
-              { required: true, message: 'Email gereklidir' },
-              { type: 'email', message: 'Geçerli bir email girin' }
+              { required: true, message: 'Kullanıcı adı veya telefon numarası gereklidir' }
             ]}
           >
             <Input 
               prefix={<UserOutlined />} 
-              placeholder="ornek@email.com"
+              placeholder="Kullanıcı adı, e-posta veya telefon"
+              style={{
+                height: '56px',
+                fontSize: '17px',
+                backgroundColor: '#000000',
+                borderColor: '#2f3336',
+                color: '#ffffff',
+                borderRadius: '4px'
+              }}
             />
           </Form.Item>
 
           <Form.Item
             name="password"
-            label="Şifre"
             rules={[
               { required: true, message: 'Şifre gereklidir' },
               { min: 6, message: 'Şifre en az 6 karakter olmalıdır' }
@@ -99,7 +188,15 @@ function LoginAntd({ onLogin, onSwitchToRegister, API_URL }) {
           >
             <Input.Password 
               prefix={<LockOutlined />} 
-              placeholder="Şifrenizi girin"
+              placeholder="Şifre"
+              style={{
+                height: '56px',
+                fontSize: '17px',
+                backgroundColor: '#000000',
+                borderColor: '#2f3336',
+                color: '#ffffff',
+                borderRadius: '4px'
+              }}
             />
           </Form.Item>
 
@@ -110,33 +207,42 @@ function LoginAntd({ onLogin, onSwitchToRegister, API_URL }) {
               block
               loading={loading}
               style={{
-                height: '48px',
-                fontSize: '16px',
-                background: 'linear-gradient(135deg, #40a9ff 0%, #1890ff 100%)',
+                height: '52px',
+                fontSize: '17px',
+                fontWeight: 700,
+                backgroundColor: '#ffffff',
+                color: '#000000',
                 border: 'none',
-                borderRadius: '8px'
+                borderRadius: '26px',
+                marginBottom: '12px'
               }}
             >
-              Giriş Yap
+              Giriş yap
             </Button>
           </Form.Item>
         </Form>
 
-        <Divider>Hesabınız yok mu?</Divider>
-
-        <Button 
-          type="default" 
-          block
-          onClick={onSwitchToRegister || (() => {})}
-          style={{
-            height: '44px',
-            fontSize: '16px',
-            borderRadius: '8px'
-          }}
-        >
-          Kayıt Ol
-        </Button>
-      </Card>
+        <div style={{ marginTop: '8px' }}>
+          <Text style={{ color: '#71767b', fontSize: '15px', display: 'block', marginBottom: '12px' }}>
+            Zaten bir hesabın var mı?
+          </Text>
+          <Button 
+            block
+            onClick={onSwitchToRegister || (() => {})}
+            style={{
+              height: '52px',
+              fontSize: '17px',
+              fontWeight: 700,
+              backgroundColor: '#000000',
+              color: '#1d9bf0',
+              border: '1px solid #2f3336',
+              borderRadius: '26px'
+            }}
+          >
+            Hesap oluştur
+          </Button>
+        </div>
+      </div>
     </div>
   );
 }

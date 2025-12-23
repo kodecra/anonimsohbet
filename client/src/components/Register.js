@@ -1,10 +1,14 @@
 import React, { useState } from 'react';
 import axios from 'axios';
-import { Button, TextField, Card, CardContent, Typography, Box, Alert } from '@mui/material';
+import { Button, TextField, Card, CardContent, Typography, Box, Alert, MenuItem, Grid } from '@mui/material';
 import './Register.css';
 
 function Register({ onRegister, onSwitchToLogin, API_URL }) {
   const [email, setEmail] = useState('');
+  const [username, setUsername] = useState('');
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
+  const [gender, setGender] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -16,6 +20,16 @@ function Register({ onRegister, onSwitchToLogin, API_URL }) {
 
     if (!email.trim() || !password.trim()) {
       setError('Email ve şifre gereklidir');
+      return;
+    }
+
+    if (!username.trim()) {
+      setError('Kullanıcı adı gereklidir');
+      return;
+    }
+
+    if (!lastName.trim()) {
+      setError('Soyisim zorunludur');
       return;
     }
 
@@ -34,7 +48,11 @@ function Register({ onRegister, onSwitchToLogin, API_URL }) {
     try {
       const response = await axios.post(`${API_URL}/api/register`, {
         email: email.trim(),
-        password
+        password,
+        username: username.trim(),
+        firstName: firstName.trim() || null,
+        lastName: lastName.trim(),
+        gender: gender || null
       });
 
       localStorage.setItem('token', response.data.token);
@@ -80,6 +98,61 @@ function Register({ onRegister, onSwitchToLogin, API_URL }) {
                 {error}
               </Alert>
             )}
+
+            <TextField
+              fullWidth
+              label="Kullanıcı Adı"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              placeholder="kullaniciadi"
+              required
+              disabled={loading}
+              margin="normal"
+              sx={{ mb: 2 }}
+            />
+
+            <Grid container spacing={2} sx={{ mb: 2 }}>
+              <Grid item xs={6}>
+                <TextField
+                  fullWidth
+                  label="İsim"
+                  value={firstName}
+                  onChange={(e) => setFirstName(e.target.value)}
+                  placeholder="İsminiz"
+                  disabled={loading}
+                  margin="normal"
+                />
+              </Grid>
+              <Grid item xs={6}>
+                <TextField
+                  fullWidth
+                  label="Soyisim *"
+                  value={lastName}
+                  onChange={(e) => setLastName(e.target.value)}
+                  placeholder="Soyisminiz"
+                  required
+                  disabled={loading}
+                  margin="normal"
+                />
+              </Grid>
+            </Grid>
+
+            <TextField
+              fullWidth
+              select
+              label="Cinsiyet (İsteğe bağlı)"
+              value={gender}
+              onChange={(e) => setGender(e.target.value)}
+              disabled={loading}
+              margin="normal"
+              sx={{ mb: 2 }}
+            >
+              <MenuItem value="">Belirtmek istemiyorum</MenuItem>
+              <MenuItem value="male">Erkek</MenuItem>
+              <MenuItem value="female">Kadın</MenuItem>
+              <MenuItem value="other">Diğer</MenuItem>
+              <MenuItem value="prefer_not_to_say">Belirtmek istemiyorum</MenuItem>
+            </TextField>
 
             <TextField
               fullWidth

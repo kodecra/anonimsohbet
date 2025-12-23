@@ -17,6 +17,7 @@
     "@tabler/icons-react": "^3.36.0",
     "antd": "^5.24.0",
     "axios": "^1.13.2",
+    "dayjs": "^1.11.10",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "react-scripts": "5.0.1",

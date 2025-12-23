@@ -1,8 +1,15 @@
 import React, { useState } from 'react';
 import axios from 'axios';
-import { Form, Input, Button, Card, Typography, Alert, Divider } from 'antd';
-import { UserOutlined, LockOutlined, MailOutlined } from '@ant-design/icons';
+import { Form, Input, Button, Card, Typography, Alert, Divider, Select, Row, Col, DatePicker, ConfigProvider } from 'antd';
+import { UserOutlined, PhoneOutlined, LockOutlined, CalendarOutlined } from '@ant-design/icons';
+import dayjs from 'dayjs';
+import 'dayjs/locale/tr';
+import trTR from 'antd/locale/tr_TR';
+import customParseFormat from 'dayjs/plugin/customParseFormat';
 import './Register.css';
+
+dayjs.extend(customParseFormat);
+dayjs.locale('tr');
 
 const { Title, Text } = Typography;
 
@@ -21,9 +28,38 @@ function RegisterAntd({ onRegister, onSwitchToLogin, API_URL }) {
     setLoading(true);
 
     try {
+      // Doğum tarihinden yaş hesapla
+      let age = null;
+      let birthDateFormatted = null;
+      
+      if (values.birthDate) {
+        let birthDate;
+        // Eğer string formatında gelirse (21.09.1996 gibi)
+        if (typeof values.birthDate === 'string') {
+          birthDate = dayjs(values.birthDate, 'DD.MM.YYYY', true);
+          if (!birthDate.isValid()) {
+            birthDate = dayjs(values.birthDate);
+          }
+        } else {
+          birthDate = dayjs(values.birthDate);
+        }
+        
+        if (birthDate.isValid()) {
+          const today = dayjs();
+          age = today.diff(birthDate, 'year');
+          birthDateFormatted = birthDate.format('YYYY-MM-DD');
+        }
+      }
+
       const response = await axios.post(`${API_URL}/api/register`, {
-        email: values.email.trim(),
-        password: values.password
+        username: values.username.trim(),
+        firstName: values.firstName?.trim() || null,
+        lastName: values.lastName.trim(),
+        gender: values.gender || null,
+        phoneNumber: values.phoneNumber?.trim() || null,
+        password: values.password,
+        birthDate: birthDateFormatted,
+        age: age
       });
 
       localStorage.setItem('token', response.data.token);
@@ -44,60 +80,198 @@ function RegisterAntd({ onRegister, onSwitchToLogin, API_URL }) {
   };
 
   return (
-    <div className="register-container" style={{ 
-      minHeight: '100vh', 
-      display: 'flex', 
-      alignItems: 'center', 
-      justifyContent: 'center',
-      background: 'linear-gradient(135deg, #40a9ff 0%, #1890ff 100%)',
-      padding: '20px'
-    }}>
-      <Card 
-        style={{ 
-          width: '100%', 
-          maxWidth: 420,
-          borderRadius: '16px',
-          boxShadow: '0 8px 24px rgba(0,0,0,0.12)'
-        }}
-      >
-        <div style={{ textAlign: 'center', marginBottom: '32px' }}>
-          <Title level={2} style={{ color: '#1890ff', marginBottom: '8px' }}>
-            🎭 Anonim Sohbet
-          </Title>
-          <Text type="secondary">Kayıt Ol</Text>
-        </div>
-
-        {error && (
-          <Alert
-            message="Hata"
-            description={error}
-            type="error"
-            showIcon
-            style={{ marginBottom: '24px' }}
-            closable
-            onClose={() => setError('')}
-          />
-        )}
-
-        <Form
-          form={form}
-          name="register"
-          onFinish={handleRegister}
-          layout="vertical"
-          size="large"
-          autoComplete="off"
+    <ConfigProvider locale={trTR}>
+      <div className="register-container" style={{ 
+        minHeight: '100vh', 
+        display: 'flex', 
+        alignItems: 'center', 
+        justifyContent: 'center',
+        background: 'linear-gradient(135deg, #40a9ff 0%, #1890ff 100%)',
+        padding: '20px',
+        overflowY: 'auto'
+      }}>
+        <Card 
+          style={{ 
+            width: '100%', 
+            maxWidth: 420,
+            borderRadius: '16px',
+            boxShadow: '0 8px 24px rgba(0,0,0,0.12)',
+            maxHeight: '90vh',
+            overflowY: 'auto',
+            padding: '20px'
+          }}
+          bodyStyle={{ padding: '20px' }}
         >
+          <div style={{ textAlign: 'center', marginBottom: '16px' }}>
+            <img 
+              src="/logo.png" 
+              alt="Soulbate Logo" 
+              style={{ 
+                height: '50px', 
+                width: 'auto', 
+                marginBottom: '8px',
+                objectFit: 'contain'
+              }} 
+            />
+            <Text type="secondary" style={{ display: 'block', fontSize: '15px' }}>Kayıt Ol</Text>
+          </div>
+
+          {error && (
+            <Alert
+              message="Hata"
+              description={error}
+              type="error"
+              showIcon
+              style={{ marginBottom: '12px' }}
+              closable
+              onClose={() => setError('')}
+            />
+          )}
+
+          <Form
+            form={form}
+            name="register"
+            onFinish={handleRegister}
+            layout="vertical"
+            size="middle"
+            autoComplete="off"
+            style={{ marginBottom: '16px' }}
+          >
           <Form.Item
-            name="email"
-            label="Email"
+            name="username"
+            label="Kullanıcı Adı"
             rules={[
-              { required: true, message: 'Email gereklidir' },
-              { type: 'email', message: 'Geçerli bir email girin' }
+              { required: true, message: 'Kullanıcı adı gereklidir' },
+              { max: 50, message: 'En fazla 50 karakter olabilir' }
             ]}
+            style={{ marginBottom: '10px' }}
           >
             <Input 
-              prefix={<MailOutlined />} 
-              placeholder="ornek@email.com"
+              prefix={<UserOutlined />} 
+              placeholder="kullaniciadi"
+            />
+          </Form.Item>
+
+          <Row gutter={12} style={{ marginBottom: '0' }}>
+            <Col span={12}>
+              <Form.Item
+                name="firstName"
+                label="İsim"
+                rules={[
+                  { max: 50, message: 'En fazla 50 karakter olabilir' }
+                ]}
+                style={{ marginBottom: '10px' }}
+              >
+                <Input placeholder="İsminiz" />
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item
+                name="lastName"
+                label="Soyisim"
+                rules={[
+                  { required: true, message: 'Soyisim zorunludur' },
+                  { max: 50, message: 'En fazla 50 karakter olabilir' }
+                ]}
+                style={{ marginBottom: '10px' }}
+              >
+                <Input placeholder="Soyisminiz" />
+              </Form.Item>
+            </Col>
+          </Row>
+
+          <Form.Item
+            name="gender"
+            label="Cinsiyet"
+            rules={[
+              { required: false }
+            ]}
+            style={{ marginBottom: '10px' }}
+          >
+            <Select placeholder="Cinsiyet seçin (isteğe bağlı)">
+              <Select.Option value="male">Erkek</Select.Option>
+              <Select.Option value="female">Kadın</Select.Option>
+              <Select.Option value="other">Diğer</Select.Option>
+              <Select.Option value="prefer_not_to_say">Belirtmek istemiyorum</Select.Option>
+            </Select>
+          </Form.Item>
+
+          <Form.Item
+            name="phoneNumber"
+            label="Cep Telefonu"
+            rules={[
+              { required: true, message: 'Cep telefonu numarası gereklidir' },
+              { 
+                pattern: /^[0-9]{10,15}$/, 
+                message: 'Geçerli bir telefon numarası giriniz (10-15 rakam)' 
+              }
+            ]}
+            style={{ marginBottom: '10px' }}
+          >
+            <Input 
+              prefix={<PhoneOutlined />} 
+              placeholder="5XX XXX XX XX"
+              maxLength={15}
+            />
+          </Form.Item>
+
+          <Form.Item
+            name="birthDate"
+            label="Doğum Tarihi"
+            rules={[
+              { required: true, message: 'Doğum tarihi gereklidir' },
+              {
+                validator: (_, value) => {
+                  if (!value) {
+                    return Promise.resolve();
+                  }
+                  
+                  let date;
+                  // String formatında gelirse (21.09.1996 gibi)
+                  if (typeof value === 'string') {
+                    date = dayjs(value, 'DD.MM.YYYY', true);
+                    if (!date.isValid()) {
+                      date = dayjs(value);
+                    }
+                  } else {
+                    date = dayjs(value);
+                  }
+                  
+                  if (!date.isValid()) {
+                    return Promise.reject(new Error('Geçerli bir tarih giriniz (örn: 21.09.1996)'));
+                  }
+                  
+                  // 18 yaş kontrolü
+                  const today = dayjs();
+                  const age = today.diff(date, 'year');
+                  if (age < 18) {
+                    return Promise.reject(new Error('18 yaşından büyük olmalısınız'));
+                  }
+                  
+                  return Promise.resolve();
+                }
+              }
+            ]}
+            style={{ marginBottom: '10px' }}
+          >
+            <DatePicker
+              style={{ width: '100%' }}
+              placeholder="Doğum tarihinizi seçin veya yazın (21.09.1996)"
+              format="DD.MM.YYYY"
+              allowClear
+              disabledDate={(current) => {
+                // 18 yaşından küçükleri engelle
+                return current && current > dayjs().subtract(18, 'year');
+              }}
+              onChange={(date, dateString) => {
+                // Manuel giriş için parse et
+                if (dateString && !date) {
+                  const parsed = dayjs(dateString, 'DD.MM.YYYY', true);
+                  if (parsed.isValid()) {
+                    form.setFieldsValue({ birthDate: parsed });
+                  }
+                }
+              }}
             />
           </Form.Item>
 
@@ -108,11 +282,11 @@ function RegisterAntd({ onRegister, onSwitchToLogin, API_URL }) {
               { required: true, message: 'Şifre gereklidir' },
               { min: 6, message: 'Şifre en az 6 karakter olmalıdır' }
             ]}
-            hasFeedback
+            style={{ marginBottom: '10px' }}
           >
             <Input.Password 
               prefix={<LockOutlined />} 
-              placeholder="En az 6 karakter"
+              placeholder="Şifrenizi girin"
             />
           </Form.Item>
 
@@ -121,7 +295,7 @@ function RegisterAntd({ onRegister, onSwitchToLogin, API_URL }) {
             label="Şifre Tekrar"
             dependencies={['password']}
             rules={[
-              { required: true, message: 'Şifre tekrarını girin' },
+              { required: true, message: 'Şifre tekrarı gereklidir' },
               ({ getFieldValue }) => ({
                 validator(_, value) {
                   if (!value || getFieldValue('password') === value) {
@@ -131,7 +305,7 @@ function RegisterAntd({ onRegister, onSwitchToLogin, API_URL }) {
                 },
               }),
             ]}
-            hasFeedback
+            style={{ marginBottom: '12px' }}
           >
             <Input.Password 
               prefix={<LockOutlined />} 
@@ -139,14 +313,14 @@ function RegisterAntd({ onRegister, onSwitchToLogin, API_URL }) {
             />
           </Form.Item>
 
-          <Form.Item>
+          <Form.Item style={{ marginBottom: '10px' }}>
             <Button 
               type="primary" 
               htmlType="submit" 
               block
               loading={loading}
               style={{
-                height: '48px',
+                height: '44px',
                 fontSize: '16px',
                 background: 'linear-gradient(135deg, #40a9ff 0%, #1890ff 100%)',
                 border: 'none',
@@ -158,15 +332,15 @@ function RegisterAntd({ onRegister, onSwitchToLogin, API_URL }) {
           </Form.Item>
         </Form>
 
-        <Divider>Zaten hesabınız var mı?</Divider>
+        <Divider style={{ margin: '12px 0' }}>Zaten hesabınız var mı?</Divider>
 
         <Button 
           type="default" 
           block
           onClick={onSwitchToLogin || (() => {})}
           style={{
-            height: '44px',
-            fontSize: '16px',
+            height: '40px',
+            fontSize: '15px',
             borderRadius: '8px'
           }}
         >
@@ -174,6 +348,7 @@ function RegisterAntd({ onRegister, onSwitchToLogin, API_URL }) {
         </Button>
       </Card>
     </div>
+    </ConfigProvider>
   );
 }
 

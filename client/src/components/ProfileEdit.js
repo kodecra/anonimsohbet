@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import {
   Modal,
@@ -16,6 +16,11 @@ import {
   Typography,
   Row,
   Col,
+  Select,
+  DatePicker,
+  Checkbox,
+  ConfigProvider,
+  Progress,
   message
 } from 'antd';
 import {
@@ -23,27 +28,63 @@ import {
   DeleteOutlined,
   PlusOutlined,
   SafetyCertificateOutlined,
-  UploadOutlined
+  UploadOutlined,
+  PhoneOutlined,
+  CalendarOutlined,
+  UserOutlined
 } from '@ant-design/icons';
+import dayjs from 'dayjs';
+import 'dayjs/locale/tr';
+import trTR from 'antd/locale/tr_TR';
+import customParseFormat from 'dayjs/plugin/customParseFormat';
 import PoseVerification from './PoseVerification';
+import { ThemeContext } from '../App';
 import './ProfileEdit.css';
+
+dayjs.extend(customParseFormat);
+dayjs.locale('tr');
 
 const { TextArea } = Input;
 const { Title, Text } = Typography;
 
 function ProfileEdit({ profile, token, onProfileUpdated, onClose, API_URL }) {
+  const { isDarkMode } = React.useContext(ThemeContext);
   const [form] = Form.useForm();
   const [photos, setPhotos] = useState(profile.photos || []);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [showPoseVerification, setShowPoseVerification] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [isUploading, setIsUploading] = useState(false);
+  const [windowWidth, setWindowWidth] = useState(typeof window !== 'undefined' ? window.innerWidth : 1024);
+
+  useEffect(() => {
+    const handleResize = () => {
+      setWindowWidth(window.innerWidth);
+    };
+    if (typeof window !== 'undefined') {
+      window.addEventListener('resize', handleResize);
+      return () => window.removeEventListener('resize', handleResize);
+    }
+  }, []);
+
+  // Temel ilgi alanları listesi
+  const interestOptions = [
+    'Müzik', 'Spor', 'Film', 'Kitap', 'Seyahat', 'Yemek', 'Sanat', 'Teknoloji',
+    'Doğa', 'Dans', 'Fotoğrafçılık', 'Oyun', 'Moda', 'Hayvanlar', 'Fitness', 'Yoga',
+    'Müze', 'Konser', 'Festival', 'Kamp', 'Deniz', 'Dağ', 'Şehir', 'Köy'
+  ];
 
   React.useEffect(() => {
     form.setFieldsValue({
       username: profile.username || '',
-      age: profile.age || undefined,
+      firstName: profile.firstName || '',
+      lastName: profile.lastName || '',
+      gender: profile.gender || undefined,
       bio: profile.bio || '',
-      interests: (profile.interests || []).join(', ')
+      phoneNumber: profile.phoneNumber || '',
+      birthDate: profile.birthDate ? dayjs(profile.birthDate) : null,
+      interests: profile.interests || []
     });
   }, [profile, form]);
 
@@ -56,6 +97,41 @@ function ProfileEdit({ profile, token, onProfileUpdated, onClose, API_URL }) {
       return;
     }
 
+    // Onaylanmış kullanıcılar için uyarı
+    if (profile.verified) {
+      Modal.confirm({
+        title: 'Fotoğraf Yükleme Uyarısı',
+        content: 'Profiliniz onaylanmış durumda. Yeni fotoğraf yüklerseniz tekrar onaylama yaptırmanız gerekmektedir. Devam etmek istiyor musunuz?',
+        okText: 'Evet, Devam Et',
+        cancelText: 'İptal',
+        onOk: () => {
+          uploadPhoto(file, onSuccess, onError);
+        },
+        onCancel: () => {
+          onError();
+        }
+      });
+      return;
+    }
+
+    uploadPhoto(file, onSuccess, onError);
+  };
+
+  const uploadPhoto = async (file, onSuccess, onError) => {
+    setIsUploading(true);
+    setUploadProgress(0);
+
+    // Simüle edilmiş progress (gerçek upload progress için axios interceptor kullanılabilir)
+    const progressInterval = setInterval(() => {
+      setUploadProgress(prev => {
+        if (prev >= 90) {
+          clearInterval(progressInterval);
+          return 90;
+        }
+        return prev + 10;
+      });
+    }, 200);
+
     const formData = new FormData();
     formData.append('photos', file);
 
@@ -64,17 +140,39 @@ function ProfileEdit({ profile, token, onProfileUpdated, onClose, API_URL }) {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'multipart/form-data'
+        },
+        onUploadProgress: (progressEvent) => {
+          if (progressEvent.total) {
+            const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total);
+            setUploadProgress(percentCompleted);
+          }
         }
       });
 
-      setPhotos(response.data.profile.photos);
-      onSuccess();
-      message.success('Fotoğraf yüklendi');
+      clearInterval(progressInterval);
+      setUploadProgress(100);
       
-      if (onProfileUpdated) {
-        onProfileUpdated(response.data.profile);
-      }
+      setTimeout(() => {
+        const updatedProfile = response.data.profile;
+        setPhotos(updatedProfile.photos);
+        setIsUploading(false);
+        setUploadProgress(0);
+        onSuccess();
+        message.success('Fotoğraf yüklendi');
+        
+        // Eğer kullanıcı onaylanmışsa ve yeni fotoğraf yüklendiyse, verified'ı false yap
+        if (response.data.verifiedRemoved || (profile.verified && updatedProfile.verified === false)) {
+          message.warning('Yeni fotoğraf yüklendi. Profil onayınız kaldırıldı. Lütfen tekrar onaylama yaptırın.');
+        }
+        
+        if (onProfileUpdated) {
+          onProfileUpdated(updatedProfile, false); // false = modal kapanmasın
+        }
+      }, 500);
     } catch (err) {
+      clearInterval(progressInterval);
+      setIsUploading(false);
+      setUploadProgress(0);
       message.error(err.response?.data?.error || 'Fotoğraf yüklenemedi');
       onError();
     }
@@ -92,10 +190,40 @@ function ProfileEdit({ profile, token, onProfileUpdated, onClose, API_URL }) {
       message.success('Fotoğraf silindi');
       
       if (onProfileUpdated) {
-        onProfileUpdated(response.data.profile);
+        onProfileUpdated(response.data.profile, false); // false = modal kapanmasın
       }
     } catch (err) {
       message.error('Fotoğraf silinemedi');
+    }
+  };
+
+  const handleReorderPhotos = async (fromIndex, toIndex) => {
+    const newPhotos = [...photos];
+    const [removed] = newPhotos.splice(fromIndex, 1);
+    newPhotos.splice(toIndex, 0, removed);
+    
+    setPhotos(newPhotos);
+    
+    // Backend'e yeni sırayı kaydet
+    try {
+      const response = await axios.post(`${API_URL}/api/profile/photos/reorder`, {
+        photoIds: newPhotos.map(p => p.id)
+      }, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      
+      setPhotos(response.data.profile.photos);
+      message.success('Fotoğraf sırası güncellendi');
+      
+      if (onProfileUpdated) {
+        onProfileUpdated(response.data.profile, false); // false = modal kapanmasın
+      }
+    } catch (err) {
+      // Hata durumunda eski sıraya geri dön
+      setPhotos(photos);
+      message.error('Fotoğraf sırası güncellenemedi');
     }
   };
 
@@ -104,14 +232,41 @@ function ProfileEdit({ profile, token, onProfileUpdated, onClose, API_URL }) {
     setError('');
 
     try {
-      const interestsArray = values.interests
-        ? values.interests.split(',').map(i => i.trim()).filter(i => i.length > 0)
-        : [];
+      // İlgi alanları array olarak geliyor (checkbox'lardan)
+      const interestsArray = Array.isArray(values.interests) 
+        ? values.interests 
+        : (values.interests 
+            ? values.interests.split(',').map(i => i.trim()).filter(i => i.length > 0)
+            : []);
+
+      if (!values.lastName || !values.lastName.trim()) {
+        setError('Soyisim zorunludur');
+        setLoading(false);
+        return;
+      }
+
+      // Doğum tarihinden yaş hesapla
+      let age = null;
+      let birthDateFormatted = null;
+      
+      if (values.birthDate) {
+        const birthDate = dayjs(values.birthDate);
+        if (birthDate.isValid()) {
+          const today = dayjs();
+          age = today.diff(birthDate, 'year');
+          birthDateFormatted = birthDate.format('YYYY-MM-DD');
+        }
+      }
 
       const response = await axios.post(`${API_URL}/api/profile`, {
         username: values.username.trim(),
-        age: values.age || null,
+        firstName: values.firstName?.trim() || null,
+        lastName: values.lastName.trim(),
+        gender: values.gender || null,
         bio: values.bio?.trim() || '',
+        phoneNumber: values.phoneNumber?.trim() || null,
+        birthDate: birthDateFormatted,
+        age: age,
         interests: interestsArray
       }, {
         headers: {
@@ -122,9 +277,10 @@ function ProfileEdit({ profile, token, onProfileUpdated, onClose, API_URL }) {
       message.success('Profil güncellendi');
       
       if (onProfileUpdated) {
-        onProfileUpdated(response.data.profile);
+        onProfileUpdated(response.data.profile, true); // true = modal kapansın (kaydet butonuna basınca)
       }
       
+      // Profil kaydedildiğinde modal kapanacak
       if (onClose) {
         onClose();
       }
@@ -137,23 +293,44 @@ function ProfileEdit({ profile, token, onProfileUpdated, onClose, API_URL }) {
   const uploadProps = {
     customRequest: handleUploadPhotos,
     showUploadList: false,
-    accept: 'image/*',
+    accept: 'image/png,image/jpeg,image/jpg,image/gif,image/webp',
     multiple: true,
     disabled: photos.length >= 5
   };
 
   return (
-    <>
+    <ConfigProvider locale={trTR}>
       <Modal
         open={true}
+        styles={{
+          body: {
+            background: isDarkMode ? '#1a1a2e' : '#fff',
+            color: isDarkMode ? '#fff' : '#000'
+          },
+          header: {
+            background: isDarkMode ? '#1a1a2e' : '#fff',
+            borderBottom: isDarkMode ? '1px solid #424242' : '1px solid #f0f0f0',
+            color: isDarkMode ? '#fff' : '#000'
+          },
+          footer: {
+            background: isDarkMode ? '#1a1a2e' : '#fff',
+            borderTop: isDarkMode ? '1px solid #424242' : '1px solid #f0f0f0'
+          }
+        }}
         onCancel={onClose}
         title={
           <Title level={4} style={{ margin: 0 }}>
             Profil Düzenle
           </Title>
         }
+        width={windowWidth < 768 ? '95%' : windowWidth < 1024 ? '90%' : 800}
+        style={{ top: 20 }}
+        bodyStyle={{
+          maxHeight: 'calc(100vh - 200px)',
+          overflowY: 'auto',
+          padding: '24px'
+        }}
         footer={null}
-        width={800}
         closeIcon={<CloseOutlined />}
       >
         <Form
@@ -184,18 +361,75 @@ function ProfileEdit({ profile, token, onProfileUpdated, onClose, API_URL }) {
             <Input placeholder="Kullanıcı adınızı girin" />
           </Form.Item>
 
+          <Row gutter={16}>
+            <Col span={12}>
+              <Form.Item
+                name="firstName"
+                label="İsim"
+                rules={[
+                  { max: 50, message: 'En fazla 50 karakter olabilir' }
+                ]}
+              >
+                <Input placeholder="İsminiz" />
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item
+                name="lastName"
+                label="Soyisim"
+                rules={[
+                  { required: true, message: 'Soyisim zorunludur' },
+                  { max: 50, message: 'En fazla 50 karakter olabilir' }
+                ]}
+              >
+                <Input placeholder="Soyisminiz" />
+              </Form.Item>
+            </Col>
+          </Row>
+
           <Form.Item
-            name="age"
-            label="Yaş"
+            name="gender"
+            label="Cinsiyet"
             rules={[
-              { type: 'number', min: 13, max: 120, message: 'Yaş 13-120 arasında olmalıdır' }
+              { required: false }
             ]}
           >
-            <InputNumber
-              placeholder="Yaşınızı girin"
+            <Select placeholder="Cinsiyet seçin (isteğe bağlı)">
+              <Select.Option value="male">Erkek</Select.Option>
+              <Select.Option value="female">Kadın</Select.Option>
+              <Select.Option value="other">Diğer</Select.Option>
+              <Select.Option value="prefer_not_to_say">Belirtmek istemiyorum</Select.Option>
+            </Select>
+          </Form.Item>
+
+          <Form.Item
+            name="phoneNumber"
+            label="Cep Telefonu"
+            rules={[
+              {
+                pattern: /^[0-9]{10,15}$/,
+                message: 'Geçerli bir telefon numarası giriniz (10-15 rakam)'
+              }
+            ]}
+          >
+            <Input
+              prefix={<PhoneOutlined />}
+              placeholder="5XX XXX XX XX"
+              maxLength={15}
+            />
+          </Form.Item>
+
+          <Form.Item
+            name="birthDate"
+            label="Doğum Tarihi"
+          >
+            <DatePicker
               style={{ width: '100%' }}
-              min={13}
-              max={120}
+              placeholder="Doğum tarihinizi seçin"
+              format={['DD/MM/YYYY', 'DD.MM.YYYY']}
+              disabledDate={(current) => {
+                return current && current > dayjs().subtract(18, 'year');
+              }}
             />
           </Form.Item>
 
@@ -216,9 +450,17 @@ function ProfileEdit({ profile, token, onProfileUpdated, onClose, API_URL }) {
 
           <Form.Item
             name="interests"
-            label="İlgi Alanları (virgülle ayırın)"
+            label="İlgi Alanları"
           >
-            <Input placeholder="Müzik, Spor, Film..." />
+            <Checkbox.Group style={{ width: '100%' }}>
+              <Row gutter={[8, 8]}>
+                {interestOptions.map(interest => (
+                  <Col span={8} key={interest}>
+                    <Checkbox value={interest}>{interest}</Checkbox>
+                  </Col>
+                ))}
+              </Row>
+            </Checkbox.Group>
           </Form.Item>
 
           {/* Poz Doğrulama */}
@@ -226,11 +468,12 @@ function ProfileEdit({ profile, token, onProfileUpdated, onClose, API_URL }) {
             <Card
               style={{
                 marginBottom: '24px',
-                backgroundColor: '#e6f7ff',
-                border: '1px solid #91d5ff'
+                backgroundColor: isDarkMode ? '#2e2e2e' : '#e6f7ff',
+                border: isDarkMode ? '1px solid #424242' : '1px solid #91d5ff',
+                color: isDarkMode ? '#fff' : '#000'
               }}
             >
-              <Title level={5} style={{ marginBottom: '8px' }}>
+              <Title level={5} style={{ marginBottom: '8px', color: isDarkMode ? '#fff' : '#000' }}>
                 Profil Doğrulama
               </Title>
               <Text type="secondary" style={{ display: 'block', marginBottom: '16px' }}>
@@ -264,16 +507,121 @@ function ProfileEdit({ profile, token, onProfileUpdated, onClose, API_URL }) {
 
           {/* Fotoğraf Yükleme */}
           <Form.Item label={`Fotoğraflar (${photos.length}/5)`}>
+            {isUploading && (
+              <div style={{ marginBottom: '16px' }}>
+                <Progress 
+                  percent={uploadProgress} 
+                  status="active"
+                  strokeColor={{
+                    '0%': '#108ee9',
+                    '100%': '#87d068',
+                  }}
+                />
+                <Text type="secondary" style={{ fontSize: '12px', display: 'block', marginTop: '4px' }}>
+                  Fotoğraf yükleniyor... %{uploadProgress}
+                </Text>
+              </div>
+            )}
             <Row gutter={[16, 16]}>
-              {photos.map((photo) => (
-                <Col xs={12} sm={8} md={6} key={photo.id}>
-                  <div style={{ position: 'relative' }}>
-                    <Avatar
-                      src={`${API_URL}${photo.url}`}
-                      shape="square"
-                      size={120}
-                      style={{ width: '100%', height: 150, objectFit: 'cover' }}
-                    />
+              {photos.map((photo, index) => {
+                // URL formatını düzelt
+                let photoUrl = '';
+                if (photo.url) {
+                  if (photo.url.startsWith('http://') || photo.url.startsWith('https://')) {
+                    photoUrl = photo.url;
+                  } else {
+                    // URL başında / varsa kaldır, yoksa ekle
+                    const cleanUrl = photo.url.startsWith('/') ? photo.url : `/${photo.url}`;
+                    const cleanApiUrl = API_URL.endsWith('/') ? API_URL.slice(0, -1) : API_URL;
+                    photoUrl = `${cleanApiUrl}${cleanUrl}`;
+                  }
+                }
+                
+                return (
+                  <Col xs={12} sm={8} md={6} key={photo.id || index}>
+                    <div 
+                      style={{ 
+                        position: 'relative',
+                        cursor: 'move',
+                        border: index === 0 ? '3px solid #1890ff' : '1px solid #d9d9d9',
+                        borderRadius: '8px',
+                        padding: index === 0 ? '2px' : '4px'
+                      }}
+                      draggable
+                      onDragStart={(e) => {
+                        e.dataTransfer.setData('text/plain', index.toString());
+                      }}
+                      onDragOver={(e) => {
+                        e.preventDefault();
+                        e.currentTarget.style.opacity = '0.5';
+                      }}
+                      onDragLeave={(e) => {
+                        e.currentTarget.style.opacity = '1';
+                      }}
+                      onDrop={(e) => {
+                        e.preventDefault();
+                        e.currentTarget.style.opacity = '1';
+                        const draggedIndex = parseInt(e.dataTransfer.getData('text/plain'));
+                        if (draggedIndex !== index) {
+                          handleReorderPhotos(draggedIndex, index);
+                        }
+                      }}
+                    >
+                      {index === 0 && (
+                        <div style={{
+                          position: 'absolute',
+                          top: 4,
+                          left: 4,
+                          backgroundColor: '#1890ff',
+                          color: '#fff',
+                          padding: '2px 6px',
+                          borderRadius: '4px',
+                          fontSize: '10px',
+                          fontWeight: 'bold',
+                          zIndex: 10
+                        }}>
+                          Profil
+                        </div>
+                      )}
+                      {photoUrl ? (
+                        <img
+                          src={photoUrl}
+                          alt="Profile photo"
+                          style={{ 
+                            width: '100%', 
+                            height: 150, 
+                            objectFit: 'cover',
+                            borderRadius: '6px',
+                            display: 'block',
+                            backgroundColor: isDarkMode ? '#2e2e2e' : '#f0f0f0'
+                          }}
+                          onError={(e) => {
+                            e.target.style.display = 'none';
+                            const placeholder = e.target.nextElementSibling;
+                            if (placeholder) {
+                              placeholder.style.display = 'flex';
+                            }
+                          }}
+                          onLoad={(e) => {
+                            // Fotoğraf yüklendiğinde placeholder'ı gizle
+                            const placeholder = e.target.nextElementSibling;
+                            if (placeholder) {
+                              placeholder.style.display = 'none';
+                            }
+                          }}
+                        />
+                      ) : null}
+                      <div style={{
+                        width: '100%',
+                        height: 150,
+                        display: photoUrl ? 'none' : 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        backgroundColor: isDarkMode ? '#2e2e2e' : '#f0f0f0',
+                        borderRadius: '6px'
+                      }}>
+                        <UserOutlined style={{ fontSize: '48px', color: isDarkMode ? '#666' : '#bfbfbf' }} />
+                      </div>
                     <Button
                       type="primary"
                       danger
@@ -282,13 +630,15 @@ function ProfileEdit({ profile, token, onProfileUpdated, onClose, API_URL }) {
                       style={{
                         position: 'absolute',
                         top: 4,
-                        right: 4
+                        right: 4,
+                        zIndex: 10
                       }}
                       onClick={() => handleDeletePhoto(photo.id)}
                     />
                   </div>
                 </Col>
-              ))}
+              );
+              })}
               
               {photos.length < 5 && (
                 <Col xs={12} sm={8} md={6}>
@@ -304,10 +654,10 @@ function ProfileEdit({ profile, token, onProfileUpdated, onClose, API_URL }) {
                         alignItems: 'center',
                         justifyContent: 'center',
                         cursor: 'pointer',
-                        backgroundColor: '#fafafa'
+                        backgroundColor: isDarkMode ? '#2e2e2e' : '#fafafa'
                       }}
                     >
-                      <UploadOutlined style={{ fontSize: '32px', color: '#8c8c8c', marginBottom: '8px' }} />
+                      <UploadOutlined style={{ fontSize: '32px', color: isDarkMode ? '#666' : '#8c8c8c', marginBottom: '8px' }} />
                       <Text type="secondary">Fotoğraf Ekle</Text>
                     </div>
                   </Upload>
@@ -315,6 +665,61 @@ function ProfileEdit({ profile, token, onProfileUpdated, onClose, API_URL }) {
               )}
             </Row>
           </Form.Item>
+
+          {/* Anonim Numarası Sıfırlama */}
+          <Card
+            style={{
+              marginBottom: '24px',
+              backgroundColor: isDarkMode ? '#2e2e2e' : '#fff7e6',
+              border: isDarkMode ? '1px solid #424242' : '1px solid #ffd591',
+              color: isDarkMode ? '#fff' : '#000'
+            }}
+          >
+            <Title level={5} style={{ marginBottom: '8px', color: isDarkMode ? '#fff' : '#000' }}>
+              Anonim Numarası
+            </Title>
+            <Text type="secondary" style={{ display: 'block', marginBottom: '12px' }}>
+              Mevcut anonim numaranız: <Text strong>{profile.anonymousNumber || 'Yükleniyor...'}</Text>
+            </Text>
+            <Text type="secondary" style={{ display: 'block', marginBottom: '16px', fontSize: '12px' }}>
+              Anonim numaranızı sıfırlarsanız, eşleşmeler tabında görünen numaranız değişecektir.
+            </Text>
+            <Button
+              danger
+              onClick={() => {
+                Modal.confirm({
+                  title: 'Anonim Numarasını Sıfırla',
+                  content: 'Anonim numaranızı sıfırlamak istediğinizden emin misiniz? Bu işlem geri alınamaz ve eşleşmeler tabında görünen numaranız değişecektir.',
+                  okText: 'Evet, Sıfırla',
+                  cancelText: 'İptal',
+                  okButtonProps: { danger: true },
+                  onOk: async () => {
+                    try {
+                      setLoading(true);
+                      const response = await axios.post(`${API_URL}/api/profile/reset-anonymous-number`, {}, {
+                        headers: {
+                          'Authorization': `Bearer ${token}`
+                        }
+                      });
+                      
+                      message.success(`Anonim numaranız sıfırlandı. Yeni numaranız: ${response.data.newAnonymousNumber}`);
+                      
+                      if (onProfileUpdated) {
+                        onProfileUpdated(response.data.profile, false); // Modal kapanmasın
+                      }
+                    } catch (err) {
+                      message.error(err.response?.data?.error || 'Anonim numarası sıfırlanamadı');
+                    } finally {
+                      setLoading(false);
+                    }
+                  }
+                });
+              }}
+              disabled={loading}
+            >
+              Anonim Numaramı Sıfırla
+            </Button>
+          </Card>
 
           {/* Actions */}
           <Form.Item style={{ marginTop: '24px', marginBottom: 0 }}>
@@ -337,7 +742,6 @@ function ProfileEdit({ profile, token, onProfileUpdated, onClose, API_URL }) {
           </Form.Item>
         </Form>
       </Modal>
-
       {showPoseVerification && (
         <PoseVerification
           userId={profile.userId}
@@ -356,7 +760,7 @@ function ProfileEdit({ profile, token, onProfileUpdated, onClose, API_URL }) {
           API_URL={API_URL}
         />
       )}
-    </>
+    </ConfigProvider>
   );
 }
 
