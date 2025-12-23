@@ -513,6 +513,23 @@ async function loadMatches() {
   }
 }
 
+// Completed match sil (veritabanından)
+async function deleteCompletedMatch(matchId) {
+  if (!pool) return false;
+  
+  try {
+    // completed_matches tablosundan sil
+    await pool.query('DELETE FROM completed_matches WHERE match_id = $1', [matchId]);
+    // user_matches tablosundan da sil
+    await pool.query('DELETE FROM user_matches WHERE match_id = $1', [matchId]);
+    console.log(`✅ Completed match veritabanından silindi: ${matchId}`);
+    return true;
+  } catch (error) {
+    console.error('deleteCompletedMatch hatası:', error);
+    return false;
+  }
+}
+
 // Verifications kaydet
 async function saveVerifications(verificationsMap) {
   if (!pool) return false;
@@ -904,6 +921,7 @@ module.exports = {
   loadAuth,
   saveMatches,
   loadMatches,
+  deleteCompletedMatch,
   saveVerifications,
   loadVerifications,
   addUserMatch,

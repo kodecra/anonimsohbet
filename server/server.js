@@ -17,6 +17,7 @@ let saveComplaint, loadComplaints;
 // Yeni: Active matches ve follow requests için
 let saveActiveMatchDB, loadActiveMatchesDB, deleteActiveMatchDB;
 let saveFollowRequestDB, loadFollowRequestsDB, deleteFollowRequestDB, updateFollowRequestStatusDB;
+let deleteCompletedMatchDB;
 
 if (useDatabase) {
   const db = require('./database');
@@ -43,6 +44,7 @@ if (useDatabase) {
   loadFollowRequestsDB = db.loadFollowRequests;
   deleteFollowRequestDB = db.deleteFollowRequest;
   updateFollowRequestStatusDB = db.updateFollowRequestStatus;
+  deleteCompletedMatchDB = db.deleteCompletedMatch;
   console.log('✅ PostgreSQL kullanılıyor');
 } else {
   const storage = require('./dataStorage');
@@ -67,6 +69,7 @@ if (useDatabase) {
   loadFollowRequestsDB = async () => new Map();
   deleteFollowRequestDB = async () => {};
   updateFollowRequestStatusDB = async () => {};
+  deleteCompletedMatchDB = async () => {};
   console.log('⚠️ JSON dosyası kullanılıyor (DATABASE_URL bulunamadı - Render free tier için PostgreSQL kullanın!)');
 }
 const { uploadToFTP } = require('./ftpUpload');
@@ -1327,8 +1330,11 @@ app.delete('/api/matches/:matchId', authenticateToken, async (req, res) => {
     userMatches.set(partnerId, filteredPartnerMatchIds);
   }
   
-  // Eşleşmeyi tamamen sil (completedMatches'ten)
+  // Eşleşmeyi tamamen sil (completedMatches'ten ve veritabanından)
   completedMatches.delete(matchId);
+  if (useDatabase) {
+    await deleteCompletedMatchDB(matchId);
+  }
   
   // Active match ise sil ve kullanıcıların activeUsers'dan matchId'sini temizle
   if (activeMatches.has(matchId)) {
