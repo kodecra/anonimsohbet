@@ -591,9 +591,44 @@ app.post('/api/profile', authenticateToken, async (req, res) => {
   const { username, age, bio, interests, anonymousNumber } = req.body;
   const userId = req.user.userId;
   
-  const existingProfile = users.get(userId);
+  let existingProfile = users.get(userId);
   if (!existingProfile) {
     return res.status(404).json({ error: 'Kullanıcı bulunamadı' });
+  }
+
+  // Eğer anonim numarası yoksa otomatik oluştur (eski kullanıcılar için)
+  if (!existingProfile.anonymousNumber) {
+    let newAnonymousNumber;
+    let attempts = 0;
+    do {
+      newAnonymousNumber = Math.floor(1000000 + Math.random() * 9000000).toString();
+      attempts++;
+      
+      // Başka bir kullanıcı bu numarayı kullanıyor mu kontrol et
+      let isUnique = true;
+      for (const [uid, profile] of users.entries()) {
+        if (uid !== userId && profile.anonymousNumber === newAnonymousNumber) {
+          isUnique = false;
+          break;
+        }
+      }
+      
+      if (isUnique) break;
+      
+      if (attempts > 100) {
+        newAnonymousNumber = Math.floor(1000000 + Math.random() * 9000000).toString();
+        break;
+      }
+    } while (true);
+
+    existingProfile = {
+      ...existingProfile,
+      anonymousNumber: newAnonymousNumber,
+      updatedAt: new Date()
+    };
+    users.set(userId, existingProfile);
+    await saveUsers(users);
+    console.log(`Eski kullanıcıya anonim numarası verildi (profil güncelleme): ${userId} -> ${newAnonymousNumber}`);
   }
 
   // Anonim numarası değiştirme kontrolü
@@ -707,11 +742,52 @@ app.post('/api/profile/reset-anonymous-number', authenticateToken, async (req, r
 });
 
 // Profil getirme (kendi profili - authenticated)
-app.get('/api/profile', authenticateToken, (req, res) => {
-  const profile = users.get(req.user.userId);
+app.get('/api/profile', authenticateToken, async (req, res) => {
+  let profile = users.get(req.user.userId);
   if (!profile) {
     return res.status(404).json({ error: 'Profil bulunamadı' });
   }
+  
+  // Eğer anonim numarası yoksa otomatik oluştur (eski kullanıcılar için)
+  if (!profile.anonymousNumber) {
+    let newAnonymousNumber;
+    let attempts = 0;
+    do {
+      newAnonymousNumber = Math.floor(1000000 + Math.random() * 9000000).toString();
+      attempts++;
+      
+      // Başka bir kullanıcı bu numarayı kullanıyor mu kontrol et
+      let isUnique = true;
+      for (const [uid, p] of users.entries()) {
+        if (uid !== req.user.userId && p.anonymousNumber === newAnonymousNumber) {
+          isUnique = false;
+          break;
+        }
+      }
+      
+      if (isUnique) break;
+      
+      // 100 deneme sonrası hata ver
+      if (attempts > 100) {
+        console.error('Benzersiz anonim numarası oluşturulamadı:', req.user.userId);
+        newAnonymousNumber = Math.floor(1000000 + Math.random() * 9000000).toString(); // Son çare
+        break;
+      }
+    } while (true);
+
+    // Profili güncelle
+    profile = {
+      ...profile,
+      anonymousNumber: newAnonymousNumber,
+      updatedAt: new Date()
+    };
+    
+    users.set(req.user.userId, profile);
+    await saveUsers(users);
+    
+    console.log(`Eski kullanıcıya anonim numarası verildi: ${req.user.userId} -> ${newAnonymousNumber}`);
+  }
+  
   res.json({ profile });
 });
 

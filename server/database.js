@@ -209,6 +209,17 @@ async function loadUsers() {
     const usersMap = new Map();
     
     for (const row of result.rows) {
+      // Eğer anonim numarası yoksa otomatik oluştur (eski kullanıcılar için)
+      let anonymousNumber = row.anonymous_number;
+      if (!anonymousNumber) {
+        anonymousNumber = Math.floor(1000000 + Math.random() * 9000000).toString();
+        // Veritabanına kaydet (async olarak)
+        pool.query(
+          'UPDATE users SET anonymous_number = $1 WHERE user_id = $2',
+          [anonymousNumber, row.user_id]
+        ).catch(err => console.error('Anonim numarası kaydedilemedi:', err));
+      }
+      
       usersMap.set(row.user_id, {
         userId: row.user_id,
         email: row.email,
@@ -226,7 +237,7 @@ async function loadUsers() {
         profileViews: row.profile_views || 0,
         notificationSettings: row.notification_settings || {},
         blockedUsers: row.blocked_users || [],
-        anonymousNumber: row.anonymous_number || null,
+        anonymousNumber: anonymousNumber,
         createdAt: row.created_at,
         updatedAt: row.updated_at
       });
