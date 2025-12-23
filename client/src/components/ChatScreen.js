@@ -98,29 +98,59 @@ function ChatScreen({ userId, profile: currentProfile, matchId: initialMatchId, 
         return;
       }
       
-      fetch(`${API_URL}/api/matches/${cleanMatchId}`, {
-        headers: {
-          'Authorization': `Bearer ${token}`
+      // Retry mekanizması ile fetch
+      const fetchMatchWithRetry = async (retries = 0) => {
+        const maxRetries = 3;
+        const retryDelay = 500;
+        
+        try {
+          const response = await fetch(`${API_URL}/api/matches/${cleanMatchId}`, {
+            headers: {
+              'Authorization': `Bearer ${token}`
+            }
+          });
+          
+          if (response.status === 401) {
+            console.error('❌ Token geçersiz, login sayfasına yönlendiriliyor...');
+            localStorage.removeItem('token');
+            localStorage.removeItem('userId');
+            if (onGoBack) onGoBack();
+            return null;
+          }
+          
+          if (response.ok) {
+            return await response.json();
+          }
+          
+          // 404 hatası - retry mekanizması
+          if (response.status === 404 && retries < maxRetries) {
+            console.warn(`⚠️ Match bulunamadı (404), ${retryDelay}ms sonra tekrar deneniyor... (${retries + 1}/${maxRetries})`);
+            await new Promise(resolve => setTimeout(resolve, retryDelay));
+            return fetchMatchWithRetry(retries + 1);
+          }
+          
+          // 404 hatası ve retry limiti aşıldı - geri dön
+          if (response.status === 404) {
+            console.warn('⚠️ Match bulunamadı (404), geri dönülüyor...');
+            if (onGoBack) onGoBack();
+            return null;
+          }
+          
+          throw new Error('Match bulunamadı');
+        } catch (error) {
+          if (retries < maxRetries) {
+            console.warn(`⚠️ Hata oluştu, ${retryDelay}ms sonra tekrar deneniyor... (${retries + 1}/${maxRetries})`);
+            await new Promise(resolve => setTimeout(resolve, retryDelay));
+            return fetchMatchWithRetry(retries + 1);
+          }
+          throw error;
         }
-      })
+      };
+      
+      fetchMatchWithRetry()
       .then(response => {
-        if (response.status === 401) {
-          console.error('❌ Token geçersiz, login sayfasına yönlendiriliyor...');
-          localStorage.removeItem('token');
-          localStorage.removeItem('userId');
-          if (onGoBack) onGoBack();
-          return null;
-        }
-        if (response.ok) {
-          return response.json();
-        }
-        // 404 hatası - eşleşme bulunamadı, geri dön
-        if (response.status === 404) {
-          console.warn('⚠️ Match bulunamadı (404), geri dönülüyor...');
-          if (onGoBack) onGoBack();
-          return null;
-        }
-        throw new Error('Match bulunamadı');
+        if (!response) return;
+        return response;
       })
       .then(data => {
         if (data && data.match) {

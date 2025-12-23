@@ -1536,56 +1536,70 @@ app.get('/api/matches', authenticateToken, (req, res) => {
 // Belirli bir eşleşmenin detaylarını getir - DELETE'den SONRA olmalı!
 app.get('/api/matches/:matchId', authenticateToken, (req, res) => {
   const userId = req.user.userId;
-  const matchId = req.params.matchId;
+  const requestedMatchId = req.params.matchId;
+  
+  console.log(`🔍 /api/matches/:matchId çağrıldı: matchId=${requestedMatchId}, userId=${userId}`);
+  console.log(`   activeMatches size: ${activeMatches.size}`);
+  console.log(`   activeMatches keys:`, Array.from(activeMatches.keys()));
   
   // Önce activeMatches'te ara, bulamazsan completedMatches'te ara
-  let match = activeMatches.get(matchId);
+  let match = activeMatches.get(requestedMatchId);
   let isActiveMatch = false;
+  let actualMatchId = requestedMatchId;
+  
   if (match) {
     isActiveMatch = true;
+    console.log(`✅ Match activeMatches'te bulundu: ${requestedMatchId}`);
   } else {
-    match = completedMatches.get(matchId);
+    match = completedMatches.get(requestedMatchId);
+    if (match) {
+      console.log(`✅ Match completedMatches'te bulundu: ${requestedMatchId}`);
+    }
   }
 
   if (!match) {
-    console.log('⚠️ Match bulunamadı:', matchId);
-    console.log('Active matches:', Array.from(activeMatches.keys()));
-    console.log('Completed matches:', Array.from(completedMatches.keys()));
-    console.log('Request userId:', userId);
+    console.log('⚠️ Match bulunamadı (direct lookup):', requestedMatchId);
+    console.log('   Active matches:', Array.from(activeMatches.keys()));
+    console.log('   Completed matches:', Array.from(completedMatches.keys()));
+    console.log('   Request userId:', userId);
     
     // Önce userId ile activeMatches'te ara
     for (const [mid, m] of activeMatches.entries()) {
       const mUser1Id = m.user1?.userId || m.user1?.user?.userId;
       const mUser2Id = m.user2?.userId || m.user2?.user?.userId;
+      console.log(`   Checking match ${mid}: user1=${mUser1Id}, user2=${mUser2Id}`);
       if (mUser1Id === userId || mUser2Id === userId) {
         match = m;
-        matchId = mid;
-        console.log('✅ Kullanıcının aktif eşleşmesi bulundu (userId ile):', matchId);
+        actualMatchId = mid;
+        console.log(`✅ Kullanıcının aktif eşleşmesi bulundu (userId ile): ${actualMatchId}`);
         // activeUsers'daki tüm socket.id'lerini güncelle
         for (const [socketId, userInfo] of activeUsers.entries()) {
           if (userInfo.userId === userId) {
-            userInfo.matchId = matchId;
+            userInfo.matchId = actualMatchId;
             userInfo.inMatch = true;
             activeUsers.set(socketId, userInfo);
           }
         }
+        isActiveMatch = true;
         break;
       }
     }
     
     // Hala bulunamazsa, kullanıcının aktif eşleşmesini kontrol et
     if (!match) {
+      console.log('   activeUsers kontrol ediliyor...');
       for (const [socketId, userInfo] of activeUsers.entries()) {
         if (userInfo.userId === userId && userInfo.matchId) {
-          console.log('User active socket:', socketId, 'matchId:', userInfo.matchId);
+          console.log(`   User active socket: ${socketId}, matchId: ${userInfo.matchId}`);
           // Doğru matchId ile tekrar ara
           match = activeMatches.get(userInfo.matchId);
           if (!match) {
             match = completedMatches.get(userInfo.matchId);
           }
           if (match) {
-            matchId = userInfo.matchId;
-            console.log('✅ Kullanıcının aktif eşleşmesi bulundu:', matchId);
+            actualMatchId = userInfo.matchId;
+            console.log(`✅ Kullanıcının aktif eşleşmesi bulundu: ${actualMatchId}`);
+            isActiveMatch = activeMatches.has(actualMatchId);
             break;
           }
         }
@@ -1593,11 +1607,12 @@ app.get('/api/matches/:matchId', authenticateToken, (req, res) => {
     }
     
     if (!match) {
+      console.log(`❌ Match bulunamadı: ${requestedMatchId}, userId: ${userId}`);
       return res.status(404).json({ error: 'Eşleşme bulunamadı' });
     }
   }
   
-  console.log('✅ Match bulundu:', matchId, 'isActiveMatch:', isActiveMatch);
+  console.log(`✅ Match bulundu: ${actualMatchId}, isActiveMatch: ${isActiveMatch}`);
 
   // Kullanıcının bu eşleşmede olup olmadığını kontrol et
   const matchUser1Id = match.user1?.userId || match.user1?.user?.userId;
@@ -1630,7 +1645,7 @@ app.get('/api/matches/:matchId', authenticateToken, (req, res) => {
   
   res.json({
     match: {
-      matchId: match.id,
+      matchId: actualMatchId || match.id || requestedMatchId,
       partner: partnerInfo,  // Aktif eşleşmede null, completed'de partner bilgisi
       messages: match.messages || [],
       startedAt: match.startedAt ? (match.startedAt instanceof Date ? match.startedAt.getTime() : match.startedAt) : null
@@ -1894,6 +1909,13 @@ io.on('connection', (socket) => {
       console.log('   user2:', { userId: user2.userId, socketId: user2.socketId, username: user2.profile?.username });
       console.log('   activeMatches size:', activeMatches.size);
       console.log('   activeMatches keys:', Array.from(activeMatches.keys()));
+      // Match'in gerçekten kaydedildiğini doğrula
+      const verifyMatch = activeMatches.get(matchId);
+      if (verifyMatch) {
+        console.log('   ✅ Match activeMatches\'e başarıyla kaydedildi');
+      } else {
+        console.log('   ❌ HATA: Match activeMatches\'e kaydedilemedi!');
+      }
       
       // Socket bağlantılarını kontrol et
       const user1SocketExists = io.sockets.sockets.has(user1.socketId);

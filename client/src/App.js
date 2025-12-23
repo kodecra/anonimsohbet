@@ -150,25 +150,42 @@ function App() {
     setMatchId(newMatchId);
     // Partner profilini API'den yükle - Completed match kontrolü için
     let partnerProfileData = null;
-    try {
-      const response = await axios.get(`${API_URL}/api/matches/${newMatchId}`, {
-        headers: {
-          'Authorization': `Bearer ${token}`
+    
+    // Retry mekanizması: 404 hatası alındığında birkaç kez tekrar dene
+    let retries = 0;
+    const maxRetries = 3;
+    const retryDelay = 500; // 500ms
+    
+    while (retries < maxRetries) {
+      try {
+        const response = await axios.get(`${API_URL}/api/matches/${newMatchId}`, {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        });
+        console.log('✅ handleMatchFound: Match data alındı', response.data);
+        if (response.data && response.data.match) {
+          // Backend'den gelen partner bilgisini kullan (aktif eşleşmede null, completed'de dolu)
+          if (response.data.match.partner) {
+            partnerProfileData = response.data.match.partner;
+            console.log('✅ Completed match - partner profile alındı');
+          } else {
+            console.log('✅ Aktif eşleşme - partner profile null (anonim)');
+          }
         }
-      });
-      console.log('✅ handleMatchFound: Match data alındı', response.data);
-      if (response.data && response.data.match) {
-        // Backend'den gelen partner bilgisini kullan (aktif eşleşmede null, completed'de dolu)
-        if (response.data.match.partner) {
-          partnerProfileData = response.data.match.partner;
-          console.log('✅ Completed match - partner profile alındı');
+        break; // Başarılı, retry döngüsünden çık
+      } catch (error) {
+        retries++;
+        if (error.response && error.response.status === 404 && retries < maxRetries) {
+          console.log(`⚠️ Match bulunamadı (404), ${retryDelay}ms sonra tekrar deneniyor... (${retries}/${maxRetries})`);
+          await new Promise(resolve => setTimeout(resolve, retryDelay));
+          continue; // Tekrar dene
         } else {
-          console.log('✅ Aktif eşleşme - partner profile null (anonim)');
+          console.error('Partner profil yüklenemedi:', error);
+          // Hata durumunda yeni eşleşme olarak kabul et (partnerProfileData null kalır)
+          break; // Retry döngüsünden çık
         }
       }
-    } catch (error) {
-      console.error('Partner profil yüklenemedi:', error);
-      // Hata durumunda yeni eşleşme olarak kabul et (partnerProfileData null kalır)
     }
     
     // Partner profile'ı set et ve sonra chat ekranına geç
