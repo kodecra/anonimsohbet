@@ -1553,13 +1553,31 @@ app.get('/api/matches/:matchId', authenticateToken, (req, res) => {
     console.log('Completed matches:', Array.from(completedMatches.keys()));
     console.log('Request userId:', userId);
     
-    // Kullanıcının aktif eşleşmesini kontrol et
-    for (const [socketId, userInfo] of activeUsers.entries()) {
-      if (userInfo.userId === userId && userInfo.matchId) {
-        console.log('User active socket:', socketId, 'matchId:', userInfo.matchId);
-        // Eğer kullanıcı aktif bir eşleşmedeyse, o match'i döndür
-        if (userInfo.matchId !== matchId) {
-          console.log('⚠️ Kullanıcının aktif matchId farklı, doğru matchId kullanılıyor:', userInfo.matchId, 'vs istenen:', matchId);
+    // Önce userId ile activeMatches'te ara
+    for (const [mid, m] of activeMatches.entries()) {
+      const mUser1Id = m.user1?.userId || m.user1?.user?.userId;
+      const mUser2Id = m.user2?.userId || m.user2?.user?.userId;
+      if (mUser1Id === userId || mUser2Id === userId) {
+        match = m;
+        matchId = mid;
+        console.log('✅ Kullanıcının aktif eşleşmesi bulundu (userId ile):', matchId);
+        // activeUsers'daki tüm socket.id'lerini güncelle
+        for (const [socketId, userInfo] of activeUsers.entries()) {
+          if (userInfo.userId === userId) {
+            userInfo.matchId = matchId;
+            userInfo.inMatch = true;
+            activeUsers.set(socketId, userInfo);
+          }
+        }
+        break;
+      }
+    }
+    
+    // Hala bulunamazsa, kullanıcının aktif eşleşmesini kontrol et
+    if (!match) {
+      for (const [socketId, userInfo] of activeUsers.entries()) {
+        if (userInfo.userId === userId && userInfo.matchId) {
+          console.log('User active socket:', socketId, 'matchId:', userInfo.matchId);
           // Doğru matchId ile tekrar ara
           match = activeMatches.get(userInfo.matchId);
           if (!match) {
@@ -1570,20 +1588,6 @@ app.get('/api/matches/:matchId', authenticateToken, (req, res) => {
             console.log('✅ Kullanıcının aktif eşleşmesi bulundu:', matchId);
             break;
           }
-        }
-      }
-    }
-    
-    // Hala bulunamazsa, userId ile aktif eşleşmelerde ara
-    if (!match) {
-      for (const [mid, m] of activeMatches.entries()) {
-        const mUser1Id = m.user1?.userId || m.user1?.user?.userId;
-        const mUser2Id = m.user2?.userId || m.user2?.user?.userId;
-        if (mUser1Id === userId || mUser2Id === userId) {
-          match = m;
-          matchId = mid;
-          console.log('✅ Kullanıcının aktif eşleşmesi bulundu (userId ile):', matchId);
-          break;
         }
       }
     }
@@ -1902,17 +1906,86 @@ io.on('connection', (socket) => {
       });
 
       // Her iki kullanıcıyı da eşleşmeye bağla
-      const user1Info = activeUsers.get(user1.socketId);
-      const user2Info = activeUsers.get(user2.socketId);
+      let user1Info = activeUsers.get(user1.socketId);
+      let user2Info = activeUsers.get(user2.socketId);
 
-      if (user1Info) {
-        user1Info.inMatch = true;
-        user1Info.matchId = matchId;
+      // Eğer userInfo bulunamazsa, userId ile tüm activeUsers'da ara
+      if (!user1Info) {
+        for (const [socketId, info] of activeUsers.entries()) {
+          if (info.userId === user1.userId) {
+            user1Info = info;
+            // Socket.id'yi güncelle
+            user1Info.socketId = user1.socketId;
+            activeUsers.set(user1.socketId, user1Info);
+            // Eski socket.id'yi sil (eğer farklıysa)
+            if (socketId !== user1.socketId) {
+              activeUsers.delete(socketId);
+            }
+            break;
+          }
+        }
+        // Hala bulunamazsa, yeni oluştur
+        if (!user1Info) {
+          user1Info = {
+            socketId: user1.socketId,
+            userId: user1.userId,
+            profile: user1.profile,
+            inMatch: true,
+            matchId: matchId
+          };
+          activeUsers.set(user1.socketId, user1Info);
+        }
       }
-      if (user2Info) {
-        user2Info.inMatch = true;
-        user2Info.matchId = matchId;
+
+      if (!user2Info) {
+        for (const [socketId, info] of activeUsers.entries()) {
+          if (info.userId === user2.userId) {
+            user2Info = info;
+            // Socket.id'yi güncelle
+            user2Info.socketId = user2.socketId;
+            activeUsers.set(user2.socketId, user2Info);
+            // Eski socket.id'yi sil (eğer farklıysa)
+            if (socketId !== user2.socketId) {
+              activeUsers.delete(socketId);
+            }
+            break;
+          }
+        }
+        // Hala bulunamazsa, yeni oluştur
+        if (!user2Info) {
+          user2Info = {
+            socketId: user2.socketId,
+            userId: user2.userId,
+            profile: user2.profile,
+            inMatch: true,
+            matchId: matchId
+          };
+          activeUsers.set(user2.socketId, user2Info);
+        }
       }
+
+      // MatchId'yi set et
+      user1Info.inMatch = true;
+      user1Info.matchId = matchId;
+      user2Info.inMatch = true;
+      user2Info.matchId = matchId;
+      
+      // Tüm socket.id'lerini güncelle (aynı userId'ye sahip tüm bağlantılar)
+      for (const [socketId, info] of activeUsers.entries()) {
+        if (info.userId === user1.userId) {
+          info.matchId = matchId;
+          info.inMatch = true;
+          activeUsers.set(socketId, info);
+        }
+        if (info.userId === user2.userId) {
+          info.matchId = matchId;
+          info.inMatch = true;
+          activeUsers.set(socketId, info);
+        }
+      }
+      
+      console.log(`✅ User1 matchId set edildi: ${user1Info.userId} -> ${matchId}`);
+      console.log(`✅ User2 matchId set edildi: ${user2Info.userId} -> ${matchId}`);
 
       // Her iki kullanıcıya eşleşme bildirimi gönder (anonim)
       io.to(user1.socketId).emit('match-found', {
@@ -2084,6 +2157,14 @@ io.on('connection', (socket) => {
           userInfo.matchId = matchId;
           userInfo.inMatch = true;
           activeUsers.set(socket.id, userInfo);
+          // Tüm socket.id'lerini güncelle (aynı userId'ye sahip tüm bağlantılar)
+          for (const [sid, info] of activeUsers.entries()) {
+            if (info.userId === userInfo.userId) {
+              info.matchId = matchId;
+              info.inMatch = true;
+              activeUsers.set(sid, info);
+            }
+          }
           break;
         }
       }
