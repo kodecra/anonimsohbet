@@ -106,3 +106,11 @@ Deploy tamamlandıktan sonra, backend loglarında şunu görmelisiniz:
 - **Otomatik yedekleme:** Render PostgreSQL otomatik yedek alır
 
 
+
+
+
+
+
+
+
+

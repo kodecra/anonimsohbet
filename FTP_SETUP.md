@@ -50,3 +50,11 @@ Upload yaptığınızda dosyalar:
 - **Fallback çalışıyor:** FTP hatası olursa dosyalar Render'da kalır (geçici), logları kontrol edin
 
 
+
+
+
+
+
+
+
+
