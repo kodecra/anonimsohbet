@@ -1925,25 +1925,62 @@ io.on('connection', (socket) => {
       console.log(`   Match activeMatches'te bulunamadı, completedMatches'te aranıyor...`);
     }
     
+    // Hala bulunamazsa, kullanıcının aktif eşleşmesini kullan
+    if (!match && userInfo.matchId) {
+      console.log(`   ⚠️ matchId ile match bulunamadı, kullanıcının aktif eşleşmesi deneniyor: ${userInfo.matchId}`);
+      match = activeMatches.get(userInfo.matchId);
+      if (!match) {
+        match = completedMatches.get(userInfo.matchId);
+      }
+      if (match) {
+        matchId = userInfo.matchId;
+        console.log(`   ✅ Kullanıcının aktif eşleşmesi bulundu: ${matchId}`);
+      }
+    }
+    
+    // Hala bulunamazsa, kullanıcının userId'si ile aktif eşleşmelerde ara
     if (!match) {
-      console.log(`   ❌ Match bulunamadı: ${matchId}`);
-      socket.emit('error', { message: 'Eşleşme bulunamadı. Lütfen sayfayı yenileyin.' });
+      console.log(`   ⚠️ matchId ile match bulunamadı, aktif eşleşmelerde userId ile aranıyor: ${userInfo.userId}`);
+      for (const [mid, m] of activeMatches.entries()) {
+        if ((m.user1?.userId === userInfo.userId || m.user2?.userId === userInfo.userId)) {
+          match = m;
+          matchId = mid;
+          console.log(`   ✅ Kullanıcının aktif eşleşmesi bulundu (userId ile): ${matchId}`);
+          // userInfo'yu güncelle
+          userInfo.matchId = matchId;
+          userInfo.inMatch = true;
+          activeUsers.set(socket.id, userInfo);
+          break;
+        }
+      }
+    }
+    
+    if (!match) {
+      console.log(`   ❌ Match bulunamadı: matchId=${matchId}, userId=${userInfo.userId}`);
+      console.log(`   activeMatches keys:`, Array.from(activeMatches.keys()));
+      console.log(`   completedMatches keys:`, Array.from(completedMatches.keys()));
+      socket.emit('error', { message: 'Eşleşme bulunamadı. Lütfen yeni bir eşleşme başlatın.' });
       return;
     }
     
     console.log(`   ✅ Match bulundu: ${matchId}`);
     
     // Kullanıcının bu match'te olup olmadığını kontrol et
-    if (match.user1.userId !== userInfo.userId && match.user2.userId !== userInfo.userId) {
-      console.log(`   ❌ Kullanıcı bu match'te değil: userId=${userInfo.userId}, match.user1=${match.user1.userId}, match.user2=${match.user2.userId}`);
+    const matchUser1Id = match.user1?.userId || match.user1?.user?.userId;
+    const matchUser2Id = match.user2?.userId || match.user2?.user?.userId;
+    
+    if (matchUser1Id !== userInfo.userId && matchUser2Id !== userInfo.userId) {
+      console.log(`   ❌ Kullanıcı bu match'te değil: userId=${userInfo.userId}, match.user1=${matchUser1Id}, match.user2=${matchUser2Id}`);
       socket.emit('error', { message: 'Bu eşleşmeye erişim yetkiniz yok' });
       return;
     }
 
     // Hangi kullanıcı olduğunu belirle
-    const isUser1 = match.user1.userId === userInfo.userId;
-    let partnerSocketId = isUser1 ? match.user2.socketId : match.user1.socketId;
-    const partnerUserId = isUser1 ? match.user2.userId : match.user1.userId;
+    const matchUser1Id = match.user1?.userId || match.user1?.user?.userId;
+    const matchUser2Id = match.user2?.userId || match.user2?.user?.userId;
+    const isUser1 = matchUser1Id === userInfo.userId;
+    let partnerSocketId = isUser1 ? (match.user2?.socketId || match.user2?.user?.socketId) : (match.user1?.socketId || match.user1?.user?.socketId);
+    const partnerUserId = isUser1 ? matchUser2Id : matchUser1Id;
 
     console.log(`   Kullanıcı bilgisi: isUser1=${isUser1}, partnerUserId=${partnerUserId}, partnerSocketId=${partnerSocketId}`);
 
@@ -2020,30 +2057,96 @@ io.on('connection', (socket) => {
 
   // Devam isteğini kabul etme
   socket.on('accept-continue-request', async (data) => {
-    const { matchId } = data;
-    const userInfo = activeUsers.get(socket.id);
+    let { matchId } = data;
+    let userInfo = activeUsers.get(socket.id);
     
-    if (!userInfo || !userInfo.inMatch || userInfo.matchId !== matchId) {
-      socket.emit('error', { message: 'Geçersiz eşleşme' });
+    // Eğer userInfo yoksa, socket.id ile aktif kullanıcıları kontrol et
+    if (!userInfo) {
+      for (const [sid, info] of activeUsers.entries()) {
+        if (sid === socket.id) {
+          userInfo = info;
+          break;
+        }
+      }
+    }
+    
+    // Eğer matchId yoksa, kullanıcının aktif eşleşmesini kullan
+    if (!matchId && userInfo?.matchId) {
+      matchId = userInfo.matchId;
+    }
+    
+    if (!userInfo) {
+      socket.emit('error', { message: 'Kullanıcı bilgisi bulunamadı' });
       return;
     }
-
-    const match = activeMatches.get(matchId);
-    if (!match) {
+    
+    if (!matchId) {
       socket.emit('error', { message: 'Eşleşme bulunamadı' });
       return;
     }
 
-    // Bekleyen devam isteğini bul
+    // Önce activeMatches'te ara
+    let match = activeMatches.get(matchId);
+    
+    // Bulunamazsa completedMatches'te ara
+    if (!match) {
+      match = completedMatches.get(matchId);
+    }
+    
+    // Hala bulunamazsa, kullanıcının aktif eşleşmesini kullan
+    if (!match && userInfo.matchId) {
+      match = activeMatches.get(userInfo.matchId);
+      if (!match) {
+        match = completedMatches.get(userInfo.matchId);
+      }
+      if (match) {
+        matchId = userInfo.matchId;
+      }
+    }
+    
+    if (!match) {
+      console.log(`❌ accept-continue-request: Match bulunamadı: matchId=${matchId}, userId=${userInfo.userId}`);
+      socket.emit('error', { message: 'Eşleşme bulunamadı' });
+      return;
+    }
+    
+    // Kullanıcının bu match'te olup olmadığını kontrol et
+    const matchUser1Id = match.user1?.userId || match.user1?.user?.userId;
+    const matchUser2Id = match.user2?.userId || match.user2?.user?.userId;
+    
+    if (matchUser1Id !== userInfo.userId && matchUser2Id !== userInfo.userId) {
+      socket.emit('error', { message: 'Bu eşleşmeye erişim yetkiniz yok' });
+      return;
+    }
+
+    // Bekleyen devam isteğini bul (matchId ile veya kullanıcının userId'si ile)
     let request = null;
     for (const [requestId, req] of followRequests.entries()) {
-      if (req.matchId === matchId && req.status === 'pending') {
-        request = req;
-        break;
+      if (req.status === 'pending') {
+        // matchId ile eşleşen veya kullanıcının userId'si ile eşleşen request'i bul
+        if (req.matchId === matchId || req.toUserId === userInfo.userId) {
+          request = req;
+          // matchId'yi güncelle
+          if (req.matchId !== matchId) {
+            matchId = req.matchId;
+            // Match'i tekrar bul
+            match = activeMatches.get(matchId);
+            if (!match) {
+              match = completedMatches.get(matchId);
+            }
+            if (!match) {
+              socket.emit('error', { message: 'Eşleşme bulunamadı' });
+              return;
+            }
+          }
+          break;
+        }
       }
     }
 
     if (!request) {
+      console.log(`❌ accept-continue-request: Devam isteği bulunamadı: matchId=${matchId}, userId=${userInfo.userId}`);
+      console.log(`   followRequests:`, Array.from(followRequests.entries()).map(([id, r]) => ({ id, matchId: r.matchId, fromUserId: r.fromUserId, toUserId: r.toUserId, status: r.status })));
       socket.emit('error', { message: 'Devam isteği bulunamadı' });
       return;
     }
