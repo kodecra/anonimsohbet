@@ -1680,7 +1680,7 @@ io.on('connection', (socket) => {
   console.log('Yeni kullanıcı bağlandı:', socket.id);
 
   // Kullanıcı profili ile bağlanıyor
-  socket.on('set-profile', (data) => {
+  socket.on('set-profile', async (data) => {
     const { userId, matchId } = data;
     
     if (!userId) {
