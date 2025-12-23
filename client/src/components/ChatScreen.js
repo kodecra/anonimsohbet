@@ -326,29 +326,20 @@ function ChatScreen({ userId, profile: currentProfile, matchId: initialMatchId, 
     newSocket.on('new-message', (message) => {
       console.log('Yeni mesaj alındı:', message);
       
+      // Sadece başkasından gelen mesajları ekle (kendi mesajlarımız message-sent ile geliyor)
+      if (message.userId === userId) {
+        console.log('Kendi mesajımız, new-message ile eklenmeyecek');
+        return;
+      }
+      
       // Mesajı ekle
       setMessages((prev) => {
-        // Geçici mesajı gerçek mesajla değiştir (aynı text ve aynı userId ile)
-        const filtered = prev.filter(m => {
-          if (m.isTemporary && m.text === message.text && m.userId === message.userId) {
-            return false; // Geçici mesajı kaldır
-          }
-          return true;
-        });
-        // Mesaj zaten varsa ekleme (id veya aynı text+userId+yakın timestamp ile kontrol)
-        const exists = filtered.find(m => {
-          if (m.id === message.id) return true;
-          // Aynı text, userId ve 5 saniye içinde gönderilmiş mesaj varsa duplicate
-          if (m.text === message.text && m.userId === message.userId) {
-            const timeDiff = Math.abs(new Date(m.timestamp) - new Date(message.timestamp));
-            if (timeDiff < 5000) return true;
-          }
-          return false;
-        });
-        if (!exists) {
-          return [...filtered, message];
+        // ID ile kontrol - zaten varsa ekleme
+        if (prev.some(m => m.id === message.id)) {
+          console.log('Mesaj zaten var (ID):', message.id);
+          return prev;
         }
-        return filtered;
+        return [...prev, message];
       });
       
       // Bildirim göster (sadece kendi mesajımız değilse)
@@ -373,21 +364,14 @@ function ChatScreen({ userId, profile: currentProfile, matchId: initialMatchId, 
       console.log('Mesaj gönderildi (confirmation):', message);
       // Geçici mesajı gerçek mesajla değiştir
       setMessages((prev) => {
-        const filtered = prev.filter(m => {
-          if (m.isTemporary && m.text === message.text && m.userId === message.userId) {
-            return false;
-          }
-          return true;
-        });
-        const exists = filtered.find(m => {
-          if (m.id === message.id) return true;
-          if (m.text === message.text && m.userId === message.userId) {
-            const timeDiff = Math.abs(new Date(m.timestamp) - new Date(message.timestamp));
-            if (timeDiff < 5000) return true;
-          }
-          return false;
-        });
-        if (!exists) {
+        // Geçici mesajı kaldır
+        const filtered = prev.filter(m => !m.isTemporary || m.text !== message.text);
+        // ID ile kontrol - zaten varsa ekleme
+        if (filtered.some(m => m.id === message.id)) {
+          console.log('Mesaj zaten var (message-sent):', message.id);
+          return filtered;
+        }
+        if (!filtered.some(m => m.id === message.id)) {
           return [...filtered, message];
         }
         return filtered;
@@ -1191,11 +1175,11 @@ function ChatScreen({ userId, profile: currentProfile, matchId: initialMatchId, 
       <Content style={{ 
         flex: 1, 
         overflow: 'auto', 
-        padding: '8px 12px',
+        padding: '10px 14px',
         display: 'flex',
         flexDirection: 'column',
-        gap: '2px',
-        background: isDarkMode ? '#0b141a' : '#e5ddd5',
+        gap: '3px',
+        background: isDarkMode ? '#16213e' : '#f0f2f5',
         transition: 'background 0.3s ease'
       }}>
         {messages.map((message) => {
@@ -1209,99 +1193,48 @@ function ChatScreen({ userId, profile: currentProfile, matchId: initialMatchId, 
             key={message.id}
             style={{
               alignSelf: message.userId === userId ? 'flex-end' : 'flex-start',
-              maxWidth: '75%',
-              display: 'flex',
-              flexDirection: message.userId === userId ? 'row-reverse' : 'row',
-              gap: '4px',
-              alignItems: 'flex-end'
+              maxWidth: '70%'
             }}
           >
-            {/* Profil Resmi */}
-            {isCompletedMatch && messageSenderProfile && (
-              <Avatar
-                src={messageSenderProfile.photos && messageSenderProfile.photos.length > 0 
-                  ? (messageSenderProfile.photos[0].url && messageSenderProfile.photos[0].url.startsWith('http')
-                      ? messageSenderProfile.photos[0].url
-                      : `${API_URL}${messageSenderProfile.photos[0].url}`)
-                  : null}
-                size={24}
-                style={{ 
-                  cursor: 'pointer',
-                  flexShrink: 0
-                }}
-                onClick={() => {
-                  if (messageSenderProfile.photos && messageSenderProfile.photos.length > 0) {
-                    setGalleryImages(messageSenderProfile.photos.map(p => `${API_URL}${p.url}`));
-                    setGalleryStartIndex(0);
-                    setGalleryVisible(true);
-                  }
-                }}
-              >
-                {messageSenderProfile.firstName || messageSenderProfile.lastName
-                  ? `${(messageSenderProfile.firstName || '').charAt(0)}${(messageSenderProfile.lastName || '').charAt(0)}`.toUpperCase()
-                  : (messageSenderProfile.username || '?').charAt(0).toUpperCase()}
-              </Avatar>
-            )}
-            
             <Card
               style={{
-                padding: '4px 8px',
+                padding: '5px 10px 4px 10px',
                 backgroundColor: message.userId === userId 
-                  ? (isDarkMode ? '#005c4b' : '#dcf8c6')
-                  : (isDarkMode ? '#1f2c34' : '#fff'),
-                borderRadius: message.userId === userId ? '6px 6px 0 6px' : '6px 6px 6px 0',
+                  ? (isDarkMode ? '#5E72E4' : '#1890ff')
+                  : (isDarkMode ? '#2d3748' : '#fff'),
+                borderRadius: message.userId === userId ? '12px 12px 4px 12px' : '12px 12px 12px 4px',
                 border: 'none',
-                maxWidth: '75%',
-                minWidth: '80px',
-                boxShadow: '0 1px 0.5px rgba(0,0,0,0.13)',
-                transition: 'background-color 0.2s ease'
+                minWidth: '70px',
+                boxShadow: '0 1px 2px rgba(0,0,0,0.1)'
               }}
               styles={{ body: { padding: 0 } }}
             >
               {!message.isSystem && (
-                <div style={{ 
-                  display: 'flex', 
-                  alignItems: 'center',
-                  gap: '6px',
-                  marginBottom: '1px'
-                }}>
-                  <Text 
-                    strong 
-                    style={{ 
-                      color: message.userId === userId 
-                        ? (isDarkMode ? 'rgba(255,255,255,0.7)' : '#075e54') 
-                        : (isDarkMode ? '#53bdeb' : '#075e54'),
-                      fontSize: '11px',
-                      fontWeight: 600
-                    }}
-                  >
-                    {isCompletedMatch && messageSenderProfile
-                      ? formatDisplayName(messageSenderProfile)
-                      : message.userId === userId 
-                        ? `@${message.username || 'Sen'}` 
-                        : `@Anonim-${partnerAnonymousId || '000000'}`
-                    }
-                  </Text>
-                  <Text 
-                    style={{ 
-                      color: message.userId === userId 
-                        ? (isDarkMode ? 'rgba(255,255,255,0.5)' : '#667781') 
-                        : (isDarkMode ? 'rgba(255,255,255,0.45)' : '#667781'),
-                      fontSize: '10px'
-                    }}
-                  >
-                    {formatTime(message.timestamp)}
-                  </Text>
-                </div>
+                <Text 
+                  style={{ 
+                    color: message.userId === userId 
+                      ? 'rgba(255,255,255,0.85)' 
+                      : (isDarkMode ? '#63b3ed' : '#1890ff'),
+                    fontSize: '11px',
+                    fontWeight: 600,
+                    display: 'block',
+                    marginBottom: '2px'
+                  }}
+                >
+                  {isCompletedMatch && messageSenderProfile
+                    ? formatDisplayName(messageSenderProfile)
+                    : message.userId === userId 
+                      ? `@${message.username || 'Sen'}` 
+                      : `@Anonim-${partnerAnonymousId || '000000'}`
+                  }
+                </Text>
               )}
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div>
                 <Text style={{ 
-                  color: message.userId === userId 
-                    ? (isDarkMode ? '#e9edef' : '#000') 
-                    : (isDarkMode ? '#e9edef' : '#000'),
+                  color: message.userId === userId ? '#fff' : (isDarkMode ? '#e2e8f0' : '#1a202c'),
                   fontSize: '13px',
-                  lineHeight: 1.3,
-                  flex: 1
+                  lineHeight: 1.35,
+                  display: 'block'
                 }}>
                   {message.deleted ? (
                     <Text type="secondary" italic style={{ 
@@ -1313,14 +1246,14 @@ function ChatScreen({ userId, profile: currentProfile, matchId: initialMatchId, 
                   ) : (
                     <>
                       {message.mediaUrl && (
-                        <div style={{ marginBottom: message.text ? '8px' : 0 }}>
+                        <div style={{ marginBottom: message.text ? '6px' : 0 }}>
                           <img 
                             src={message.mediaUrl.startsWith('http') ? message.mediaUrl : `${API_URL}${message.mediaUrl}`}
                             alt="Gönderilen medya"
                             style={{ 
                               maxWidth: '100%', 
-                              maxHeight: '300px', 
-                              borderRadius: '8px',
+                              maxHeight: '200px', 
+                              borderRadius: '6px',
                               cursor: 'pointer'
                             }}
                             onClick={() => {
@@ -1336,48 +1269,59 @@ function ChatScreen({ userId, profile: currentProfile, matchId: initialMatchId, 
                     </>
                   )}
                 </Text>
-                {!message.isSystem && !message.deleted && (
-                  <Dropdown
-                    menu={{
-                      items: [
-                        {
-                          key: 'copy',
-                          label: 'Kopyala',
-                          icon: <CopyOutlined />,
-                          onClick: () => copyMessage(message.text)
-                        },
-                        ...(message.userId === userId ? [{
-                          key: 'delete',
-                          label: 'Sil',
-                          icon: <DeleteOutlined />,
-                          danger: true,
-                          onClick: () => deleteMessage(message.id)
-                        }] : []),
-                        {
-                          key: 'react',
-                          label: 'Reaksiyon',
-                          icon: <SmileOutlined />,
-                          children: ['👍', '❤️', '😂', '😮', '😢', '🙏'].map(emoji => ({
-                            key: emoji,
-                            label: emoji,
-                            onClick: () => reactToMessage(message.id, emoji)
-                          }))
-                        }
-                      ]
-                    }}
-                    trigger={['contextMenu', 'click']}
-                  >
-                    <Button 
-                      type="text" 
-                      size="small" 
-                      icon={<SmileOutlined />}
-                      style={{ 
-                        color: message.userId === userId ? 'rgba(255,255,255,0.7)' : '#8c8c8c',
-                        marginLeft: '8px'
+                {/* Saat sağ altta */}
+                <div style={{ 
+                  display: 'flex', 
+                  justifyContent: 'flex-end', 
+                  alignItems: 'center',
+                  marginTop: '2px',
+                  gap: '4px'
+                }}>
+                  <Text style={{ 
+                    color: message.userId === userId ? 'rgba(255,255,255,0.6)' : '#8c8c8c',
+                    fontSize: '10px'
+                  }}>
+                    {formatTime(message.timestamp)}
+                  </Text>
+                  {!message.isSystem && !message.deleted && (
+                    <Dropdown
+                      menu={{
+                        items: [
+                          {
+                            key: 'copy',
+                            label: 'Kopyala',
+                            icon: <CopyOutlined />,
+                            onClick: () => copyMessage(message.text)
+                          },
+                          ...(message.userId === userId ? [{
+                            key: 'delete',
+                            label: 'Sil',
+                            icon: <DeleteOutlined />,
+                            danger: true,
+                            onClick: () => deleteMessage(message.id)
+                          }] : []),
+                          {
+                            key: 'react',
+                            label: 'Reaksiyon',
+                            icon: <SmileOutlined />,
+                            children: ['👍', '❤️', '😂', '😮', '😢', '🙏'].map(emoji => ({
+                              key: emoji,
+                              label: emoji,
+                              onClick: () => reactToMessage(message.id, emoji)
+                            }))
+                          }
+                        ]
                       }}
-                    />
-                  </Dropdown>
-                )}
+                      trigger={['contextMenu']}
+                    >
+                      <SmileOutlined style={{ 
+                        color: message.userId === userId ? 'rgba(255,255,255,0.5)' : '#a0aec0',
+                        fontSize: '11px',
+                        cursor: 'pointer'
+                      }} />
+                    </Dropdown>
+                  )}
+                </div>
               </div>
               
               {/* Reaksiyonlar */}
