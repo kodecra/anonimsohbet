@@ -1685,12 +1685,29 @@ app.get('/api/matches/:matchId', authenticateToken, (req, res) => {
     };
   }
   
+  // Follow request durumunu kontrol et
+  let pendingFollowRequest = null;
+  for (const [requestId, request] of followRequests.entries()) {
+    if (request.matchId === actualMatchId && request.status === 'pending') {
+      pendingFollowRequest = {
+        requestId: requestId,
+        fromUserId: request.fromUserId,
+        toUserId: request.toUserId,
+        isReceived: request.toUserId === userId, // Kullanıcıya gelen istek mi?
+        isSent: request.fromUserId === userId,   // Kullanıcının gönderdiği istek mi?
+        createdAt: request.createdAt
+      };
+      break;
+    }
+  }
+  
   res.json({
     match: {
       matchId: actualMatchId || match.id || requestedMatchId,
       partner: partnerInfo,  // Aktif eşleşmede null, completed'de partner bilgisi
       messages: match.messages || [],
-      startedAt: match.startedAt ? (match.startedAt instanceof Date ? match.startedAt.getTime() : match.startedAt) : null
+      startedAt: match.startedAt ? (match.startedAt instanceof Date ? match.startedAt.getTime() : match.startedAt) : null,
+      pendingFollowRequest: pendingFollowRequest // Bekleyen istek bilgisi
     }
   });
 });

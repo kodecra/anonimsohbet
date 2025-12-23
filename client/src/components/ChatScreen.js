@@ -178,6 +178,24 @@ function ChatScreen({ userId, profile: currentProfile, matchId: initialMatchId, 
             setIsCompletedMatch(false);
             setPartnerProfile(null);
           }
+          
+          // Pending follow request kontrolü
+          if (data.match.pendingFollowRequest) {
+            const pfr = data.match.pendingFollowRequest;
+            console.log('✅ Pending follow request bulundu:', pfr);
+            if (pfr.isReceived) {
+              // Kullanıcıya gelen istek - yanıt vermesi gerekiyor
+              console.log('✅ Kullanıcıya gelen istek, yanıt vermesi gerekiyor');
+              setContinueRequestReceived(true);
+              setWaitingForPartner(false);
+            } else if (pfr.isSent) {
+              // Kullanıcının gönderdiği istek - yanıt bekliyor
+              console.log('✅ Kullanıcının gönderdiği istek, yanıt bekliyor');
+              setWaitingForPartner(true);
+              waitingForPartnerRef.current = true;
+              setContinueRequestReceived(false);
+            }
+          }
         }
       })
       .catch(err => {
