@@ -1975,9 +1975,7 @@ io.on('connection', (socket) => {
       return;
     }
 
-    // Hangi kullanıcı olduğunu belirle
-    const matchUser1Id = match.user1?.userId || match.user1?.user?.userId;
-    const matchUser2Id = match.user2?.userId || match.user2?.user?.userId;
+    // Hangi kullanıcı olduğunu belirle (matchUser1Id ve matchUser2Id zaten yukarıda tanımlı)
     const isUser1 = matchUser1Id === userInfo.userId;
     let partnerSocketId = isUser1 ? (match.user2?.socketId || match.user2?.user?.socketId) : (match.user1?.socketId || match.user1?.user?.socketId);
     const partnerUserId = isUser1 ? matchUser2Id : matchUser1Id;
