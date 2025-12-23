@@ -1209,26 +1209,33 @@ app.delete('/api/matches/:matchId', authenticateToken, async (req, res) => {
     return res.status(403).json({ error: 'Bu eşleşmede değilsiniz' });
   }
   
-  // Eşleşmeyi kullanıcının listesinden çıkar
+  // Eşleşmeyi kullanıcının listesinden çıkar (Instagram unfollow mantığı)
+  // Eşleşme veritabanında kalacak, sadece kullanıcının listesinden çıkarılacak
   const userMatchIds = userMatches.get(userId) || [];
   const filteredMatchIds = userMatchIds.filter(id => id !== matchId);
   userMatches.set(userId, filteredMatchIds);
   
-  // Partner'ın listesinden de çıkar (eğer partnerId varsa)
-  const partnerId = user1Id === userId ? user2Id : user1Id;
-  if (partnerId) {
-    const partnerMatchIds = userMatches.get(partnerId) || [];
-    const filteredPartnerMatchIds = partnerMatchIds.filter(id => id !== matchId);
-    userMatches.set(partnerId, filteredPartnerMatchIds);
-  }
+  // Partner'ın listesinden çıkarma - her kullanıcı kendi listesini yönetir
+  // (Instagram'da da birisi unfollow yapınca diğerinin listesinden çıkmaz)
   
-  // Eşleşmeyi sil
-  completedMatches.delete(matchId);
-  deleteActiveMatch(matchId); // Timer interval'ini de temizler
+  // Eşleşmeyi SİLME - sadece kullanıcının listesinden çıkar
+  // completedMatches'te kalacak, böylece tekrar eşleşme yapılabilir
+  // Active match ise sadece kullanıcının activeUsers'dan matchId'sini temizle
+  if (activeMatches.has(matchId)) {
+    // Active match ise, kullanıcının activeUsers'dan matchId'sini temizle
+    for (const [socketId, userInfo] of activeUsers.entries()) {
+      if (userInfo.userId === userId && userInfo.matchId === matchId) {
+        userInfo.matchId = null;
+        userInfo.inMatch = false;
+        activeUsers.set(socketId, userInfo);
+      }
+    }
+    // Active match'i silme - partner hala eşleşmede olabilir
+  }
   
   await saveMatches(completedMatches, userMatches);
   
-  console.log(`Eşleşme silindi: ${matchId} (Kullanıcı: ${userId})`);
+  console.log(`Eşleşme kullanıcının listesinden çıkarıldı: ${matchId} (Kullanıcı: ${userId})`);
   
   res.json({ success: true, message: 'Eşleşmeden çıkıldı' });
 });
