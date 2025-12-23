@@ -211,8 +211,22 @@ function ChatScreen({ userId, profile: currentProfile, matchId: initialMatchId, 
       console.log('✅ initialPartnerProfile var - completed match', initialPartnerProfile);
       setIsCompletedMatch(true);
       setPartnerProfile(initialPartnerProfile);
-      // Not: Mesaj geçmişi zaten App.js'den geliyor veya yukarıdaki fetch'te yükleniyor
-      // Duplicate yüklemeyi önlemek için burada tekrar fetch yapmıyoruz
+      
+      // Mesaj geçmişini yükle
+      const token = localStorage.getItem('token');
+      if (token) {
+        fetch(`${API_URL}/api/matches/${activeMatchId}`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        })
+        .then(res => res.ok ? res.json() : null)
+        .then(data => {
+          if (data?.match?.messages?.length > 0) {
+            console.log(`✅ ${data.match.messages.length} mesaj yüklendi`);
+            setMessages(data.match.messages);
+          }
+        })
+        .catch(err => console.error('Mesaj yükleme hatası:', err));
+      }
     }
     
     const newSocket = io(API_URL);
@@ -1140,48 +1154,63 @@ function ChatScreen({ userId, profile: currentProfile, matchId: initialMatchId, 
             key={message.id}
             style={{
               alignSelf: message.userId === userId ? 'flex-end' : 'flex-start',
-              maxWidth: '70%'
+              maxWidth: '80%',
+              minWidth: '120px'
             }}
           >
             <Card
               style={{
-                padding: '5px 10px 4px 10px',
+                padding: '8px 12px',
                 backgroundColor: message.userId === userId 
                   ? (isDarkMode ? '#5E72E4' : '#1890ff')
                   : (isDarkMode ? '#2d3748' : '#fff'),
-                borderRadius: message.userId === userId ? '12px 12px 4px 12px' : '12px 12px 12px 4px',
+                borderRadius: message.userId === userId ? '16px 16px 4px 16px' : '16px 16px 16px 4px',
                 border: 'none',
-                minWidth: '70px',
                 boxShadow: '0 1px 2px rgba(0,0,0,0.1)'
               }}
               styles={{ body: { padding: 0 } }}
             >
+              {/* Kullanıcı adı ve saat - aynı satırda */}
               {!message.isSystem && (
-                <Text 
-                  style={{ 
-                    color: message.userId === userId 
-                      ? 'rgba(255,255,255,0.85)' 
-                      : (isDarkMode ? '#63b3ed' : '#1890ff'),
-                    fontSize: '11px',
-                    fontWeight: 600,
-                    display: 'block',
-                    marginBottom: '2px'
-                  }}
-                >
-                  {isCompletedMatch && messageSenderProfile
-                    ? formatDisplayName(messageSenderProfile)
-                    : message.userId === userId 
-                      ? `@${message.username || 'Sen'}` 
-                      : `@Anonim-${partnerAnonymousId || '000000'}`
-                  }
-                </Text>
+                <div style={{ 
+                  display: 'flex', 
+                  justifyContent: 'space-between', 
+                  alignItems: 'center',
+                  marginBottom: '4px',
+                  gap: '12px'
+                }}>
+                  <Text 
+                    style={{ 
+                      color: message.userId === userId 
+                        ? 'rgba(255,255,255,0.85)' 
+                        : (isDarkMode ? '#63b3ed' : '#1890ff'),
+                      fontSize: '12px',
+                      fontWeight: 600
+                    }}
+                  >
+                    {isCompletedMatch && messageSenderProfile
+                      ? formatDisplayName(messageSenderProfile)
+                      : message.userId === userId 
+                        ? `@${message.username || 'Sen'}` 
+                        : `@Anonim-${partnerAnonymousId || '000000'}`
+                    }
+                  </Text>
+                  <Text style={{ 
+                    color: message.userId === userId ? 'rgba(255,255,255,0.6)' : '#8c8c8c',
+                    fontSize: '10px',
+                    whiteSpace: 'nowrap'
+                  }}>
+                    {formatTime(message.timestamp)}
+                  </Text>
+                </div>
               )}
+              {/* Mesaj içeriği */}
               <div>
                 <Text style={{ 
                   color: message.userId === userId ? '#fff' : (isDarkMode ? '#e2e8f0' : '#1a202c'),
-                  fontSize: '13px',
-                  lineHeight: 1.35,
-                  display: 'block'
+                  fontSize: '14px',
+                  lineHeight: 1.4,
+                  wordBreak: 'break-word'
                 }}>
                   {message.deleted ? (
                     <Text type="secondary" italic style={{ 
@@ -1216,59 +1245,6 @@ function ChatScreen({ userId, profile: currentProfile, matchId: initialMatchId, 
                     </>
                   )}
                 </Text>
-                {/* Saat sağ altta */}
-                <div style={{ 
-                  display: 'flex', 
-                  justifyContent: 'flex-end', 
-                  alignItems: 'center',
-                  marginTop: '2px',
-                  gap: '4px'
-                }}>
-                  <Text style={{ 
-                    color: message.userId === userId ? 'rgba(255,255,255,0.6)' : '#8c8c8c',
-                    fontSize: '10px'
-                  }}>
-                    {formatTime(message.timestamp)}
-                  </Text>
-                  {!message.isSystem && !message.deleted && (
-                    <Dropdown
-                      menu={{
-                        items: [
-                          {
-                            key: 'copy',
-                            label: 'Kopyala',
-                            icon: <CopyOutlined />,
-                            onClick: () => copyMessage(message.text)
-                          },
-                          ...(message.userId === userId ? [{
-                            key: 'delete',
-                            label: 'Sil',
-                            icon: <DeleteOutlined />,
-                            danger: true,
-                            onClick: () => deleteMessage(message.id)
-                          }] : []),
-                          {
-                            key: 'react',
-                            label: 'Reaksiyon',
-                            icon: <SmileOutlined />,
-                            children: ['👍', '❤️', '😂', '😮', '😢', '🙏'].map(emoji => ({
-                              key: emoji,
-                              label: emoji,
-                              onClick: () => reactToMessage(message.id, emoji)
-                            }))
-                          }
-                        ]
-                      }}
-                      trigger={['contextMenu']}
-                    >
-                      <SmileOutlined style={{ 
-                        color: message.userId === userId ? 'rgba(255,255,255,0.5)' : '#a0aec0',
-                        fontSize: '11px',
-                        cursor: 'pointer'
-                      }} />
-                    </Dropdown>
-                  )}
-                </div>
               </div>
               
               {/* Reaksiyonlar */}
