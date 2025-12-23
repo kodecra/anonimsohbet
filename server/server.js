@@ -1568,6 +1568,47 @@ app.get('/api/matches/:matchId', authenticateToken, (req, res) => {
   });
 });
 
+// Match için okunmamış mesaj sayısı
+app.get('/api/matches/:matchId/unread-count', authenticateToken, (req, res) => {
+  const userId = req.user.userId;
+  const matchId = req.params.matchId;
+  
+  // Önce activeMatches'te ara, bulamazsan completedMatches'te ara
+  let match = activeMatches.get(matchId);
+  if (!match) {
+    match = completedMatches.get(matchId);
+  }
+
+  if (!match) {
+    return res.json({ count: 0 });
+  }
+  
+  // Kullanıcının bu eşleşmede olup olmadığını kontrol et
+  const matchUser1Id = match.user1?.userId || match.user1?.user?.userId;
+  const matchUser2Id = match.user2?.userId || match.user2?.user?.userId;
+  
+  if (matchUser1Id !== userId && matchUser2Id !== userId) {
+    return res.json({ count: 0 });
+  }
+
+  // Okunmamış mesaj sayısını hesapla (basit versiyon - son mesajın kullanıcıya ait olup olmadığına bak)
+  let unreadCount = 0;
+  if (match.messages && match.messages.length > 0) {
+    const lastMessage = match.messages[match.messages.length - 1];
+    // Eğer son mesaj kullanıcıya ait değilse ve okunmamışsa say
+    if (lastMessage.userId !== userId && !lastMessage.read) {
+      // Son mesajdan geriye doğru say
+      for (let i = match.messages.length - 1; i >= 0; i--) {
+        const msg = match.messages[i];
+        if (msg.userId === userId) break; // Kendi mesajına gelince dur
+        if (!msg.read) unreadCount++;
+      }
+    }
+  }
+  
+  res.json({ count: unreadCount });
+});
+
 // Socket.io bağlantıları
 io.on('connection', (socket) => {
   console.log('Yeni kullanıcı bağlandı:', socket.id);
@@ -1942,7 +1983,9 @@ io.on('connection', (socket) => {
     if (!match) {
       console.log(`   ⚠️ matchId ile match bulunamadı, aktif eşleşmelerde userId ile aranıyor: ${userInfo.userId}`);
       for (const [mid, m] of activeMatches.entries()) {
-        if ((m.user1?.userId === userInfo.userId || m.user2?.userId === userInfo.userId)) {
+        const mUser1Id = m.user1?.userId || m.user1?.user?.userId;
+        const mUser2Id = m.user2?.userId || m.user2?.user?.userId;
+        if (mUser1Id === userInfo.userId || mUser2Id === userInfo.userId) {
           match = m;
           matchId = mid;
           console.log(`   ✅ Kullanıcının aktif eşleşmesi bulundu (userId ile): ${matchId}`);
@@ -1955,9 +1998,33 @@ io.on('connection', (socket) => {
       }
     }
     
+    // Hala bulunamazsa, socket.id ile aktif eşleşmelerde ara
     if (!match) {
-      console.log(`   ❌ Match bulunamadı: matchId=${matchId}, userId=${userInfo.userId}`);
+      console.log(`   ⚠️ userId ile match bulunamadı, socket.id ile aktif eşleşmelerde aranıyor: ${socket.id}`);
+      for (const [mid, m] of activeMatches.entries()) {
+        const mUser1SocketId = m.user1?.socketId || m.user1?.user?.socketId;
+        const mUser2SocketId = m.user2?.socketId || m.user2?.user?.socketId;
+        if (mUser1SocketId === socket.id || mUser2SocketId === socket.id) {
+          match = m;
+          matchId = mid;
+          console.log(`   ✅ Kullanıcının aktif eşleşmesi bulundu (socket.id ile): ${matchId}`);
+          // userInfo'yu güncelle
+          userInfo.matchId = matchId;
+          userInfo.inMatch = true;
+          activeUsers.set(socket.id, userInfo);
+          break;
+        }
+      }
+    }
+    
+    if (!match) {
+      console.log(`   ❌ Match bulunamadı: matchId=${matchId}, userId=${userInfo.userId}, socketId=${socket.id}`);
       console.log(`   activeMatches keys:`, Array.from(activeMatches.keys()));
+      console.log(`   activeMatches details:`, Array.from(activeMatches.entries()).map(([id, m]) => ({
+        id,
+        user1: { userId: m.user1?.userId || m.user1?.user?.userId, socketId: m.user1?.socketId || m.user1?.user?.socketId },
+        user2: { userId: m.user2?.userId || m.user2?.user?.userId, socketId: m.user2?.socketId || m.user2?.user?.socketId }
+      })));
       console.log(`   completedMatches keys:`, Array.from(completedMatches.keys()));
       socket.emit('error', { message: 'Eşleşme bulunamadı. Lütfen yeni bir eşleşme başlatın.' });
       return;
