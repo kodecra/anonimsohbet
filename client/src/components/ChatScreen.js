@@ -86,8 +86,10 @@ function ChatScreen({ userId, profile: currentProfile, matchId, partnerProfile: 
     }
     
     // Completed match kontrolü: initialPartnerProfile yoksa ama matchId varsa API'den kontrol et
-    if (!initialPartnerProfile && matchId) {
-      fetch(`${API_URL}/api/matches/${matchId}`, {
+    if (!initialPartnerProfile && matchId && typeof matchId === 'string' && matchId.trim() !== '') {
+      // matchId'nin geçerli olduğundan emin ol
+      const cleanMatchId = matchId.trim();
+      fetch(`${API_URL}/api/matches/${cleanMatchId}`, {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('token')}`
         }
@@ -188,9 +190,10 @@ function ChatScreen({ userId, profile: currentProfile, matchId, partnerProfile: 
       newSocket.emit('set-profile', { userId, matchId });
       
       // Socket bağlandığında mesajları tekrar yükle (kaybolma sorununu önlemek için)
-      if (matchId && (isCompletedMatch || partnerProfile)) {
-        console.log('✅ Socket bağlandı - mesaj geçmişi yükleniyor...', { matchId, isCompletedMatch, partnerProfile: !!partnerProfile });
-        fetch(`${API_URL}/api/matches/${matchId}`, {
+      if (matchId && typeof matchId === 'string' && matchId.trim() !== '' && (isCompletedMatch || partnerProfile)) {
+        const cleanMatchId = matchId.trim();
+        console.log('✅ Socket bağlandı - mesaj geçmişi yükleniyor...', { matchId: cleanMatchId, isCompletedMatch, partnerProfile: !!partnerProfile });
+        fetch(`${API_URL}/api/matches/${cleanMatchId}`, {
           headers: {
             'Authorization': `Bearer ${localStorage.getItem('token')}`
           }

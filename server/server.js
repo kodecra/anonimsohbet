@@ -1517,27 +1517,58 @@ app.get('/api/matches/:matchId', authenticateToken, (req, res) => {
     console.log('Active matches:', Array.from(activeMatches.keys()));
     console.log('Completed matches:', Array.from(completedMatches.keys()));
     console.log('Request userId:', userId);
-    // Debug için activeUsers'ı kontrol et
+    
+    // Kullanıcının aktif eşleşmesini kontrol et
     for (const [socketId, userInfo] of activeUsers.entries()) {
-      if (userInfo.userId === userId) {
+      if (userInfo.userId === userId && userInfo.matchId) {
         console.log('User active socket:', socketId, 'matchId:', userInfo.matchId);
         // Eğer kullanıcı aktif bir eşleşmedeyse, o match'i döndür
-        if (userInfo.matchId && userInfo.matchId !== matchId) {
-          console.log('⚠️ Kullanıcının aktif matchId farklı:', userInfo.matchId, 'vs istenen:', matchId);
+        if (userInfo.matchId !== matchId) {
+          console.log('⚠️ Kullanıcının aktif matchId farklı, doğru matchId kullanılıyor:', userInfo.matchId, 'vs istenen:', matchId);
+          // Doğru matchId ile tekrar ara
+          match = activeMatches.get(userInfo.matchId);
+          if (!match) {
+            match = completedMatches.get(userInfo.matchId);
+          }
+          if (match) {
+            matchId = userInfo.matchId;
+            console.log('✅ Kullanıcının aktif eşleşmesi bulundu:', matchId);
+            break;
+          }
         }
       }
     }
-    return res.status(404).json({ error: 'Eşleşme bulunamadı' });
+    
+    // Hala bulunamazsa, userId ile aktif eşleşmelerde ara
+    if (!match) {
+      for (const [mid, m] of activeMatches.entries()) {
+        const mUser1Id = m.user1?.userId || m.user1?.user?.userId;
+        const mUser2Id = m.user2?.userId || m.user2?.user?.userId;
+        if (mUser1Id === userId || mUser2Id === userId) {
+          match = m;
+          matchId = mid;
+          console.log('✅ Kullanıcının aktif eşleşmesi bulundu (userId ile):', matchId);
+          break;
+        }
+      }
+    }
+    
+    if (!match) {
+      return res.status(404).json({ error: 'Eşleşme bulunamadı' });
+    }
   }
   
   console.log('✅ Match bulundu:', matchId, 'isActiveMatch:', isActiveMatch);
 
   // Kullanıcının bu eşleşmede olup olmadığını kontrol et
-  if (match.user1.userId !== userId && match.user2.userId !== userId) {
+  const matchUser1Id = match.user1?.userId || match.user1?.user?.userId;
+  const matchUser2Id = match.user2?.userId || match.user2?.user?.userId;
+  
+  if (matchUser1Id !== userId && matchUser2Id !== userId) {
     return res.status(403).json({ error: 'Bu eşleşmeye erişim yetkiniz yok' });
   }
 
-  const partner = match.user1.userId === userId ? match.user2 : match.user1;
+  const partner = matchUser1Id === userId ? match.user2 : match.user1;
   
   let partnerInfo = null;
   if (!isActiveMatch) {
