@@ -250,15 +250,18 @@ app.post('/api/login', async (req, res) => {
   } 
   // Username veya phoneNumber ile login
   else {
+    console.log('🔍 Username/PhoneNumber ile login deneniyor:', { username, phoneNumber });
     // Users map'inde username veya phoneNumber'a göre ara
     let foundProfile = null;
     for (const [uid, profile] of users.entries()) {
       if (username && profile.username && profile.username.toLowerCase() === username.toLowerCase()) {
+        console.log('✅ Username bulundu:', profile.username);
         foundProfile = profile;
         userId = uid;
         break;
       }
       if (phoneNumber && profile.phoneNumber === phoneNumber) {
+        console.log('✅ PhoneNumber bulundu:', profile.phoneNumber);
         foundProfile = profile;
         userId = uid;
         break;
@@ -266,29 +269,36 @@ app.post('/api/login', async (req, res) => {
     }
 
     if (!foundProfile) {
+      console.log('❌ Kullanıcı bulunamadı');
       return res.status(401).json({ error: 'Kullanıcı adı/telefon veya şifre hatalı' });
     }
 
+    console.log('🔍 userAuth\'da email aranıyor, userId:', userId);
     // userId'ye göre userAuth'dan email'i bul
     for (const [emailKey, auth] of userAuth.entries()) {
       if (auth.userId === userId) {
         userEmail = emailKey;
+        console.log('✅ Email bulundu:', userEmail);
         break;
       }
     }
 
     if (!userEmail) {
+      console.log('❌ userAuth\'da email bulunamadı');
       return res.status(401).json({ error: 'Kullanıcı adı/telefon veya şifre hatalı' });
     }
   }
 
   // Şifre kontrolü
+  console.log('🔐 Şifre kontrol ediliyor, userEmail:', userEmail);
   const auth = userAuth.get(userEmail);
   if (!auth) {
+    console.log('❌ userAuth bulunamadı');
     return res.status(401).json({ error: 'Email veya şifre hatalı' });
   }
 
   const isValidPassword = await bcrypt.compare(password, auth.passwordHash);
+  console.log('🔐 Şifre kontrolü sonucu:', isValidPassword);
   if (!isValidPassword) {
     return res.status(401).json({ error: 'Email veya şifre hatalı' });
   }
