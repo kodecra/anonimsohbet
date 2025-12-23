@@ -3086,12 +3086,35 @@ io.on('connection', (socket) => {
   socket.on('disconnect', async () => {
     const userInfo = activeUsers.get(socket.id);
     if (userInfo) {
+      const userId = userInfo.userId;
+      const matchId = userInfo.matchId;
+      
+      // Bu socket'i activeUsers'dan sil
+      activeUsers.delete(socket.id);
+      console.log(`Kullanıcı bağlantısını kesti: ${socket.id}`);
+      
+      // Aynı userId'ye sahip başka aktif socket var mı kontrol et
+      let hasOtherConnection = false;
+      for (const [socketId, info] of activeUsers.entries()) {
+        if (info.userId === userId) {
+          hasOtherConnection = true;
+          console.log(`✅ Kullanıcı ${userId} başka bir socket ile hala bağlı: ${socketId}`);
+          break;
+        }
+      }
+      
+      // Eğer başka bağlantı varsa, match'i silme
+      if (hasOtherConnection) {
+        console.log(`✅ Match silinmedi, kullanıcı hala bağlı: ${matchId}`);
+        return;
+      }
+      
       // Online durumunu güncelle
-      const profile = users.get(userInfo.userId);
+      const profile = users.get(userId);
       if (profile) {
         profile.isOnline = false;
         profile.lastSeen = new Date();
-        users.set(userInfo.userId, profile);
+        users.set(userId, profile);
       }
 
       // Eşleşme kuyruğundan çıkar
@@ -3100,30 +3123,48 @@ io.on('connection', (socket) => {
         matchingQueue.splice(queueIndex, 1);
       }
 
-      // Aktif eşleşmeyi sonlandır
-      if (userInfo.inMatch && userInfo.matchId) {
-        const match = activeMatches.get(userInfo.matchId);
-        if (match) {
-          const partnerSocketId = match.user1.socketId === socket.id 
-            ? match.user2.socketId 
-            : match.user1.socketId;
-
-          io.to(partnerSocketId).emit('partner-disconnected', {
-            message: 'Eşleşme partneri bağlantısını kesti'
-          });
-
-          // Eşleşmeyi temizle
-          const partnerInfo = activeUsers.get(partnerSocketId);
-          if (partnerInfo) {
-            partnerInfo.inMatch = false;
-            partnerInfo.matchId = null;
+      // 5 saniye bekle, sonra tekrar kontrol et (reconnect için zaman tanı)
+      if (userInfo.inMatch && matchId) {
+        console.log(`⏳ Kullanıcı ${userId} disconnect oldu, 5 saniye bekleniyor...`);
+        
+        setTimeout(async () => {
+          // Tekrar kontrol et - kullanıcı geri bağlandı mı?
+          let reconnected = false;
+          for (const [socketId, info] of activeUsers.entries()) {
+            if (info.userId === userId) {
+              reconnected = true;
+              console.log(`✅ Kullanıcı ${userId} geri bağlandı: ${socketId}`);
+              break;
+            }
           }
-          await deleteActiveMatch(userInfo.matchId); // Timer interval'ini de temizler
-        }
-      }
+          
+          if (reconnected) {
+            console.log(`✅ Match korundu: ${matchId}`);
+            return;
+          }
+          
+          // Kullanıcı geri bağlanmadı, match'i sil
+          const match = activeMatches.get(matchId);
+          if (match) {
+            const partnerSocketId = match.user1.userId === userId 
+              ? match.user2.socketId 
+              : match.user1.socketId;
 
-      activeUsers.delete(socket.id);
-      console.log(`Kullanıcı bağlantısını kesti: ${socket.id}`);
+            io.to(partnerSocketId).emit('partner-disconnected', {
+              message: 'Eşleşme partneri bağlantısını kesti'
+            });
+
+            // Eşleşmeyi temizle
+            const partnerInfo = activeUsers.get(partnerSocketId);
+            if (partnerInfo) {
+              partnerInfo.inMatch = false;
+              partnerInfo.matchId = null;
+            }
+            await deleteActiveMatch(matchId);
+            console.log(`🗑️ Match silindi (timeout sonrası): ${matchId}`);
+          }
+        }, 5000); // 5 saniye bekle
+      }
     }
   });
 });
