@@ -51,6 +51,14 @@ async function initDatabase() {
       ALTER TABLE users ADD COLUMN IF NOT EXISTS gender VARCHAR(50);
       ALTER TABLE users ADD COLUMN IF NOT EXISTS phone_number VARCHAR(20);
       ALTER TABLE users ADD COLUMN IF NOT EXISTS birth_date DATE;
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS anonymous_number VARCHAR(7);
+    `);
+    
+    // Mevcut kullanıcılara anonim numarası ver (eğer yoksa)
+    await pool.query(`
+      UPDATE users 
+      SET anonymous_number = LPAD(FLOOR(RANDOM() * 9000000 + 1000000)::TEXT, 7, '0')
+      WHERE anonymous_number IS NULL OR anonymous_number = '';
     `);
 
     // Auth tablosu
@@ -138,9 +146,9 @@ async function saveUsers(usersMap) {
       await client.query(`
         INSERT INTO users (
           user_id, email, username, first_name, last_name, gender, phone_number, birth_date, age, bio, interests, photos,
-          verified, profile_views, notification_settings, blocked_users,
+          verified, profile_views, notification_settings, blocked_users, anonymous_number,
           created_at, updated_at
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
         ON CONFLICT (user_id) DO UPDATE SET
           username = EXCLUDED.username,
           first_name = EXCLUDED.first_name,
@@ -156,6 +164,7 @@ async function saveUsers(usersMap) {
           profile_views = EXCLUDED.profile_views,
           notification_settings = EXCLUDED.notification_settings,
           blocked_users = EXCLUDED.blocked_users,
+          anonymous_number = EXCLUDED.anonymous_number,
           updated_at = EXCLUDED.updated_at
       `, [
         userId,
@@ -174,6 +183,7 @@ async function saveUsers(usersMap) {
         profile.profileViews || 0,
         JSON.stringify(profile.notificationSettings || {}),
         profile.blockedUsers || [],
+        profile.anonymousNumber || null,
         profile.createdAt ? new Date(profile.createdAt) : new Date(),
         new Date()
       ]);
@@ -216,6 +226,7 @@ async function loadUsers() {
         profileViews: row.profile_views || 0,
         notificationSettings: row.notification_settings || {},
         blockedUsers: row.blocked_users || [],
+        anonymousNumber: row.anonymous_number || null,
         createdAt: row.created_at,
         updatedAt: row.updated_at
       });

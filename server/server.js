@@ -148,6 +148,12 @@ function deleteActiveMatch(matchId) {
 }
 
 const SUPERADMIN_EMAIL = process.env.SUPERADMIN_EMAIL || 'admin@admin.com'; // Superadmin email
+const SUPERADMIN_USERNAME = process.env.SUPERADMIN_USERNAME || 'oguzhancakar'; // Superadmin username
+
+// Admin kontrolü helper fonksiyonu
+function isAdmin(profile) {
+  return profile.email === SUPERADMIN_EMAIL || profile.username === SUPERADMIN_USERNAME;
+}
 
 // Veritabanını başlat (eğer PostgreSQL kullanılıyorsa)
 if (useDatabase && initDatabase) {
@@ -202,10 +208,14 @@ app.post('/api/register', async (req, res) => {
   userAuth.set(email.toLowerCase(), { userId, passwordHash });
   await saveAuth(userAuth); // Hemen kaydet
 
+  // 7 haneli anonim numarası oluştur (1000000-9999999 arası)
+  const anonymousNumber = Math.floor(1000000 + Math.random() * 9000000).toString();
+  
   const userProfile = {
     userId,
     email: email.toLowerCase(),
     username: email.split('@')[0], // Varsayılan kullanıcı adı
+    anonymousNumber, // 7 haneli anonim numarası
     age: null,
     bio: '',
     interests: [],
@@ -578,12 +588,30 @@ app.delete('/api/profile/photos/:photoId', authenticateToken, async (req, res) =
 
 // Profil oluşturma/güncelleme (artık authenticated)
 app.post('/api/profile', authenticateToken, async (req, res) => {
-  const { username, age, bio, interests } = req.body;
+  const { username, age, bio, interests, anonymousNumber } = req.body;
   const userId = req.user.userId;
   
   const existingProfile = users.get(userId);
   if (!existingProfile) {
     return res.status(404).json({ error: 'Kullanıcı bulunamadı' });
+  }
+
+  // Anonim numarası değiştirme kontrolü
+  let newAnonymousNumber = existingProfile.anonymousNumber;
+  if (anonymousNumber && anonymousNumber !== existingProfile.anonymousNumber) {
+    // 7 haneli olmalı ve sadece rakam olmalı
+    if (!/^\d{7}$/.test(anonymousNumber)) {
+      return res.status(400).json({ error: 'Anonim numarası 7 haneli olmalıdır' });
+    }
+    
+    // Başka bir kullanıcı bu numarayı kullanıyor mu kontrol et
+    for (const [uid, profile] of users.entries()) {
+      if (uid !== userId && profile.anonymousNumber === anonymousNumber) {
+        return res.status(400).json({ error: 'Bu anonim numarası zaten kullanılıyor' });
+      }
+    }
+    
+    newAnonymousNumber = anonymousNumber;
   }
 
   const userProfile = {
@@ -592,6 +620,7 @@ app.post('/api/profile', authenticateToken, async (req, res) => {
     age: age !== undefined ? age : existingProfile.age,
     bio: bio !== undefined ? bio : existingProfile.bio,
     interests: interests || existingProfile.interests,
+    anonymousNumber: newAnonymousNumber,
     updatedAt: new Date()
   };
 
@@ -633,8 +662,8 @@ app.get('/api/admin/pending-verifications', authenticateToken, (req, res) => {
   const userId = req.user.userId;
   const profile = users.get(userId);
   
-  // Superadmin kontrolü (email ile)
-  if (profile.email !== SUPERADMIN_EMAIL) {
+  // Superadmin kontrolü (email veya username ile)
+  if (!isAdmin(profile)) {
     return res.status(403).json({ error: 'Bu işlem için yetkiniz yok' });
   }
 
@@ -662,8 +691,8 @@ app.post('/api/admin/verify-user', authenticateToken, async (req, res) => {
   const profile = users.get(userId);
   const { targetUserId, action } = req.body; // action: 'approve' or 'reject'
   
-  // Superadmin kontrolü
-  if (profile.email !== SUPERADMIN_EMAIL) {
+  // Superadmin kontrolü (email veya username ile)
+  if (!isAdmin(profile)) {
     return res.status(403).json({ error: 'Bu işlem için yetkiniz yok' });
   }
 
@@ -997,13 +1026,17 @@ app.get('/api/matches', authenticateToken, (req, res) => {
     const partner = match.user1.userId === userId ? match.user2 : match.user1;
     const currentUser = match.user1.userId === userId ? match.user1 : match.user2;
     
-    // Eğer aktif eşleşme ve partner profile yoksa (anonim), anonim ID göster
+    // Eğer aktif eşleşme ve partner profile yoksa (anonim), anonim numarası göster
     if (isActiveMatch && !partner.profile) {
+      // Partner'ın anonim numarasını bul
+      const partnerProfile = users.get(partner.userId);
+      const partnerAnonymousNumber = partnerProfile?.anonymousNumber || partner.anonymousId || '0000000';
+      
       return {
         matchId: match.id,
         partner: {
           userId: null,
-          username: `Anonim-${currentUser.anonymousId || '000000'}`,
+          username: `Anonim-${partnerAnonymousNumber}`,
           photos: [],
           verified: false,
           isAnonymous: true
@@ -1233,9 +1266,11 @@ io.on('connection', (socket) => {
       const user2 = matchingQueue.shift();
 
       const matchId = uuidv4();
-      // Her kullanıcıya özel anonim ID oluştur (6 haneli)
-      const user1AnonymousId = Math.floor(100000 + Math.random() * 900000).toString();
-      const user2AnonymousId = Math.floor(100000 + Math.random() * 900000).toString();
+      // Her kullanıcının profilindeki anonim numarasını kullan
+      const user1Profile = users.get(user1.userId);
+      const user2Profile = users.get(user2.userId);
+      const user1AnonymousId = user1Profile?.anonymousNumber || Math.floor(1000000 + Math.random() * 9000000).toString();
+      const user2AnonymousId = user2Profile?.anonymousNumber || Math.floor(1000000 + Math.random() * 9000000).toString();
       
       // Match yapısını netleştir - user1 ve user2'de userId ve socketId olmalı
       const match = {
