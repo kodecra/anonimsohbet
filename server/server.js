@@ -2083,7 +2083,7 @@ io.on('connection', (socket) => {
   });
 
   // Devam etmek istiyorum isteği gönderme (anonim eşleşmede)
-  socket.on('continue-request', (data) => {
+  socket.on('continue-request', async (data) => {
     let { matchId } = data;
     
     console.log(`🔵 continue-request event alındı: matchId=${matchId}, socketId=${socket.id}`);
