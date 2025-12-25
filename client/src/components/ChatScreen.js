@@ -1208,17 +1208,15 @@ function ChatScreen({ userId, profile: currentProfile, matchId: initialMatchId, 
               maxWidth: '80%'
             }}
           >
-            <Card
+            <div
               style={{
-                padding: '6px 10px',
+                padding: '4px 8px',
                 backgroundColor: isOwn 
                   ? (isDarkMode ? '#5E72E4' : '#1890ff')
                   : (isDarkMode ? '#2d3748' : '#fff'),
-                borderRadius: isOwn ? '14px 14px 4px 14px' : '14px 14px 14px 4px',
-                border: 'none',
-                boxShadow: '0 1px 2px rgba(0,0,0,0.1)'
+                borderRadius: isOwn ? '10px 10px 2px 10px' : '10px 10px 10px 2px',
+                boxShadow: '0 1px 1px rgba(0,0,0,0.08)'
               }}
-              styles={{ body: { padding: 0 } }}
             >
               {/* Kullanıcı adı - sol üst */}
               {!message.isSystem && (
@@ -1226,7 +1224,7 @@ function ChatScreen({ userId, profile: currentProfile, matchId: initialMatchId, 
                   color: isOwn ? 'rgba(255,255,255,0.8)' : '#53bdeb',
                   fontSize: '11px',
                   fontWeight: 600,
-                  marginBottom: '2px'
+                  lineHeight: 1.2
                 }}>
                   {isCompletedMatch && messageSenderProfile
                     ? `${formatDisplayName(messageSenderProfile)} (@${messageSenderProfile.username})`
@@ -1238,7 +1236,7 @@ function ChatScreen({ userId, profile: currentProfile, matchId: initialMatchId, 
               <div style={{ 
                 color: isOwn ? '#fff' : (isDarkMode ? '#e2e8f0' : '#1a202c'),
                 fontSize: '14px',
-                lineHeight: 1.4,
+                lineHeight: 1.3,
                 wordBreak: 'break-word'
               }}>
                 {message.deleted ? (
@@ -1246,11 +1244,11 @@ function ChatScreen({ userId, profile: currentProfile, matchId: initialMatchId, 
                 ) : (
                   <>
                     {message.mediaUrl && (
-                      <div style={{ marginBottom: message.text ? '4px' : 0 }}>
+                      <div style={{ marginBottom: message.text ? '2px' : 0 }}>
                         <img 
                           src={message.mediaUrl.startsWith('http') ? message.mediaUrl : `${API_URL}${message.mediaUrl}`}
                           alt="Gönderilen medya"
-                          style={{ maxWidth: '100%', maxHeight: '200px', borderRadius: '6px', cursor: 'pointer' }}
+                          style={{ maxWidth: '100%', maxHeight: '200px', borderRadius: '4px', cursor: 'pointer' }}
                           onClick={() => window.open(message.mediaUrl.startsWith('http') ? message.mediaUrl : `${API_URL}${message.mediaUrl}`, '_blank')}
                         />
                       </div>
@@ -1260,28 +1258,15 @@ function ChatScreen({ userId, profile: currentProfile, matchId: initialMatchId, 
                 )}
               </div>
               {/* Alt satır: Sol - Okundu, Sağ - Saat */}
-              <div style={{ 
-                display: 'flex', 
-                justifyContent: 'space-between', 
-                alignItems: 'center',
-                marginTop: '3px'
-              }}>
-                {/* Sol: Okundu bilgisi - sadece kendi mesajlarımda */}
-                <span style={{ 
-                  color: isOwn ? (isRead ? '#53bdeb' : 'rgba(255,255,255,0.6)') : 'transparent', 
-                  fontSize: '10px' 
-                }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '1px' }}>
+                <span style={{ color: isOwn ? (isRead ? '#53bdeb' : 'rgba(255,255,255,0.6)') : 'transparent', fontSize: '10px' }}>
                   {isOwn ? (isRead ? '✓✓' : '✓') : ''}
                 </span>
-                {/* Sağ: Saat */}
-                <span style={{ 
-                  color: isOwn ? 'rgba(255,255,255,0.7)' : '#8c8c8c',
-                  fontSize: '10px'
-                }}>
+                <span style={{ color: isOwn ? 'rgba(255,255,255,0.7)' : '#8c8c8c', fontSize: '10px' }}>
                   {formatTime(message.timestamp)}
                 </span>
               </div>
-            </Card>
+            </div>
           </div>
           );
         })}
