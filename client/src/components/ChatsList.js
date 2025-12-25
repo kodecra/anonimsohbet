@@ -255,7 +255,10 @@ function ChatsList({ token, onSelectChat, API_URL, refreshTrigger }) {
   };
 
   const formatDate = (dateString) => {
+    if (!dateString) return '';
     const date = new Date(dateString);
+    if (isNaN(date.getTime())) return '';
+    
     const now = new Date();
     const diff = now - date;
     const minutes = Math.floor(diff / 60000);

@@ -1588,6 +1588,22 @@ app.get('/api/matches', authenticateToken, (req, res) => {
     };
   }).filter(m => m !== null);
   
+  // Her match için pending follow request var mı kontrol et ve flag ekle
+  for (const match of matches) {
+    // Bu matchId için pending follow request var mı?
+    for (const [requestId, request] of followRequests.entries()) {
+      if (request.status === 'pending' && request.matchId === match.matchId) {
+        // Bu match için pending request var
+        if (request.fromUserId === userId || request.toUserId === userId) {
+          match.isPendingRequest = true;
+          match.requestId = requestId;
+          match.requestStatus = request.fromUserId === userId ? 'sent' : 'received';
+          break;
+        }
+      }
+    }
+  }
+  
   // Pending request'leri de ekle (duplicate kontrolü ile)
   // Zaten matches'te olan matchId'leri al
   const existingMatchIds = new Set(matches.map(m => m.matchId));
@@ -1599,7 +1615,9 @@ app.get('/api/matches', authenticateToken, (req, res) => {
   
   // Sıralama: En son mesaj/istek alanı üstte
   allMatches.sort((a, b) => {
-    return new Date(b.lastMessageAt) - new Date(a.lastMessageAt);
+    const dateA = new Date(b.lastMessageAt || b.startedAt);
+    const dateB = new Date(a.lastMessageAt || a.startedAt);
+    return dateA - dateB;
   });
 
   res.json({ matches: allMatches });
