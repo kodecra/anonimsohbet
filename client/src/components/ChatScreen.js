@@ -1185,10 +1185,10 @@ function ChatScreen({ userId, profile: currentProfile, matchId: initialMatchId, 
       <Content style={{ 
         flex: 1, 
         overflow: 'auto', 
-        padding: '6px 10px',
+        padding: '8px 12px',
         display: 'flex',
         flexDirection: 'column',
-        gap: '2px',
+        gap: '3px',
         background: isDarkMode ? '#16213e' : '#f0f2f5',
         transition: 'background 0.3s ease'
       }}>
@@ -1196,10 +1196,7 @@ function ChatScreen({ userId, profile: currentProfile, matchId: initialMatchId, 
         {messages.filter((message, index, self) => 
           index === self.findIndex(m => m.id === message.id)
         ).map((message) => {
-          // Mesaj gönderenin profil bilgisini bul
-          const messageSenderProfile = message.userId === userId 
-            ? currentProfile 
-            : partnerProfile;
+          const messageSenderProfile = message.userId === userId ? currentProfile : partnerProfile;
           const isOwn = message.userId === userId;
           const isRead = message.readBy && message.readBy.filter(id => id !== userId).length > 0;
           
@@ -1208,27 +1205,28 @@ function ChatScreen({ userId, profile: currentProfile, matchId: initialMatchId, 
             key={message.id}
             style={{
               alignSelf: isOwn ? 'flex-end' : 'flex-start',
-              maxWidth: '78%'
+              maxWidth: '80%'
             }}
           >
-            <div
+            <Card
               style={{
-                padding: '4px 7px 3px 7px',
+                padding: '6px 10px',
                 backgroundColor: isOwn 
                   ? (isDarkMode ? '#5E72E4' : '#1890ff')
                   : (isDarkMode ? '#2d3748' : '#fff'),
-                borderRadius: isOwn ? '12px 12px 3px 12px' : '12px 12px 12px 3px',
-                boxShadow: '0 1px 1px rgba(0,0,0,0.1)'
+                borderRadius: isOwn ? '14px 14px 4px 14px' : '14px 14px 14px 4px',
+                border: 'none',
+                boxShadow: '0 1px 2px rgba(0,0,0,0.1)'
               }}
+              styles={{ body: { padding: 0 } }}
             >
               {/* Kullanıcı adı - sol üst */}
               {!message.isSystem && (
                 <div style={{ 
-                  color: isOwn ? 'rgba(255,255,255,0.7)' : '#53bdeb',
+                  color: isOwn ? 'rgba(255,255,255,0.8)' : '#53bdeb',
                   fontSize: '11px',
                   fontWeight: 600,
-                  marginBottom: '1px',
-                  lineHeight: 1
+                  marginBottom: '2px'
                 }}>
                   {isCompletedMatch && messageSenderProfile
                     ? `${formatDisplayName(messageSenderProfile)} (@${messageSenderProfile.username})`
@@ -1240,7 +1238,7 @@ function ChatScreen({ userId, profile: currentProfile, matchId: initialMatchId, 
               <div style={{ 
                 color: isOwn ? '#fff' : (isDarkMode ? '#e2e8f0' : '#1a202c'),
                 fontSize: '14px',
-                lineHeight: 1.3,
+                lineHeight: 1.4,
                 wordBreak: 'break-word'
               }}>
                 {message.deleted ? (
@@ -1248,11 +1246,11 @@ function ChatScreen({ userId, profile: currentProfile, matchId: initialMatchId, 
                 ) : (
                   <>
                     {message.mediaUrl && (
-                      <div style={{ marginBottom: message.text ? '2px' : 0 }}>
+                      <div style={{ marginBottom: message.text ? '4px' : 0 }}>
                         <img 
                           src={message.mediaUrl.startsWith('http') ? message.mediaUrl : `${API_URL}${message.mediaUrl}`}
                           alt="Gönderilen medya"
-                          style={{ maxWidth: '100%', maxHeight: '180px', borderRadius: '4px', cursor: 'pointer' }}
+                          style={{ maxWidth: '100%', maxHeight: '200px', borderRadius: '6px', cursor: 'pointer' }}
                           onClick={() => window.open(message.mediaUrl.startsWith('http') ? message.mediaUrl : `${API_URL}${message.mediaUrl}`, '_blank')}
                         />
                       </div>
@@ -1266,35 +1264,24 @@ function ChatScreen({ userId, profile: currentProfile, matchId: initialMatchId, 
                 display: 'flex', 
                 justifyContent: 'space-between', 
                 alignItems: 'center',
-                marginTop: '2px',
-                gap: '6px'
+                marginTop: '3px'
               }}>
-                {/* Sol: Okundu bilgisi */}
-                {isOwn ? (
-                  <span style={{ color: isRead ? '#53bdeb' : 'rgba(255,255,255,0.5)', fontSize: '10px' }}>
-                    {isRead ? '✓✓' : '✓'}
-                  </span>
-                ) : <span />}
+                {/* Sol: Okundu bilgisi - sadece kendi mesajlarımda */}
+                <span style={{ 
+                  color: isOwn ? (isRead ? '#53bdeb' : 'rgba(255,255,255,0.6)') : 'transparent', 
+                  fontSize: '10px' 
+                }}>
+                  {isOwn ? (isRead ? '✓✓' : '✓') : ''}
+                </span>
                 {/* Sağ: Saat */}
                 <span style={{ 
-                  color: isOwn ? 'rgba(255,255,255,0.6)' : '#8c8c8c',
+                  color: isOwn ? 'rgba(255,255,255,0.7)' : '#8c8c8c',
                   fontSize: '10px'
                 }}>
                   {formatTime(message.timestamp)}
                 </span>
-                {/* Okundu/İletildi tik - sadece kendi mesajlarımızda */}
-                {message.userId === userId && (
-                  <Text style={{ 
-                    color: message.readBy && message.readBy.filter(id => id !== userId).length > 0 
-                      ? '#53bdeb' 
-                      : 'rgba(255,255,255,0.5)', 
-                    fontSize: '10px'
-                  }}>
-                    {message.readBy && message.readBy.filter(id => id !== userId).length > 0 ? '✓✓' : '✓'}
-                  </Text>
-                )}
               </div>
-            </div>
+            </Card>
           </div>
           );
         })}
