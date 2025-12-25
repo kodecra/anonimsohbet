@@ -2064,11 +2064,11 @@ io.on('connection', (socket) => {
       }
     }
     
-    console.log('✅ start-matching: Kullanıcı bulundu:', userInfo.profile.username);
+    console.log('start-matching: Kullanici bulundu:', userInfo.profile.username);
     
     // Kullanıcının filtreleri
     const genderFilter = data.filterGender || data.genderFilter || null; // 'male', 'female', veya null (hepsi)
-    console.log(`   Cinsiyet filtresi: ${genderFilter || 'hepsi'}`);
+    console.log('   Cinsiyet filtresi: ' + (genderFilter || 'hepsi'));
 
     // Kullanıcı mevcut eşleşmede olsa bile yeni eşleşme başlatabilir
     // Kuyruğa ekle (filtreleriyle birlikte)
@@ -2079,8 +2079,8 @@ io.on('connection', (socket) => {
         profile: userInfo.profile,
         genderFilter: genderFilter // Kullanıcının istediği cinsiyet
       });
-      socket.emit('matching-started', { message: 'Eşleşme aranıyor...' });
-      console.log(`${userInfo.profile.username} eşleşme kuyruğuna eklendi (cinsiyet filtresi: ${genderFilter || 'hepsi'})`);
+      socket.emit('matching-started', { message: 'Eslesme araniyor...' });
+      console.log(userInfo.profile.username + ' eslesme kuyruguna eklendi (cinsiyet filtresi: ' + (genderFilter || 'hepsi') + ')');
     }
 
     // Eşleşme kontrolü - filtrelere uygun eşleşme ara
@@ -2119,7 +2119,7 @@ io.on('connection', (socket) => {
     
     // Uygun eşleşme yoksa bekle
     if (matchedUserIndex === -1) {
-      console.log(`   ⏳ ${userInfo.profile.username} için uygun eşleşme bulunamadı, bekleniyor...`);
+      console.log('   Bekleniyor: ' + userInfo.profile.username + ' icin uygun eslesme bulunamadi');
       return;
     }
     
@@ -2128,6 +2128,7 @@ io.on('connection', (socket) => {
     const user1 = matchingQueue.splice(Math.max(currentUserIndex, matchedUserIndex), 1)[0];
     const user2 = matchingQueue.splice(Math.min(currentUserIndex, matchedUserIndex), 1)[0];
 
+    if (user1 && user2) {
       const matchId = uuidv4();
       // Her kullanıcının profilindeki anonim numarasını kullan
       const user1Profile = users.get(user1.userId);
@@ -2157,23 +2158,23 @@ io.on('connection', (socket) => {
       activeMatches.set(matchId, match);
       // Veritabanına kaydet
       if (useDatabase) await saveActiveMatchDB(matchId, match);
-      console.log('✅✅✅ MATCH OLUŞTURULDU:', matchId);
+      console.log('MATCH OLUSTURULDU:', matchId);
       console.log('   user1:', { userId: user1.userId, socketId: user1.socketId, username: user1.profile && user1.profile.username });
       console.log('   user2:', { userId: user2.userId, socketId: user2.socketId, username: user2.profile && user2.profile.username });
       console.log('   activeMatches size:', activeMatches.size);
       console.log('   activeMatches keys:', Array.from(activeMatches.keys()));
-      // Match'in gerçekten kaydedildiğini doğrula
+      // Match'in gercekten kaydedildigini dogrula
       const verifyMatch = activeMatches.get(matchId);
       if (verifyMatch) {
-        console.log('   ✅ Match activeMatches\'e başarıyla kaydedildi (DB\'ye de)');
+        console.log('   Match activeMatches\'e basariyla kaydedildi');
       } else {
-        console.log('   ❌ HATA: Match activeMatches\'e kaydedilemedi!');
+        console.log('   HATA: Match activeMatches\'e kaydedilemedi!');
       }
       
-      // Socket bağlantılarını kontrol et
+      // Socket baglantılarını kontrol et
       const user1SocketExists = io.sockets.sockets.has(user1.socketId);
       const user2SocketExists = io.sockets.sockets.has(user2.socketId);
-      console.log('   🔌 Socket kontrolü:', { 
+      console.log('   Socket kontrolu:', { 
         user1SocketExists, 
         user2SocketExists,
         user1SocketId: user1.socketId,
@@ -2277,7 +2278,7 @@ io.on('connection', (socket) => {
         partnerAnonymousId: user1AnonymousId
       });
 
-      console.log(`Eşleşme oluşturuldu: ${matchId} - ${user1.profile.username} & ${user2.profile.username}`);
+      console.log('Eslesme olusturuldu: ' + matchId + ' - ' + user1.profile.username + ' & ' + user2.profile.username);
     }
   });
 
