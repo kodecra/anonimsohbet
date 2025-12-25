@@ -416,13 +416,13 @@ function ChatsList({ token, onSelectChat, API_URL, refreshTrigger }) {
               </Badge>
             }
             title={
-              <Space>
+              <Space size={4} wrap>
                 {match.isPendingRequest && (
-                  <Tag color="orange" style={{ marginRight: '4px' }}>
+                  <Tag color="orange" style={{ margin: 0, fontSize: '10px', padding: '0 4px', lineHeight: '16px' }}>
                     {match.requestStatus === 'sent' ? 'Beklemede' : 'Yanıt Bekliyor'}
                   </Tag>
                 )}
-                <Text strong>
+                <Text strong style={{ fontSize: '14px' }}>
                   {(() => {
                     const partner = match.partner;
                     if (!partner) return 'Bilinmeyen Kullanıcı';

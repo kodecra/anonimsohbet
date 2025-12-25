@@ -889,25 +889,26 @@ function MainScreen({ userId, profile, token, onMatchFound, onMatchContinued, on
                                     </Badge>
                                   }
                                   title={
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
                                       <span style={{ 
                                         color: isDarkMode ? '#fff' : '#000',
-                                        fontWeight: 600
+                                        fontWeight: 600,
+                                        fontSize: '14px'
                                       }}>
                                         {match.partner?.username || 'Anonim'}
                                       </span>
                                       {needsResponse && (
-                                        <Tag color="red" style={{ margin: 0 }}>
+                                        <Tag color="red" style={{ margin: 0, fontSize: '10px', padding: '0 4px', lineHeight: '16px' }}>
                                           Yanıt Bekliyor
                                         </Tag>
                                       )}
                                       {isWaitingForResponse && (
-                                        <Tag color="blue" style={{ margin: 0 }}>
+                                        <Tag color="blue" style={{ margin: 0, fontSize: '10px', padding: '0 4px', lineHeight: '16px' }}>
                                           Cevap Bekleniyor
                                         </Tag>
                                       )}
                                       {isActiveChat && (
-                                        <Tag color="green" style={{ margin: 0 }}>
+                                        <Tag color="green" style={{ margin: 0, fontSize: '10px', padding: '0 4px', lineHeight: '16px' }}>
                                           Devam Eden Sohbet
                                         </Tag>
                                       )}
