@@ -1236,7 +1236,7 @@ app.get('/api/statistics', authenticateToken, (req, res) => {
   });
   
   const profile = users.get(userId);
-  profileViews = profile?.profileViews || 0;
+  profileViews = (profile && profile.profileViews) || 0;
   
   res.json({
     totalMessages,
@@ -1314,9 +1314,9 @@ app.get('/api/notifications/settings', authenticateToken, (req, res) => {
   const profile = users.get(userId);
   
   res.json({
-    soundEnabled: profile?.notificationSettings?.soundEnabled !== false,
-    browserEnabled: profile?.notificationSettings?.browserEnabled !== false,
-    messageEnabled: profile?.notificationSettings?.messageEnabled !== false
+    soundEnabled: (profile && profile.notificationSettings && profile.notificationSettings.soundEnabled) !== false,
+    browserEnabled: (profile && profile.notificationSettings && profile.notificationSettings.browserEnabled) !== false,
+    messageEnabled: (profile && profile.notificationSettings && profile.notificationSettings.messageEnabled) !== false
   });
 });
 
@@ -1761,12 +1761,12 @@ app.get('/api/matches/:matchId', authenticateToken, (req, res) => {
     
     partnerInfo = {
       userId: partner.userId,
-      username: partnerData.username || partnerData.profile?.username,
-      age: partnerData.age || partnerData.profile?.age,
-      bio: partnerData.bio || partnerData.profile?.bio,
-      interests: partnerData.interests || partnerData.profile?.interests || [],
-      photos: partnerData.photos || partnerData.profile?.photos || [],
-      verified: partnerData.verified || partnerData.profile?.verified || false
+      username: partnerData.username || (partnerData.profile && partnerData.profile.username),
+      age: partnerData.age || (partnerData.profile && partnerData.profile.age),
+      bio: partnerData.bio || (partnerData.profile && partnerData.profile.bio),
+      interests: partnerData.interests || (partnerData.profile && partnerData.profile.interests) || [],
+      photos: partnerData.photos || (partnerData.profile && partnerData.profile.photos) || [],
+      verified: partnerData.verified || (partnerData.profile && partnerData.profile.verified) || false
     };
   }
   
@@ -2158,8 +2158,8 @@ io.on('connection', (socket) => {
       // Veritabanına kaydet
       if (useDatabase) await saveActiveMatchDB(matchId, match);
       console.log('✅✅✅ MATCH OLUŞTURULDU:', matchId);
-      console.log('   user1:', { userId: user1.userId, socketId: user1.socketId, username: user1.profile?.username });
-      console.log('   user2:', { userId: user2.userId, socketId: user2.socketId, username: user2.profile?.username });
+      console.log('   user1:', { userId: user1.userId, socketId: user1.socketId, username: user1.profile && user1.profile.username });
+      console.log('   user2:', { userId: user2.userId, socketId: user2.socketId, username: user2.profile && user2.profile.username });
       console.log('   activeMatches size:', activeMatches.size);
       console.log('   activeMatches keys:', Array.from(activeMatches.keys()));
       // Match'in gerçekten kaydedildiğini doğrula
