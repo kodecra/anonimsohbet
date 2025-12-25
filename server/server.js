@@ -451,15 +451,24 @@ app.post('/api/profile/photos', authenticateToken, upload.array('photos', 5), as
 
   const allPhotos = [...currentPhotos, ...newPhotos].slice(0, 5); // En fazla 5 fotoğraf
 
+  // Fotoğraf değiştiğinde verified durumunu kaldır (fake fotoğraf önlemi)
+  const wasVerified = profile.verified;
+  
   const updatedProfile = {
     ...profile,
     photos: allPhotos,
+    verified: false, // Fotoğraf değişince onay kaldırılır
     updatedAt: new Date()
   };
 
   users.set(userId, updatedProfile);
   await saveUsers(users); // Hemen kaydet
-  res.json({ profile: updatedProfile, message: `${req.files.length} fotoğraf yüklendi` });
+  
+  const responseMessage = wasVerified 
+    ? `${req.files.length} fotoğraf yüklendi. Profil onayınız kaldırıldı, tekrar doğrulama yapmanız gerekmektedir.`
+    : `${req.files.length} fotoğraf yüklendi`;
+    
+  res.json({ profile: updatedProfile, message: responseMessage, verificationRemoved: wasVerified });
 });
 
 // Poz doğrulama yükleme (çoklu fotoğraf)
@@ -616,15 +625,24 @@ app.delete('/api/profile/photos/:photoId', authenticateToken, async (req, res) =
   // Fotoğrafı listeden çıkar
   photos.splice(photoIndex, 1);
 
+  // Fotoğraf değiştiğinde verified durumunu kaldır (fake fotoğraf önlemi)
+  const wasVerified = profile.verified;
+  
   const updatedProfile = {
     ...profile,
     photos: photos,
+    verified: false, // Fotoğraf değişince onay kaldırılır
     updatedAt: new Date()
   };
 
   users.set(userId, updatedProfile);
   await saveUsers(users); // Hemen kaydet
-  res.json({ profile: updatedProfile, message: 'Fotoğraf silindi' });
+  
+  const responseMessage = wasVerified 
+    ? 'Fotoğraf silindi. Profil onayınız kaldırıldı, tekrar doğrulama yapmanız gerekmektedir.'
+    : 'Fotoğraf silindi';
+    
+  res.json({ profile: updatedProfile, message: responseMessage, verificationRemoved: wasVerified });
 });
 
 // Profil oluşturma/güncelleme (artık authenticated)
@@ -2047,23 +2065,68 @@ io.on('connection', (socket) => {
     }
     
     console.log('✅ start-matching: Kullanıcı bulundu:', userInfo.profile.username);
+    
+    // Kullanıcının filtreleri
+    const genderFilter = data.filterGender || data.genderFilter || null; // 'male', 'female', veya null (hepsi)
+    console.log(`   Cinsiyet filtresi: ${genderFilter || 'hepsi'}`);
 
     // Kullanıcı mevcut eşleşmede olsa bile yeni eşleşme başlatabilir
-    // Kuyruğa ekle
+    // Kuyruğa ekle (filtreleriyle birlikte)
     if (!matchingQueue.find(u => u.socketId === socket.id)) {
       matchingQueue.push({
         socketId: socket.id,
         userId: userInfo.userId,
-        profile: userInfo.profile
+        profile: userInfo.profile,
+        genderFilter: genderFilter // Kullanıcının istediği cinsiyet
       });
       socket.emit('matching-started', { message: 'Eşleşme aranıyor...' });
-      console.log(`${userInfo.profile.username} eşleşme kuyruğuna eklendi`);
+      console.log(`${userInfo.profile.username} eşleşme kuyruğuna eklendi (cinsiyet filtresi: ${genderFilter || 'hepsi'})`);
     }
 
-    // Eşleşme kontrolü
-    if (matchingQueue.length >= 2) {
-      const user1 = matchingQueue.shift();
-      const user2 = matchingQueue.shift();
+    // Eşleşme kontrolü - filtrelere uygun eşleşme ara
+    const currentUser = matchingQueue.find(u => u.socketId === socket.id);
+    if (!currentUser) return;
+    
+    // Uygun eşleşme adayını bul
+    let matchedUserIndex = -1;
+    for (let i = 0; i < matchingQueue.length; i++) {
+      const candidate = matchingQueue[i];
+      
+      // Kendisiyle eşleşme yapma
+      if (candidate.socketId === socket.id) continue;
+      
+      // Cinsiyet filtresi kontrolü (ZORUNLU)
+      const candidateGender = candidate.profile?.gender;
+      const currentUserGender = currentUser.profile?.gender;
+      
+      // Kullanıcının filtresi var mı ve aday uygun mu?
+      if (genderFilter && candidateGender !== genderFilter) {
+        console.log(`   ❌ ${candidate.profile?.username} cinsiyet uyumsuz: ${candidateGender} != ${genderFilter}`);
+        continue;
+      }
+      
+      // Adayın filtresi var mı ve mevcut kullanıcı uygun mu?
+      if (candidate.genderFilter && currentUserGender !== candidate.genderFilter) {
+        console.log(`   ❌ ${candidate.profile?.username} bizi istemiyor: ${currentUserGender} != ${candidate.genderFilter}`);
+        continue;
+      }
+      
+      // Uygun eşleşme bulundu!
+      matchedUserIndex = i;
+      console.log(`   ✅ Uygun eşleşme bulundu: ${candidate.profile?.username}`);
+      break;
+    }
+    
+    // Uygun eşleşme yoksa bekle
+    if (matchedUserIndex === -1) {
+      console.log(`   ⏳ ${userInfo.profile.username} için uygun eşleşme bulunamadı, bekleniyor...`);
+      return;
+    }
+    
+    // Eşleşme yap
+    const currentUserIndex = matchingQueue.findIndex(u => u.socketId === socket.id);
+    const user1 = matchingQueue.splice(Math.max(currentUserIndex, matchedUserIndex), 1)[0];
+    const user2 = matchingQueue.splice(Math.min(currentUserIndex, matchedUserIndex), 1)[0];
 
       const matchId = uuidv4();
       // Her kullanıcının profilindeki anonim numarasını kullan
