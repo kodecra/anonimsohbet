@@ -8,6 +8,7 @@ const jwt = require('jsonwebtoken');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
+const nodemailer = require('nodemailer');
 // Veritabanı veya JSON dosyası kullanımı (DATABASE_URL varsa PostgreSQL, yoksa JSON)
 const useDatabase = !!process.env.DATABASE_URL;
 
@@ -378,6 +379,143 @@ app.post('/api/login', async (req, res) => {
     },
     profile
   });
+});
+
+// Email transporter yapılandırması (Hostinger SMTP)
+const emailTransporter = nodemailer.createTransport({
+  host: 'smtp.hostinger.com',
+  port: 465,
+  secure: true, // SSL
+  auth: {
+    user: process.env.SMTP_EMAIL || 'info@soulbate.com',
+    pass: process.env.SMTP_PASSWORD || 'Oguzhan1453.'
+  }
+});
+
+// Şifre sıfırlama token'larını sakla (memory, production'da Redis kullanılmalı)
+const passwordResetTokens = new Map(); // token -> { email, expiresAt }
+
+// Şifremi Unuttum - Email gönder
+app.post('/api/forgot-password', async (req, res) => {
+  try {
+    const { email } = req.body;
+    
+    if (!email) {
+      return res.status(400).json({ error: 'Email adresi gereklidir' });
+    }
+    
+    const normalizedEmail = email.toLowerCase().trim();
+    
+    // Email'in kayıtlı olup olmadığını kontrol et
+    const auth = userAuth.get(normalizedEmail);
+    if (!auth) {
+      // Güvenlik için başarılı mesajı döndür (email enumeration'ı önlemek için)
+      return res.json({ message: 'Eğer bu email kayıtlıysa, şifre sıfırlama bağlantısı gönderilecektir.' });
+    }
+    
+    // 6 haneli kod oluştur
+    const resetCode = Math.floor(100000 + Math.random() * 900000).toString();
+    const expiresAt = new Date(Date.now() + 15 * 60 * 1000); // 15 dakika geçerli
+    
+    // Token'ı sakla
+    passwordResetTokens.set(resetCode, { email: normalizedEmail, expiresAt });
+    
+    // Kullanıcı adını al
+    const profile = users.get(auth.userId);
+    const username = profile?.username || profile?.firstName || 'Kullanıcı';
+    
+    // Email gönder
+    const mailOptions = {
+      from: '"Soulbate" <info@soulbate.com>',
+      to: normalizedEmail,
+      subject: 'Soulbate - Şifre Sıfırlama Kodu',
+      html: `
+        <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+          <div style="text-align: center; margin-bottom: 30px;">
+            <h1 style="color: #667eea; margin: 0;">Soulbate</h1>
+            <p style="color: #666; margin-top: 5px;">Ruh Eşinizi Bulun</p>
+          </div>
+          
+          <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 10px; padding: 30px; color: white; text-align: center;">
+            <h2 style="margin-top: 0;">Merhaba ${username}!</h2>
+            <p>Şifrenizi sıfırlamak için aşağıdaki kodu kullanın:</p>
+            <div style="background: rgba(255,255,255,0.2); border-radius: 8px; padding: 20px; margin: 20px 0;">
+              <span style="font-size: 32px; font-weight: bold; letter-spacing: 5px;">${resetCode}</span>
+            </div>
+            <p style="font-size: 14px; opacity: 0.9;">Bu kod 15 dakika geçerlidir.</p>
+          </div>
+          
+          <div style="margin-top: 30px; padding: 20px; background: #f8f9fa; border-radius: 10px;">
+            <p style="color: #666; font-size: 14px; margin: 0;">
+              Eğer bu isteği siz yapmadıysanız, bu emaili görmezden gelebilirsiniz. 
+              Hesabınız güvende.
+            </p>
+          </div>
+          
+          <div style="text-align: center; margin-top: 30px; color: #999; font-size: 12px;">
+            <p>© 2024 Soulbate. Tüm hakları saklıdır.</p>
+          </div>
+        </div>
+      `
+    };
+    
+    await emailTransporter.sendMail(mailOptions);
+    console.log('✅ Şifre sıfırlama kodu gönderildi:', normalizedEmail);
+    
+    res.json({ message: 'Şifre sıfırlama kodu email adresinize gönderildi.' });
+  } catch (error) {
+    console.error('❌ Şifre sıfırlama email hatası:', error);
+    res.status(500).json({ error: 'Email gönderilemedi. Lütfen daha sonra tekrar deneyin.' });
+  }
+});
+
+// Şifre Sıfırlama - Kodu doğrula ve şifreyi değiştir
+app.post('/api/reset-password', async (req, res) => {
+  try {
+    const { code, newPassword } = req.body;
+    
+    if (!code || !newPassword) {
+      return res.status(400).json({ error: 'Kod ve yeni şifre gereklidir' });
+    }
+    
+    if (newPassword.length < 6) {
+      return res.status(400).json({ error: 'Şifre en az 6 karakter olmalıdır' });
+    }
+    
+    // Token'ı kontrol et
+    const resetData = passwordResetTokens.get(code);
+    if (!resetData) {
+      return res.status(400).json({ error: 'Geçersiz veya kullanılmış kod' });
+    }
+    
+    // Süre kontrolü
+    if (new Date() > resetData.expiresAt) {
+      passwordResetTokens.delete(code);
+      return res.status(400).json({ error: 'Kodun süresi dolmuş. Lütfen yeni bir kod isteyin.' });
+    }
+    
+    // Şifreyi güncelle
+    const auth = userAuth.get(resetData.email);
+    if (!auth) {
+      passwordResetTokens.delete(code);
+      return res.status(400).json({ error: 'Kullanıcı bulunamadı' });
+    }
+    
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+    auth.passwordHash = hashedPassword;
+    userAuth.set(resetData.email, auth);
+    await saveAuth(userAuth);
+    
+    // Token'ı sil (tek kullanımlık)
+    passwordResetTokens.delete(code);
+    
+    console.log('✅ Şifre başarıyla sıfırlandı:', resetData.email);
+    
+    res.json({ message: 'Şifreniz başarıyla güncellendi. Yeni şifrenizle giriş yapabilirsiniz.' });
+  } catch (error) {
+    console.error('❌ Şifre sıfırlama hatası:', error);
+    res.status(500).json({ error: 'Şifre güncellenemedi. Lütfen tekrar deneyin.' });
+  }
 });
 
 // Token doğrulama middleware

@@ -428,12 +428,13 @@ function ChatsList({ token, onSelectChat, API_URL, refreshTrigger }) {
                     if (!partner) return 'Bilinmeyen Kullanıcı';
                     const firstName = partner.firstName || '';
                     const lastName = partner.lastName || '';
-                    const username = partner.username || '';
+                    const age = partner.age;
+                    
                     if (firstName || lastName) {
                       const fullName = `${firstName} ${lastName}`.trim();
-                      return username ? `${fullName} (@${username})` : fullName;
+                      return age ? `${fullName}, ${age}` : fullName;
                     }
-                    return username ? `@${username}` : 'Bilinmeyen Kullanıcı';
+                    return partner.username ? `@${partner.username}` : 'Bilinmeyen Kullanıcı';
                   })()}
                 </Text>
               </Space>

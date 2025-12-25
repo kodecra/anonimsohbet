@@ -906,6 +906,10 @@ function ChatScreen({ userId, profile: currentProfile, matchId: initialMatchId, 
   const [galleryVisible, setGalleryVisible] = useState(false);
   const [galleryImages, setGalleryImages] = useState([]);
   const [galleryStartIndex, setGalleryStartIndex] = useState(0);
+  
+  // Tek resim modal state
+  const [imageModalVisible, setImageModalVisible] = useState(false);
+  const [imageModalSrc, setImageModalSrc] = useState('');
 
   return (
     <Layout style={{ 
@@ -1267,7 +1271,10 @@ function ChatScreen({ userId, profile: currentProfile, matchId: initialMatchId, 
                         cursor: 'pointer',
                         display: 'block'
                       }}
-                      onClick={() => window.open(message.mediaUrl.startsWith('http') ? message.mediaUrl : `${API_URL}${message.mediaUrl}`, '_blank')}
+                      onClick={() => {
+                        setImageModalSrc(message.mediaUrl.startsWith('http') ? message.mediaUrl : `${API_URL}${message.mediaUrl}`);
+                        setImageModalVisible(true);
+                      }}
                     />
                   </div>
                 )}
@@ -1911,6 +1918,49 @@ function ChatScreen({ userId, profile: currentProfile, matchId: initialMatchId, 
         ) : (
           <Spin />
         )}
+      </Modal>
+
+      {/* Resim Görüntüleme Modal */}
+      <Modal
+        open={imageModalVisible}
+        onCancel={() => setImageModalVisible(false)}
+        footer={null}
+        centered
+        width="auto"
+        style={{ maxWidth: '90vw' }}
+        styles={{
+          body: {
+            padding: 0,
+            display: 'flex',
+            justifyContent: 'center',
+            alignItems: 'center',
+            background: 'transparent'
+          },
+          content: {
+            background: 'transparent',
+            boxShadow: 'none'
+          }
+        }}
+        closeIcon={
+          <CloseOutlined style={{ 
+            color: '#fff', 
+            fontSize: '20px',
+            background: 'rgba(0,0,0,0.5)',
+            borderRadius: '50%',
+            padding: '8px'
+          }} />
+        }
+      >
+        <img 
+          src={imageModalSrc} 
+          alt="Görüntü" 
+          style={{ 
+            maxWidth: '90vw', 
+            maxHeight: '85vh', 
+            objectFit: 'contain',
+            borderRadius: '8px'
+          }} 
+        />
       </Modal>
     </Layout>
   );
