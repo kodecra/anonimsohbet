@@ -1241,7 +1241,7 @@ function ChatScreen({ userId, profile: currentProfile, matchId: initialMatchId, 
                   }}
                 >
                   {isCompletedMatch && messageSenderProfile
-                    ? `${formatDisplayName(messageSenderProfile)} (@${messageSenderProfile.username})`
+                    ? formatDisplayName(messageSenderProfile)
                     : isOwn ? 'Sen' : `Anonim-${partnerAnonymousId || '000000'}`
                   }
                 </div>
