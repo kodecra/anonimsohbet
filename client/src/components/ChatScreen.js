@@ -1181,103 +1181,120 @@ function ChatScreen({ userId, profile: currentProfile, matchId: initialMatchId, 
             key={message.id}
             style={{
               alignSelf: message.userId === userId ? 'flex-end' : 'flex-start',
-              maxWidth: '80%',
-              minWidth: '120px'
+              maxWidth: '75%',
+              minWidth: '80px'
             }}
           >
             <Card
               style={{
-                padding: '8px 12px',
+                padding: '4px 8px',
                 backgroundColor: message.userId === userId 
-                  ? (isDarkMode ? '#5E72E4' : '#1890ff')
-                  : (isDarkMode ? '#2d3748' : '#fff'),
-                borderRadius: message.userId === userId ? '16px 16px 4px 16px' : '16px 16px 16px 4px',
+                  ? '#005c4b'
+                  : (isDarkMode ? '#1f2c34' : '#fff'),
+                borderRadius: message.userId === userId ? '8px 8px 2px 8px' : '8px 8px 8px 2px',
                 border: 'none',
-                boxShadow: '0 1px 2px rgba(0,0,0,0.1)'
+                boxShadow: '0 1px 0.5px rgba(0,0,0,0.13)'
               }}
               styles={{ body: { padding: 0 } }}
             >
-              {/* Kullanıcı adı ve saat - aynı satırda */}
+              {/* Kullanıcı adı - sol üst */}
               {!message.isSystem && (
-                <div style={{ 
-                  display: 'flex', 
-                  justifyContent: 'space-between', 
-                  alignItems: 'center',
-                  marginBottom: '4px',
-                  gap: '12px'
-                }}>
-                  <Text 
-                    style={{ 
-                      color: message.userId === userId 
-                        ? 'rgba(255,255,255,0.85)' 
-                        : (isDarkMode ? '#63b3ed' : '#1890ff'),
-                      fontSize: '12px',
-                      fontWeight: 600
-                    }}
-                  >
-                    {isCompletedMatch && messageSenderProfile
-                      ? formatDisplayName(messageSenderProfile)
-                      : message.userId === userId 
-                        ? `@${message.username || 'Sen'}` 
-                        : `@Anonim-${partnerAnonymousId || '000000'}`
-                    }
-                  </Text>
-                  <Text style={{ 
-                    color: message.userId === userId ? 'rgba(255,255,255,0.6)' : '#8c8c8c',
-                    fontSize: '10px',
-                    whiteSpace: 'nowrap'
-                  }}>
-                    {formatTime(message.timestamp)}
-                  </Text>
-                </div>
+                <Text 
+                  style={{ 
+                    color: message.userId === userId 
+                      ? '#8696a0' 
+                      : '#53bdeb',
+                    fontSize: '11px',
+                    fontWeight: 600,
+                    display: 'block',
+                    marginBottom: '2px'
+                  }}
+                >
+                  {isCompletedMatch && messageSenderProfile
+                    ? formatDisplayName(messageSenderProfile)
+                    : message.userId === userId 
+                      ? 'Sen' 
+                      : `Anonim-${partnerAnonymousId || '000000'}`
+                  }
+                </Text>
               )}
               {/* Mesaj içeriği */}
-              <div>
+              <Text style={{ 
+                color: '#e9edef',
+                fontSize: '13px',
+                lineHeight: 1.3,
+                wordBreak: 'break-word',
+                display: 'block'
+              }}>
+                {message.deleted ? (
+                  <span style={{ fontStyle: 'italic', opacity: 0.6 }}>Bu mesaj silindi</span>
+                ) : (
+                  <>
+                    {message.mediaUrl && (
+                      <div style={{ marginBottom: message.text ? '4px' : 0 }}>
+                        <img 
+                          src={message.mediaUrl.startsWith('http') ? message.mediaUrl : `${API_URL}${message.mediaUrl}`}
+                          alt="Gönderilen medya"
+                          style={{ 
+                            maxWidth: '100%', 
+                            maxHeight: '200px', 
+                            borderRadius: '4px',
+                            cursor: 'pointer'
+                          }}
+                          onClick={() => {
+                            window.open(
+                              message.mediaUrl.startsWith('http') ? message.mediaUrl : `${API_URL}${message.mediaUrl}`,
+                              '_blank'
+                            );
+                          }}
+                        />
+                      </div>
+                    )}
+                    {message.text}
+                  </>
+                )}
+              </Text>
+              
+              {/* Alt satır: Okundu/İletildi (sol) - Saat (sağ) */}
+              <div style={{ 
+                display: 'flex', 
+                justifyContent: 'space-between', 
+                alignItems: 'center',
+                marginTop: '2px',
+                gap: '8px'
+              }}>
+                {/* Okundu/İletildi bilgisi - sadece kendi mesajlarımızda */}
+                {message.userId === userId ? (
+                  <Text style={{ 
+                    color: 'rgba(255,255,255,0.5)', 
+                    fontSize: '10px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '2px'
+                  }}>
+                    {message.readBy && message.readBy.length > 0 ? (
+                      <>✓✓ Okundu</>
+                    ) : (
+                      <>✓ İletildi</>
+                    )}
+                  </Text>
+                ) : (
+                  <span></span>
+                )}
+                {/* Saat - sağ alt */}
                 <Text style={{ 
-                  color: message.userId === userId ? '#fff' : (isDarkMode ? '#e2e8f0' : '#1a202c'),
-                  fontSize: '14px',
-                  lineHeight: 1.4,
-                  wordBreak: 'break-word'
+                  color: message.userId === userId ? 'rgba(255,255,255,0.5)' : '#8c8c8c',
+                  fontSize: '10px',
+                  whiteSpace: 'nowrap'
                 }}>
-                  {message.deleted ? (
-                    <Text type="secondary" italic style={{ 
-                      color: message.userId === userId ? 'rgba(255,255,255,0.6)' : '#8c8c8c',
-                      fontStyle: 'italic'
-                    }}>
-                      Bu mesaj silindi
-                    </Text>
-                  ) : (
-                    <>
-                      {message.mediaUrl && (
-                        <div style={{ marginBottom: message.text ? '6px' : 0 }}>
-                          <img 
-                            src={message.mediaUrl.startsWith('http') ? message.mediaUrl : `${API_URL}${message.mediaUrl}`}
-                            alt="Gönderilen medya"
-                            style={{ 
-                              maxWidth: '100%', 
-                              maxHeight: '200px', 
-                              borderRadius: '6px',
-                              cursor: 'pointer'
-                            }}
-                            onClick={() => {
-                              window.open(
-                                message.mediaUrl.startsWith('http') ? message.mediaUrl : `${API_URL}${message.mediaUrl}`,
-                                '_blank'
-                              );
-                            }}
-                          />
-                        </div>
-                      )}
-                      {message.text}
-                    </>
-                  )}
+                  {formatTime(message.timestamp)}
                 </Text>
               </div>
               
               {/* Reaksiyonlar */}
               {message.reactions && Object.keys(message.reactions).length > 0 && (
                 <div style={{ 
-                  marginTop: '8px', 
+                  marginTop: '4px', 
                   display: 'flex', 
                   gap: '4px', 
                   flexWrap: 'wrap' 
@@ -1287,34 +1304,16 @@ function ChatScreen({ userId, profile: currentProfile, matchId: initialMatchId, 
                       key={reaction}
                       style={{ 
                         cursor: 'pointer',
-                        backgroundColor: message.userId === userId ? 'rgba(255,255,255,0.2)' : '#f0f0f0'
+                        backgroundColor: message.userId === userId ? 'rgba(255,255,255,0.2)' : '#f0f0f0',
+                        fontSize: '10px',
+                        padding: '0 4px',
+                        margin: 0
                       }}
                       onClick={() => reactToMessage(message.id, reaction)}
                     >
                       {reaction} {userIds.length}
                     </Tag>
                   ))}
-                </div>
-              )}
-              
-              {/* Okundu bilgisi */}
-              {message.userId === userId && message.readBy && message.readBy.length > 0 && (
-                <div style={{ 
-                  marginTop: '4px', 
-                  display: 'flex', 
-                  alignItems: 'center',
-                  gap: '4px'
-                }}>
-                  <CheckOutlined style={{ 
-                    color: 'rgba(255,255,255,0.7)', 
-                    fontSize: '12px' 
-                  }} />
-                  <Text style={{ 
-                    color: 'rgba(255,255,255,0.7)', 
-                    fontSize: '11px' 
-                  }}>
-                    Okundu
-                  </Text>
                 </div>
               )}
             </Card>

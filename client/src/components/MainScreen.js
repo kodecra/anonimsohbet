@@ -898,18 +898,18 @@ function MainScreen({ userId, profile, token, onMatchFound, onMatchContinued, on
                                         {match.partner?.username || 'Anonim'}
                                       </span>
                                       {needsResponse && (
-                                        <Tag color="red" style={{ margin: 0, fontSize: '10px', padding: '0 4px', lineHeight: '16px' }}>
+                                        <Tag color="red" style={{ margin: 0, fontSize: '9px', padding: '0 3px', lineHeight: '14px', borderRadius: '3px' }}>
                                           Yanıt Bekliyor
                                         </Tag>
                                       )}
                                       {isWaitingForResponse && (
-                                        <Tag color="blue" style={{ margin: 0, fontSize: '10px', padding: '0 4px', lineHeight: '16px' }}>
+                                        <Tag color="blue" style={{ margin: 0, fontSize: '9px', padding: '0 3px', lineHeight: '14px', borderRadius: '3px' }}>
                                           Cevap Bekleniyor
                                         </Tag>
                                       )}
                                       {isActiveChat && (
-                                        <Tag color="green" style={{ margin: 0, fontSize: '10px', padding: '0 4px', lineHeight: '16px' }}>
-                                          Devam Eden Sohbet
+                                        <Tag color="green" style={{ margin: 0, fontSize: '9px', padding: '0 3px', lineHeight: '14px', borderRadius: '3px' }}>
+                                          Devam Eden
                                         </Tag>
                                       )}
                                     </div>

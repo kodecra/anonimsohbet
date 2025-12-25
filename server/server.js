@@ -1762,11 +1762,15 @@ app.get('/api/matches/:matchId', authenticateToken, (req, res) => {
     partnerInfo = {
       userId: partner.userId,
       username: partnerData.username || (partnerData.profile && partnerData.profile.username),
+      firstName: partnerData.firstName || (partnerData.profile && partnerData.profile.firstName),
+      lastName: partnerData.lastName || (partnerData.profile && partnerData.profile.lastName),
       age: partnerData.age || (partnerData.profile && partnerData.profile.age),
       bio: partnerData.bio || (partnerData.profile && partnerData.profile.bio),
       interests: partnerData.interests || (partnerData.profile && partnerData.profile.interests) || [],
       photos: partnerData.photos || (partnerData.profile && partnerData.profile.photos) || [],
-      verified: partnerData.verified || (partnerData.profile && partnerData.profile.verified) || false
+      verified: partnerData.verified || (partnerData.profile && partnerData.profile.verified) || false,
+      isOnline: partnerData.isOnline || false,
+      lastSeen: partnerData.lastSeen || partnerData.updatedAt || null
     };
   }
   
