@@ -12,7 +12,7 @@ const fs = require('fs');
 const useDatabase = !!process.env.DATABASE_URL;
 
 let saveUsers, loadUsers, saveAuth, loadAuth, saveMatches, loadMatches, saveVerifications, loadVerifications, initDatabase;
-let saveNotification, loadNotifications, markNotificationAsRead, getUnreadNotificationCount;
+let saveNotification, loadNotifications, markNotificationAsRead, markAllNotificationsAsRead, getUnreadNotificationCount;
 let saveComplaint, loadComplaints;
 // Yeni: Active matches ve follow requests için
 let saveActiveMatchDB, loadActiveMatchesDB, deleteActiveMatchDB;
@@ -33,6 +33,7 @@ if (useDatabase) {
   saveNotification = db.saveNotification;
   loadNotifications = db.loadNotifications;
   markNotificationAsRead = db.markNotificationAsRead;
+  markAllNotificationsAsRead = db.markAllNotificationsAsRead;
   getUnreadNotificationCount = db.getUnreadNotificationCount;
   saveComplaint = db.saveComplaint;
   loadComplaints = db.loadComplaints;
@@ -60,6 +61,7 @@ if (useDatabase) {
   saveNotification = async () => {};
   loadNotifications = async () => [];
   markNotificationAsRead = async () => {};
+  markAllNotificationsAsRead = async () => {};
   getUnreadNotificationCount = async () => 0;
   // JSON için active matches ve follow requests (geçici - memory'de kalır)
   saveActiveMatchDB = async () => {};
@@ -1274,6 +1276,18 @@ app.post('/api/notifications/:notificationId/read', authenticateToken, async (re
   } catch (error) {
     console.error('Bildirim okundu işaretleme hatası:', error);
     res.status(500).json({ error: 'Bildirim işaretlenemedi' });
+  }
+});
+
+// Tüm bildirimleri okundu olarak işaretle
+app.post('/api/notifications/read-all', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    await markAllNotificationsAsRead(userId);
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Tüm bildirimleri okundu işaretleme hatası:', error);
+    res.status(500).json({ error: 'Bildirimler işaretlenemedi' });
   }
 });
 

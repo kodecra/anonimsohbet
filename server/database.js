@@ -657,6 +657,19 @@ async function markNotificationAsRead(notificationId, userId) {
   }
 }
 
+// Tüm bildirimleri okundu olarak işaretle
+async function markAllNotificationsAsRead(userId) {
+  try {
+    await pool.query(
+      `UPDATE notifications SET read = true WHERE user_id = $1`,
+      [userId]
+    );
+  } catch (error) {
+    console.error('❌ Tüm bildirimleri okundu işaretleme hatası:', error);
+    throw error;
+  }
+}
+
 // Okunmamış bildirim sayısı
 async function getUnreadNotificationCount(userId) {
   try {
@@ -928,6 +941,7 @@ module.exports = {
   saveNotification,
   loadNotifications,
   markNotificationAsRead,
+  markAllNotificationsAsRead,
   getUnreadNotificationCount,
   saveComplaint,
   loadComplaints,

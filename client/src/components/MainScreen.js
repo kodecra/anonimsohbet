@@ -397,16 +397,17 @@ function MainScreen({ userId, profile, token, onMatchFound, onMatchContinued, on
               gap: '8px',
               minHeight: '56px'
             }}>
-              <div style={{ 
-                fontFamily: "'Pacifico', cursive",
-                fontSize: 'clamp(20px, 5vw, 28px)',
-                color: isDarkMode ? '#fff' : '#1a1a2e',
-                fontWeight: 400,
-                whiteSpace: 'nowrap',
-                flexShrink: 0
-              }}>
-                Soulbate.
-              </div>
+              <img 
+                src="/logo.png" 
+                alt="Soulbate Logo" 
+                style={{ 
+                  height: '32px', 
+                  width: 'auto',
+                  objectFit: 'contain',
+                  filter: isDarkMode ? 'brightness(0) invert(1)' : 'none',
+                  flexShrink: 0
+                }} 
+              />
               <Space size="small" style={{ flexShrink: 0 }}>
                 <Badge count={unreadNotificationCount > 0 ? unreadNotificationCount : null} size="small" offset={[-2, 2]}>
                   <Button
