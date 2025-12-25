@@ -389,23 +389,25 @@ function MainScreen({ userId, profile, token, onMatchFound, onMatchContinued, on
           >
             {/* Header - Logo ve Controls */}
             <div style={{ 
-              padding: '20px', 
+              padding: '12px 16px', 
               borderBottom: `1px solid ${isDarkMode ? '#2d3748' : '#f0f0f0'}`,
               display: 'flex',
               justifyContent: 'space-between',
-              alignItems: 'center'
+              alignItems: 'center',
+              gap: '8px',
+              minHeight: '56px'
             }}>
-              <img 
-                src="/logo.png" 
-                alt="Soulbate Logo" 
-                style={{ 
-                  height: '50px', 
-                  width: 'auto',
-                  objectFit: 'contain',
-                  filter: isDarkMode ? 'brightness(0) invert(1)' : 'none'
-                }} 
-              />
-              <Space>
+              <div style={{ 
+                fontFamily: "'Pacifico', cursive",
+                fontSize: 'clamp(20px, 5vw, 28px)',
+                color: isDarkMode ? '#fff' : '#1a1a2e',
+                fontWeight: 400,
+                whiteSpace: 'nowrap',
+                flexShrink: 0
+              }}>
+                Soulbate.
+              </div>
+              <Space size="small" style={{ flexShrink: 0 }}>
                 <Badge count={unreadNotificationCount > 0 ? unreadNotificationCount : null} size="small" offset={[-2, 2]}>
                   <Button
                     type="text"
@@ -419,7 +421,8 @@ function MainScreen({ userId, profile, token, onMatchFound, onMatchContinued, on
                       color: isDarkMode ? '#fff' : '#000',
                       display: 'flex',
                       alignItems: 'center',
-                      justifyContent: 'center'
+                      justifyContent: 'center',
+                      padding: '4px 8px'
                     }}
                   />
                 </Badge>
@@ -428,12 +431,14 @@ function MainScreen({ userId, profile, token, onMatchFound, onMatchContinued, on
                   onChange={toggleDarkMode}
                   checkedChildren={<MoonOutlined />}
                   unCheckedChildren={<SunOutlined />}
+                  size="small"
                 />
                 {currentProfile && (
                   <Button
                     type="text"
                     icon={<EditOutlined />}
                     onClick={() => setShowProfileEdit(true)}
+                    style={{ padding: '4px 8px' }}
                   />
                 )}
               </Space>
