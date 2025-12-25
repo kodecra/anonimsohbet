@@ -930,7 +930,7 @@ function ChatScreen({ userId, profile: currentProfile, matchId: initialMatchId, 
         lineHeight: 'normal',
         minHeight: '56px'
       }}>
-        <Space size="small">
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1, minWidth: 0 }}>
           {onGoBack && (
             <Button
               type="text"
@@ -938,27 +938,21 @@ function ChatScreen({ userId, profile: currentProfile, matchId: initialMatchId, 
               onClick={onGoBack}
               style={{ 
                 fontSize: '16px',
-                padding: '4px 8px'
+                padding: '4px 8px',
+                flexShrink: 0
               }}
             />
           )}
-          <span style={{ 
-            fontSize: '14px', 
-            fontWeight: 600, 
-            color: isDarkMode ? '#fff' : '#000',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '4px'
-          }}>
-            💬 Sohbet
-          </span>
-        </Space>
-        <Space style={{ alignItems: 'center' }}>
           {partnerProfile ? (
-            <Space 
+            <div 
               style={{ 
                 cursor: 'pointer',
-                padding: '4px 8px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '10px',
+                flex: 1,
+                minWidth: 0,
+                padding: '4px',
                 borderRadius: '8px',
                 transition: 'background 0.2s',
               }}
@@ -971,35 +965,47 @@ function ChatScreen({ userId, profile: currentProfile, matchId: initialMatchId, 
               onClick={() => setShowPartnerProfileModal(true)}
             >
               <Avatar
+                size={40}
                 src={partnerProfile.photos && partnerProfile.photos.length > 0 
                   ? (partnerProfile.photos[0].url && partnerProfile.photos[0].url.startsWith('http')
                       ? partnerProfile.photos[0].url
                       : `${API_URL}${partnerProfile.photos[0].url}`)
                   : undefined}
-                style={{ backgroundColor: '#1890ff' }}
+                style={{ backgroundColor: '#1890ff', flexShrink: 0 }}
               >
                 {partnerProfile.username.charAt(0).toUpperCase()}
               </Avatar>
-              <div>
-                <Space>
-                  <Text strong style={{ color: isDarkMode ? '#fff' : '#000' }}>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                  <Text strong style={{ 
+                    color: isDarkMode ? '#fff' : '#000', 
+                    fontSize: '14px',
+                    whiteSpace: 'nowrap',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis'
+                  }}>
                     {formatDisplayName(partnerProfile)}
-                    {partnerProfile.age && (
-                      <Text type="secondary" style={{ fontSize: '12px', color: isDarkMode ? '#b8b8b8' : '#999', marginLeft: '4px' }}>
-                        ({partnerProfile.age})
-                      </Text>
-                    )}
                   </Text>
+                  <Text style={{ 
+                    color: isDarkMode ? '#b8b8b8' : '#666', 
+                    fontSize: '13px'
+                  }}>
+                    (@{partnerProfile.username})
+                  </Text>
+                  {partnerProfile.age && (
+                    <Text style={{ color: isDarkMode ? '#b8b8b8' : '#999', fontSize: '13px' }}>
+                      ({partnerProfile.age})
+                    </Text>
+                  )}
                   {partnerProfile.verified && (
-                    <SafetyCertificateOutlined style={{ color: '#52c41a' }} />
+                    <SafetyCertificateOutlined style={{ color: '#52c41a', fontSize: '14px' }} />
                   )}
-                  {partnerProfile.isOnline && (
-                    <Tag color="green" style={{ margin: 0 }}>Çevrimiçi</Tag>
-                  )}
-                </Space>
-                {!partnerProfile.isOnline && partnerProfile.lastSeen && (
-                  <div>
-                    <Text type="secondary" style={{ fontSize: '11px', color: isDarkMode ? '#b8b8b8' : '#999' }}>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                  {partnerProfile.isOnline ? (
+                    <Text style={{ color: '#52c41a', fontSize: '12px' }}>Çevrimiçi</Text>
+                  ) : partnerProfile.lastSeen && (
+                    <Text style={{ color: isDarkMode ? '#8c8c8c' : '#999', fontSize: '12px' }}>
                       Son görülme: {new Date(partnerProfile.lastSeen).toLocaleString('tr-TR', {
                         day: '2-digit',
                         month: '2-digit',
@@ -1008,16 +1014,29 @@ function ChatScreen({ userId, profile: currentProfile, matchId: initialMatchId, 
                         minute: '2-digit'
                       })}
                     </Text>
-                  </div>
-                )}
+                  )}
+                </div>
               </div>
-            </Space>
+            </div>
           ) : !isCompletedMatch && (
-            <Text type="secondary" style={{ color: isDarkMode ? '#b8b8b8' : '#999' }}>
-              Anonim-{partnerAnonymousId || '0000000'}
-            </Text>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <Avatar size={40} style={{ backgroundColor: '#667eea', flexShrink: 0 }}>
+                A
+              </Avatar>
+              <div>
+                <Text strong style={{ color: isDarkMode ? '#fff' : '#000', fontSize: '14px' }}>
+                  Anonim-{partnerAnonymousId || '0000000'}
+                </Text>
+                <div>
+                  <Text style={{ color: isDarkMode ? '#8c8c8c' : '#999', fontSize: '12px' }}>
+                    Anonim sohbet
+                  </Text>
+                </div>
+              </div>
           )}
-          {partnerProfile && (
+        </div>
+        <Space style={{ flexShrink: 0 }}>
+          {(partnerProfile || !isCompletedMatch) && (
             <Dropdown
               menu={{
                 items: [
@@ -1293,6 +1312,7 @@ function ChatScreen({ userId, profile: currentProfile, matchId: initialMatchId, 
                     {message.readBy && message.readBy.filter(id => id !== userId).length > 0 ? '✓✓' : '✓'}
                   </Text>
                 )}
+              </div>
               
               {/* Reaksiyonlar */}
               {message.reactions && Object.keys(message.reactions).length > 0 && (
