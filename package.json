@@ -10,10 +10,17 @@
     "mobile": "cd mobile && npm start",
     "install-all": "npm install && cd server && npm install && cd ../client && npm install && cd ../mobile && npm install"
   },
-  "keywords": ["chat", "anonymous", "real-time"],
+  "keywords": [
+    "chat",
+    "anonymous",
+    "real-time"
+  ],
   "author": "",
   "license": "MIT",
   "devDependencies": {
     "concurrently": "^8.2.2"
+  },
+  "dependencies": {
+    "react-chat-elements": "^12.0.18"
   }
 }

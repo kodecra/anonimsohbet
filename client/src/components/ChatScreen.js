@@ -1181,18 +1181,15 @@ function ChatScreen({ userId, profile: currentProfile, matchId: initialMatchId, 
         </div>
       )}
 
-      {/* Messages */}
+      {/* Messages - react-chat-elements style */}
       <Content style={{ 
         flex: 1, 
         overflow: 'auto', 
-        padding: '8px 12px',
+        padding: '10px 15px',
         display: 'flex',
         flexDirection: 'column',
-        gap: '2px',
-        background: isDarkMode ? '#0b141a' : '#efeae2',
-        backgroundImage: isDarkMode 
-          ? 'url("data:image/svg+xml,%3Csvg width=\'60\' height=\'60\' viewBox=\'0 0 60 60\' xmlns=\'http://www.w3.org/2000/svg\'%3E%3Cg fill=\'none\' fill-rule=\'evenodd\'%3E%3Cg fill=\'%23ffffff\' fill-opacity=\'0.03\'%3E%3Cpath d=\'M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z\'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")'
-          : 'url("data:image/svg+xml,%3Csvg width=\'60\' height=\'60\' viewBox=\'0 0 60 60\' xmlns=\'http://www.w3.org/2000/svg\'%3E%3Cg fill=\'none\' fill-rule=\'evenodd\'%3E%3Cg fill=\'%23000000\' fill-opacity=\'0.02\'%3E%3Cpath d=\'M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z\'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")',
+        gap: '8px',
+        background: isDarkMode ? '#17202a' : '#f5f5f5',
         transition: 'background 0.3s ease'
       }}>
         {messages.filter((message, index, self) => 
@@ -1205,91 +1202,120 @@ function ChatScreen({ userId, profile: currentProfile, matchId: initialMatchId, 
           return (
           <div
             key={message.id}
+            className="rce-container-mbox"
             style={{
               display: 'flex',
-              justifyContent: isOwn ? 'flex-end' : 'flex-start',
-              marginBottom: '1px'
+              flexDirection: isOwn ? 'row-reverse' : 'row',
+              alignItems: 'flex-end'
             }}
           >
+            {/* Mesaj Kutusu */}
             <div
+              className="rce-mbox"
               style={{
-                maxWidth: '85%',
-                padding: '6px 8px 4px 8px',
+                position: 'relative',
+                maxWidth: '80%',
+                minWidth: '120px',
                 backgroundColor: isOwn 
-                  ? (isDarkMode ? '#005c4b' : '#d9fdd3')
-                  : (isDarkMode ? '#202c33' : '#fff'),
-                borderRadius: isOwn ? '8px 8px 0 8px' : '8px 8px 8px 0',
-                boxShadow: '0 1px 0.5px rgba(11,20,26,.13)',
-                position: 'relative'
+                  ? (isDarkMode ? '#5b5ea6' : '#4f81e2')
+                  : (isDarkMode ? '#2d2d30' : '#ffffff'),
+                borderRadius: isOwn ? '10px 10px 0 10px' : '10px 10px 10px 0',
+                boxShadow: isDarkMode 
+                  ? '0 1px 2px rgba(0,0,0,0.3)' 
+                  : '0 1px 2px rgba(0,0,0,0.1)',
+                overflow: 'hidden'
               }}
             >
-              {/* Kullanıcı adı */}
+              {/* Başlık - Gönderen */}
               {!message.isSystem && (
-                <div style={{ 
-                  color: isOwn 
-                    ? (isDarkMode ? '#53bdeb' : '#075e54') 
-                    : (isDarkMode ? '#53bdeb' : '#1f7aec'),
-                  fontSize: '12.5px',
-                  fontWeight: 500,
-                  marginBottom: '1px'
-                }}>
+                <div
+                  className="rce-mbox-title"
+                  style={{
+                    padding: '5px 10px 0 10px',
+                    color: isOwn 
+                      ? 'rgba(255,255,255,0.9)'
+                      : (isDarkMode ? '#4fc3f7' : '#4f81e2'),
+                    fontSize: '13px',
+                    fontWeight: 600,
+                    cursor: 'pointer'
+                  }}
+                >
                   {isCompletedMatch && messageSenderProfile
                     ? `${formatDisplayName(messageSenderProfile)} (@${messageSenderProfile.username})`
                     : isOwn ? 'Sen' : `Anonim-${partnerAnonymousId || '000000'}`
                   }
                 </div>
               )}
-              {/* Mesaj içeriği */}
-              <div style={{ 
-                color: isDarkMode ? '#e9edef' : '#111b21',
-                fontSize: '14.2px',
-                lineHeight: '19px',
-                wordBreak: 'break-word',
-                whiteSpace: 'pre-wrap'
-              }}>
-                {message.deleted ? (
-                  <span style={{ fontStyle: 'italic', opacity: 0.6 }}>Bu mesaj silindi</span>
-                ) : (
-                  <>
-                    {message.mediaUrl && (
-                      <div style={{ marginBottom: message.text ? '4px' : 0 }}>
-                        <img 
-                          src={message.mediaUrl.startsWith('http') ? message.mediaUrl : `${API_URL}${message.mediaUrl}`}
-                          alt="Gönderilen medya"
-                          style={{ maxWidth: '100%', maxHeight: '200px', borderRadius: '6px', cursor: 'pointer' }}
-                          onClick={() => window.open(message.mediaUrl.startsWith('http') ? message.mediaUrl : `${API_URL}${message.mediaUrl}`, '_blank')}
-                        />
-                      </div>
-                    )}
-                    {message.text}
-                  </>
+              
+              {/* Mesaj İçeriği */}
+              <div
+                className="rce-mbox-body"
+                style={{
+                  padding: message.isSystem ? '8px 10px' : '3px 10px 6px 10px'
+                }}
+              >
+                {/* Medya */}
+                {message.mediaUrl && !message.deleted && (
+                  <div style={{ marginBottom: message.text ? '6px' : 0 }}>
+                    <img 
+                      src={message.mediaUrl.startsWith('http') ? message.mediaUrl : `${API_URL}${message.mediaUrl}`}
+                      alt="Medya"
+                      style={{ 
+                        maxWidth: '100%', 
+                        maxHeight: '200px', 
+                        borderRadius: '6px', 
+                        cursor: 'pointer',
+                        display: 'block'
+                      }}
+                      onClick={() => window.open(message.mediaUrl.startsWith('http') ? message.mediaUrl : `${API_URL}${message.mediaUrl}`, '_blank')}
+                    />
+                  </div>
                 )}
-              </div>
-              {/* Saat ve okundu bilgisi - sağ alt */}
-              <div style={{ 
-                display: 'flex', 
-                justifyContent: 'flex-end', 
-                alignItems: 'center',
-                gap: '3px',
-                marginTop: '2px',
-                marginLeft: '8px',
-                float: 'right'
-              }}>
-                <span style={{ 
-                  color: isDarkMode ? 'rgba(255,255,255,0.6)' : 'rgba(0,0,0,0.45)',
-                  fontSize: '11px'
-                }}>
-                  {formatTime(message.timestamp)}
-                </span>
-                {isOwn && (
-                  <span style={{ 
-                    color: isRead ? '#53bdeb' : (isDarkMode ? 'rgba(255,255,255,0.5)' : 'rgba(0,0,0,0.35)'),
+                
+                {/* Metin */}
+                <div
+                  className="rce-mbox-text"
+                  style={{
+                    color: isOwn ? '#fff' : (isDarkMode ? '#e4e6eb' : '#303030'),
                     fontSize: '14px',
-                    marginLeft: '2px'
+                    lineHeight: '1.4',
+                    wordBreak: 'break-word',
+                    whiteSpace: 'pre-wrap'
+                  }}
+                >
+                  {message.deleted ? (
+                    <span style={{ fontStyle: 'italic', opacity: 0.6 }}>Bu mesaj silindi</span>
+                  ) : message.text}
+                </div>
+                
+                {/* Zaman ve Durum */}
+                <div
+                  className="rce-mbox-time"
+                  style={{
+                    display: 'flex',
+                    justifyContent: 'flex-end',
+                    alignItems: 'center',
+                    gap: '4px',
+                    marginTop: '4px'
+                  }}
+                >
+                  <span style={{
+                    fontSize: '11px',
+                    color: isOwn 
+                      ? 'rgba(255,255,255,0.7)' 
+                      : (isDarkMode ? 'rgba(255,255,255,0.5)' : 'rgba(0,0,0,0.4)')
                   }}>
-                    {isRead ? '✓✓' : '✓'}
+                    {formatTime(message.timestamp)}
                   </span>
-                )}
+                  {isOwn && (
+                    <span style={{
+                      fontSize: '13px',
+                      color: isRead ? '#4fc3f7' : 'rgba(255,255,255,0.5)'
+                    }}>
+                      {isRead ? '✓✓' : '✓'}
+                    </span>
+                  )}
+                </div>
               </div>
             </div>
           </div>
