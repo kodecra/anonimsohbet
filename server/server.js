@@ -2132,8 +2132,8 @@ io.on('connection', (socket) => {
       // Her kullanıcının profilindeki anonim numarasını kullan
       const user1Profile = users.get(user1.userId);
       const user2Profile = users.get(user2.userId);
-      const user1AnonymousId = user1Profile?.anonymousNumber || Math.floor(1000000 + Math.random() * 9000000).toString();
-      const user2AnonymousId = user2Profile?.anonymousNumber || Math.floor(1000000 + Math.random() * 9000000).toString();
+      const user1AnonymousId = (user1Profile && user1Profile.anonymousNumber) || Math.floor(1000000 + Math.random() * 9000000).toString();
+      const user2AnonymousId = (user2Profile && user2Profile.anonymousNumber) || Math.floor(1000000 + Math.random() * 9000000).toString();
       
       // Match yapısını netleştir - user1 ve user2'de userId ve socketId olmalı
       const match = {
