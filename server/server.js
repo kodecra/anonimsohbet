@@ -2689,22 +2689,18 @@ io.on('connection', (socket) => {
     const { matchId } = data;
     const userInfo = activeUsers.get(socket.id);
     
-    if (!userInfo || !userInfo.inMatch || userInfo.matchId !== matchId) {
-      socket.emit('error', { message: 'Geçersiz eşleşme' });
-      return;
-    }
-
-    const match = activeMatches.get(matchId);
-    if (!match) {
-      socket.emit('error', { message: 'Eşleşme bulunamadı' });
+    if (!userInfo) {
+      socket.emit('error', { message: 'Kullanıcı bilgisi bulunamadı' });
       return;
     }
 
     // Bekleyen devam isteğini bul
     let request = null;
+    let requestKey = null;
     for (const [requestId, req] of followRequests.entries()) {
       if (req.matchId === matchId && req.status === 'pending') {
         request = req;
+        requestKey = requestId;
         break;
       }
     }
@@ -2714,47 +2710,67 @@ io.on('connection', (socket) => {
       return;
     }
 
+    // Kullanıcının bu isteğe yanıt verme yetkisi var mı?
     if (request.toUserId !== userInfo.userId) {
       socket.emit('error', { message: 'Bu devam isteği size ait değil' });
       return;
     }
 
-    // İsteği reddet
+    // İsteği reddet ve sil
     request.status = 'rejected';
-    followRequests.set(request.requestId, request);
-    if (useDatabase) await updateFollowRequestStatusDB(request.requestId, 'rejected');
-
-    // Gönderen kullanıcıya bildir
-    io.to(request.fromSocketId).emit('continue-request-rejected', {
-      matchId,
-      message: 'Devam isteğiniz reddedildi'
-    });
-
-    // Eşleşmeyi sonlandır
-    io.to(match.user1.socketId).emit('match-ended', {
-      matchId: matchId,
-      message: 'Eşleşme sona erdi.'
-    });
-
-    io.to(match.user2.socketId).emit('match-ended', {
-      matchId: matchId,
-      message: 'Eşleşme sona erdi.'
-    });
-
-    // Eşleşmeyi temizle
-    const user1Info = activeUsers.get(match.user1.socketId);
-    const user2Info = activeUsers.get(match.user2.socketId);
-    if (user1Info) {
-      user1Info.inMatch = false;
-      user1Info.matchId = null;
+    followRequests.delete(requestKey); // Map'ten tamamen sil
+    if (useDatabase) {
+      await updateFollowRequestStatusDB(request.requestId, 'rejected');
+      await deleteFollowRequestDB(request.requestId);
     }
-    if (user2Info) {
-      user2Info.inMatch = false;
-      user2Info.matchId = null;
-    }
-    await deleteActiveMatch(matchId);
 
-    console.log(`Devam isteği reddedildi: ${matchId}`);
+    // Gönderen kullanıcıya bildir (eğer çevrimiçiyse)
+    if (io.sockets.sockets.has(request.fromSocketId)) {
+      io.to(request.fromSocketId).emit('continue-request-rejected', {
+        matchId,
+        message: 'Devam isteğiniz reddedildi'
+      });
+    }
+
+    // Eşleşmeyi kontrol et ve temizle
+    const match = activeMatches.get(matchId);
+    if (match) {
+      // Eşleşmeyi sonlandır
+      if (io.sockets.sockets.has(match.user1.socketId)) {
+        io.to(match.user1.socketId).emit('match-ended', {
+          matchId: matchId,
+          message: 'Eşleşme sona erdi.'
+        });
+      }
+
+      if (io.sockets.sockets.has(match.user2.socketId)) {
+        io.to(match.user2.socketId).emit('match-ended', {
+          matchId: matchId,
+          message: 'Eşleşme sona erdi.'
+        });
+      }
+
+      // Eşleşmeyi temizle
+      const user1Info = activeUsers.get(match.user1.socketId);
+      const user2Info = activeUsers.get(match.user2.socketId);
+      if (user1Info) {
+        user1Info.inMatch = false;
+        user1Info.matchId = null;
+      }
+      if (user2Info) {
+        user2Info.inMatch = false;
+        user2Info.matchId = null;
+      }
+      await deleteActiveMatch(matchId);
+    }
+
+    // İsteği yapan kullanıcıya da bildir (matches-updated)
+    socket.emit('matches-updated');
+    if (io.sockets.sockets.has(request.fromSocketId)) {
+      io.to(request.fromSocketId).emit('matches-updated');
+    }
+
+    console.log(`Devam isteği reddedildi ve silindi: ${matchId}`);
   });
 
   // Eski match-decision event'i kaldırıldı - artık takip isteği sistemi kullanılıyor

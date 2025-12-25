@@ -868,12 +868,13 @@ async function saveFollowRequest(requestId, request) {
   }
 }
 
-// Tüm follow requests yükle
+// Tüm follow requests yükle (sadece pending olanlar)
 async function loadFollowRequests() {
   if (!pool) return new Map();
   
   try {
-    const result = await pool.query('SELECT * FROM follow_requests');
+    // Sadece pending olanları yükle, rejected/accepted olanları yükleme
+    const result = await pool.query("SELECT * FROM follow_requests WHERE status = 'pending'");
     const followRequestsMap = new Map();
     
     for (const row of result.rows) {
