@@ -2668,6 +2668,14 @@ io.on('connection', (socket) => {
       });
     }
 
+    // Aktif eşleşmeden sil (artık completed)
+    activeMatches.delete(matchId);
+    if (useDatabase) await deleteActiveMatchDB(matchId);
+    
+    // Follow request'i sil
+    followRequests.delete(request.requestId);
+    if (useDatabase) await deleteFollowRequestDB(request.requestId);
+
     // Her iki kullanıcıya da eşleşme onaylandı bildirimi gönder
     io.to(match.user1.socketId).emit('match-continued', {
       matchId: matchId,
@@ -2680,6 +2688,10 @@ io.on('connection', (socket) => {
       partnerProfile: user1Profile,
       message: 'Eşleşme onaylandı! Artık birbirinizin profillerini görebilirsiniz.'
     });
+    
+    // Her iki kullanıcıya da matches-updated event'i gönder
+    io.to(match.user1.socketId).emit('matches-updated');
+    io.to(match.user2.socketId).emit('matches-updated');
 
     console.log(`Devam isteği kabul edildi: ${matchId}`);
   });
