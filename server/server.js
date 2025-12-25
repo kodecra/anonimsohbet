@@ -2101,19 +2101,19 @@ io.on('connection', (socket) => {
       
       // Kullanıcının filtresi var mı ve aday uygun mu?
       if (genderFilter && candidateGender !== genderFilter) {
-        console.log(`   ❌ ${candidate.profile?.username} cinsiyet uyumsuz: ${candidateGender} != ${genderFilter}`);
+        console.log('   ❌ ' + (candidate.profile && candidate.profile.username) + ' cinsiyet uyumsuz: ' + candidateGender + ' != ' + genderFilter);
         continue;
       }
       
       // Adayın filtresi var mı ve mevcut kullanıcı uygun mu?
       if (candidate.genderFilter && currentUserGender !== candidate.genderFilter) {
-        console.log(`   ❌ ${candidate.profile?.username} bizi istemiyor: ${currentUserGender} != ${candidate.genderFilter}`);
+        console.log('   ❌ ' + (candidate.profile && candidate.profile.username) + ' bizi istemiyor: ' + currentUserGender + ' != ' + candidate.genderFilter);
         continue;
       }
       
       // Uygun eşleşme bulundu!
       matchedUserIndex = i;
-      console.log(`   ✅ Uygun eşleşme bulundu: ${candidate.profile?.username}`);
+      console.log('   ✅ Uygun eşleşme bulundu: ' + (candidate.profile && candidate.profile.username));
       break;
     }
     
