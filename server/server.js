@@ -2096,8 +2096,8 @@ io.on('connection', (socket) => {
       if (candidate.socketId === socket.id) continue;
       
       // Cinsiyet filtresi kontrolü (ZORUNLU)
-      const candidateGender = candidate.profile?.gender;
-      const currentUserGender = currentUser.profile?.gender;
+      const candidateGender = candidate.profile && candidate.profile.gender;
+      const currentUserGender = currentUser.profile && currentUser.profile.gender;
       
       // Kullanıcının filtresi var mı ve aday uygun mu?
       if (genderFilter && candidateGender !== genderFilter) {
