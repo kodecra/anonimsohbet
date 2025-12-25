@@ -1018,7 +1018,7 @@ function ChatScreen({ userId, profile: currentProfile, matchId: initialMatchId, 
                 </div>
               </div>
             </div>
-          ) : !isCompletedMatch && (
+          ) : !isCompletedMatch ? (
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
               <Avatar size={40} style={{ backgroundColor: '#667eea', flexShrink: 0 }}>
                 A
@@ -1033,7 +1033,8 @@ function ChatScreen({ userId, profile: currentProfile, matchId: initialMatchId, 
                   </Text>
                 </div>
               </div>
-          )}
+            </div>
+          ) : null}
         </div>
         <Space style={{ flexShrink: 0 }}>
           {(partnerProfile || !isCompletedMatch) && (
