@@ -975,8 +975,8 @@ function ChatScreen({ userId, profile: currentProfile, matchId: initialMatchId, 
               >
                 {partnerProfile.username.charAt(0).toUpperCase()}
               </Avatar>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+              <div style={{ flex: 1, minWidth: 0, overflow: 'hidden' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                   <Text strong style={{ 
                     color: isDarkMode ? '#fff' : '#000', 
                     fontSize: '14px',
@@ -985,37 +985,32 @@ function ChatScreen({ userId, profile: currentProfile, matchId: initialMatchId, 
                     textOverflow: 'ellipsis'
                   }}>
                     {formatDisplayName(partnerProfile)}
+                    {partnerProfile.age && ` (${partnerProfile.age})`}
                   </Text>
-                  <Text style={{ 
-                    color: isDarkMode ? '#b8b8b8' : '#666', 
-                    fontSize: '13px'
-                  }}>
-                    (@{partnerProfile.username})
-                  </Text>
-                  {partnerProfile.age && (
-                    <Text style={{ color: isDarkMode ? '#b8b8b8' : '#999', fontSize: '13px' }}>
-                      ({partnerProfile.age})
-                    </Text>
-                  )}
                   {partnerProfile.verified && (
-                    <SafetyCertificateOutlined style={{ color: '#52c41a', fontSize: '14px' }} />
+                    <SafetyCertificateOutlined style={{ color: '#52c41a', fontSize: '13px', flexShrink: 0 }} />
                   )}
                 </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                  {partnerProfile.isOnline ? (
-                    <Text style={{ color: '#52c41a', fontSize: '12px' }}>Çevrimiçi</Text>
-                  ) : partnerProfile.lastSeen && (
-                    <Text style={{ color: isDarkMode ? '#8c8c8c' : '#999', fontSize: '12px' }}>
-                      Son görülme: {new Date(partnerProfile.lastSeen).toLocaleString('tr-TR', {
-                        day: '2-digit',
-                        month: '2-digit',
-                        year: 'numeric',
-                        hour: '2-digit',
-                        minute: '2-digit'
-                      })}
-                    </Text>
-                  )}
-                </div>
+                <Text style={{ 
+                  color: isDarkMode ? '#8c8c8c' : '#666', 
+                  fontSize: '12px',
+                  display: 'block',
+                  whiteSpace: 'nowrap',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis'
+                }}>
+                  @{partnerProfile.username}
+                </Text>
+                <Text style={{ 
+                  color: partnerProfile.isOnline ? '#52c41a' : (isDarkMode ? '#666' : '#999'), 
+                  fontSize: '11px',
+                  display: 'block'
+                }}>
+                  {partnerProfile.isOnline ? 'Çevrimiçi' : partnerProfile.lastSeen ? 
+                    `Son görülme: ${new Date(partnerProfile.lastSeen).toLocaleString('tr-TR', {
+                      day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit'
+                    })}` : ''}
+                </Text>
               </div>
             </div>
           ) : !isCompletedMatch ? (
@@ -1190,10 +1185,10 @@ function ChatScreen({ userId, profile: currentProfile, matchId: initialMatchId, 
       <Content style={{ 
         flex: 1, 
         overflow: 'auto', 
-        padding: '10px 14px',
+        padding: '6px 10px',
         display: 'flex',
         flexDirection: 'column',
-        gap: '3px',
+        gap: '2px',
         background: isDarkMode ? '#16213e' : '#f0f2f5',
         transition: 'background 0.3s ease'
       }}>
@@ -1205,57 +1200,48 @@ function ChatScreen({ userId, profile: currentProfile, matchId: initialMatchId, 
           const messageSenderProfile = message.userId === userId 
             ? currentProfile 
             : partnerProfile;
+          const isOwn = message.userId === userId;
+          const isRead = message.readBy && message.readBy.filter(id => id !== userId).length > 0;
           
           return (
           <div
             key={message.id}
             style={{
-              alignSelf: message.userId === userId ? 'flex-end' : 'flex-start',
-              maxWidth: '75%',
-              minWidth: '80px'
+              alignSelf: isOwn ? 'flex-end' : 'flex-start',
+              maxWidth: '78%'
             }}
           >
-            <Card
+            <div
               style={{
-                padding: '3px 6px',
-                backgroundColor: message.userId === userId 
-                  ? '#005c4b'
-                  : (isDarkMode ? '#1f2c34' : '#fff'),
-                borderRadius: message.userId === userId ? '6px 6px 2px 6px' : '6px 6px 6px 2px',
-                border: 'none',
-                boxShadow: '0 1px 0.5px rgba(0,0,0,0.13)'
+                padding: '4px 7px 3px 7px',
+                backgroundColor: isOwn 
+                  ? (isDarkMode ? '#5E72E4' : '#1890ff')
+                  : (isDarkMode ? '#2d3748' : '#fff'),
+                borderRadius: isOwn ? '12px 12px 3px 12px' : '12px 12px 12px 3px',
+                boxShadow: '0 1px 1px rgba(0,0,0,0.1)'
               }}
-              styles={{ body: { padding: 0 } }}
             >
               {/* Kullanıcı adı - sol üst */}
               {!message.isSystem && (
-                <Text 
-                  style={{ 
-                    color: message.userId === userId 
-                      ? '#8696a0' 
-                      : '#53bdeb',
-                    fontSize: '10px',
-                    fontWeight: 600,
-                    display: 'block',
-                    marginBottom: '1px',
-                    lineHeight: 1.2
-                  }}
-                >
+                <div style={{ 
+                  color: isOwn ? 'rgba(255,255,255,0.7)' : '#53bdeb',
+                  fontSize: '11px',
+                  fontWeight: 600,
+                  marginBottom: '1px',
+                  lineHeight: 1
+                }}>
                   {isCompletedMatch && messageSenderProfile
-                    ? formatDisplayName(messageSenderProfile)
-                    : message.userId === userId 
-                      ? 'Sen' 
-                      : `Anonim-${partnerAnonymousId || '000000'}`
+                    ? `${formatDisplayName(messageSenderProfile)} (@${messageSenderProfile.username})`
+                    : isOwn ? 'Sen' : `Anonim-${partnerAnonymousId || '000000'}`
                   }
-                </Text>
+                </div>
               )}
               {/* Mesaj içeriği */}
-              <Text style={{ 
-                color: '#e9edef',
-                fontSize: '13px',
-                lineHeight: 1.2,
-                wordBreak: 'break-word',
-                display: 'block'
+              <div style={{ 
+                color: isOwn ? '#fff' : (isDarkMode ? '#e2e8f0' : '#1a202c'),
+                fontSize: '14px',
+                lineHeight: 1.3,
+                wordBreak: 'break-word'
               }}>
                 {message.deleted ? (
                   <span style={{ fontStyle: 'italic', opacity: 0.6 }}>Bu mesaj silindi</span>
@@ -1266,42 +1252,36 @@ function ChatScreen({ userId, profile: currentProfile, matchId: initialMatchId, 
                         <img 
                           src={message.mediaUrl.startsWith('http') ? message.mediaUrl : `${API_URL}${message.mediaUrl}`}
                           alt="Gönderilen medya"
-                          style={{ 
-                            maxWidth: '100%', 
-                            maxHeight: '200px', 
-                            borderRadius: '4px',
-                            cursor: 'pointer'
-                          }}
-                          onClick={() => {
-                            window.open(
-                              message.mediaUrl.startsWith('http') ? message.mediaUrl : `${API_URL}${message.mediaUrl}`,
-                              '_blank'
-                            );
-                          }}
+                          style={{ maxWidth: '100%', maxHeight: '180px', borderRadius: '4px', cursor: 'pointer' }}
+                          onClick={() => window.open(message.mediaUrl.startsWith('http') ? message.mediaUrl : `${API_URL}${message.mediaUrl}`, '_blank')}
                         />
                       </div>
                     )}
                     {message.text}
                   </>
                 )}
-              </Text>
-              
-              {/* Alt satır: Okundu/İletildi (sol) - Saat (sağ) */}
+              </div>
+              {/* Alt satır: Sol - Okundu, Sağ - Saat */}
               <div style={{ 
                 display: 'flex', 
-                justifyContent: 'flex-end', 
+                justifyContent: 'space-between', 
                 alignItems: 'center',
-                marginTop: '1px',
-                gap: '4px'
+                marginTop: '2px',
+                gap: '6px'
               }}>
-                {/* Saat */}
-                <Text style={{ 
-                  color: message.userId === userId ? 'rgba(255,255,255,0.5)' : '#8c8c8c',
-                  fontSize: '9px',
-                  whiteSpace: 'nowrap'
+                {/* Sol: Okundu bilgisi */}
+                {isOwn ? (
+                  <span style={{ color: isRead ? '#53bdeb' : 'rgba(255,255,255,0.5)', fontSize: '10px' }}>
+                    {isRead ? '✓✓' : '✓'}
+                  </span>
+                ) : <span />}
+                {/* Sağ: Saat */}
+                <span style={{ 
+                  color: isOwn ? 'rgba(255,255,255,0.6)' : '#8c8c8c',
+                  fontSize: '10px'
                 }}>
                   {formatTime(message.timestamp)}
-                </Text>
+                </span>
                 {/* Okundu/İletildi tik - sadece kendi mesajlarımızda */}
                 {message.userId === userId && (
                   <Text style={{ 
@@ -1314,33 +1294,7 @@ function ChatScreen({ userId, profile: currentProfile, matchId: initialMatchId, 
                   </Text>
                 )}
               </div>
-              
-              {/* Reaksiyonlar */}
-              {message.reactions && Object.keys(message.reactions).length > 0 && (
-                <div style={{ 
-                  marginTop: '4px', 
-                  display: 'flex', 
-                  gap: '4px', 
-                  flexWrap: 'wrap' 
-                }}>
-                  {Object.entries(message.reactions).map(([reaction, userIds]) => (
-                    <Tag
-                      key={reaction}
-                      style={{ 
-                        cursor: 'pointer',
-                        backgroundColor: message.userId === userId ? 'rgba(255,255,255,0.2)' : '#f0f0f0',
-                        fontSize: '10px',
-                        padding: '0 4px',
-                        margin: 0
-                      }}
-                      onClick={() => reactToMessage(message.id, reaction)}
-                    >
-                      {reaction} {userIds.length}
-                    </Tag>
-                  ))}
-                </div>
-              )}
-            </Card>
+            </div>
           </div>
           );
         })}
