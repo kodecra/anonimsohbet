@@ -1769,6 +1769,56 @@ app.get('/api/matches/:matchId/unread-count', authenticateToken, (req, res) => {
   res.json({ count: unreadCount });
 });
 
+// Mesajları okundu olarak işaretle
+app.post('/api/matches/:matchId/mark-read', authenticateToken, async (req, res) => {
+  const userId = req.user.userId;
+  const matchId = req.params.matchId;
+  
+  // Önce activeMatches'te ara, bulamazsan completedMatches'te ara
+  let match = activeMatches.get(matchId);
+  let isActiveMatch = !!match;
+  if (!match) {
+    match = completedMatches.get(matchId);
+  }
+
+  if (!match) {
+    return res.json({ success: false, message: 'Match bulunamadı' });
+  }
+  
+  // Kullanıcının bu eşleşmede olup olmadığını kontrol et
+  const matchUser1Id = match.user1?.userId || match.user1?.user?.userId;
+  const matchUser2Id = match.user2?.userId || match.user2?.user?.userId;
+  
+  if (matchUser1Id !== userId && matchUser2Id !== userId) {
+    return res.json({ success: false, message: 'Bu eşleşmeye erişim yetkiniz yok' });
+  }
+
+  // Karşı taraftan gelen tüm mesajları okundu olarak işaretle
+  let markedCount = 0;
+  if (match.messages && match.messages.length > 0) {
+    for (let i = 0; i < match.messages.length; i++) {
+      if (match.messages[i].userId !== userId && !match.messages[i].read) {
+        match.messages[i].read = true;
+        match.messages[i].readAt = new Date().toISOString();
+        markedCount++;
+      }
+    }
+  }
+  
+  // Değişiklikleri kaydet
+  if (markedCount > 0) {
+    if (isActiveMatch) {
+      activeMatches.set(matchId, match);
+      if (useDatabase) await saveActiveMatchDB(matchId, match);
+    } else {
+      completedMatches.set(matchId, match);
+      await saveMatches(completedMatches, userMatches);
+    }
+  }
+  
+  res.json({ success: true, markedCount });
+});
+
 // Socket.io bağlantıları
 io.on('connection', (socket) => {
   console.log('Yeni kullanıcı bağlandı:', socket.id);

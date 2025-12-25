@@ -172,6 +172,12 @@ function ChatScreen({ userId, profile: currentProfile, matchId: initialMatchId, 
             } else {
               console.log('⚠️ Mesaj geçmişi boş');
             }
+            
+            // Mesajları okundu olarak işaretle
+            fetch(`${API_URL}/api/matches/${cleanMatchId}/mark-read`, {
+              method: 'POST',
+              headers: { 'Authorization': `Bearer ${token}` }
+            }).catch(err => console.error('Mesaj okundu işaretleme hatası:', err));
           } else {
             // Aktif eşleşme - partner null (anonim)
             console.log('✅ Aktif eşleşme - partner null (anonim)');
@@ -224,6 +230,12 @@ function ChatScreen({ userId, profile: currentProfile, matchId: initialMatchId, 
             console.log(`✅ ${data.match.messages.length} mesaj yüklendi`);
             setMessages(data.match.messages);
           }
+          
+          // Mesajları okundu olarak işaretle
+          fetch(`${API_URL}/api/matches/${activeMatchId}/mark-read`, {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${token}` }
+          }).catch(err => console.error('Mesaj okundu işaretleme hatası:', err));
         })
         .catch(err => console.error('Mesaj yükleme hatası:', err));
       }

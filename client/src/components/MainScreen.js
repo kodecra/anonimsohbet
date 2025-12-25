@@ -1182,20 +1182,23 @@ function MainScreen({ userId, profile, token, onMatchFound, onMatchContinued, on
             {unreadNotificationCount > 0 && (
               <Badge count={unreadNotificationCount} />
             )}
-            {unreadNotificationCount > 0 && (
-              <Button 
-                type="link" 
-                size="small"
-                onClick={markAllNotificationsAsRead}
-              >
-                Tümünü Okundu İşaretle
-              </Button>
-            )}
           </Space>
         }
         open={showNotifications}
         onCancel={() => setShowNotifications(false)}
-        footer={null}
+        footer={
+          notifications.some(n => !n.read) ? (
+            <Button 
+              type="primary"
+              onClick={() => {
+                markAllNotificationsAsRead();
+              }}
+              style={{ width: '100%' }}
+            >
+              Tümünü Okundu Olarak İşaretle
+            </Button>
+          ) : null
+        }
         width={600}
         style={{
           top: 20
