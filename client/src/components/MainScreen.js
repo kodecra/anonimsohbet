@@ -1177,28 +1177,31 @@ function MainScreen({ userId, profile, token, onMatchFound, onMatchContinued, on
       {/* Bildirimler Modal */}
       <Modal
         title={
-          <Space>
-            <span>Bildirimler</span>
-            {unreadNotificationCount > 0 && (
-              <Badge count={unreadNotificationCount} />
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingRight: '24px' }}>
+            <Space>
+              <span>Bildirimler</span>
+              {unreadNotificationCount > 0 && (
+                <Badge count={unreadNotificationCount} />
+              )}
+            </Space>
+            {notifications.length > 0 && (
+              <Button 
+                type="link" 
+                size="small"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  markAllNotificationsAsRead();
+                }}
+                style={{ padding: 0, fontSize: '13px' }}
+              >
+                Tümünü Okundu İşaretle
+              </Button>
             )}
-          </Space>
+          </div>
         }
         open={showNotifications}
         onCancel={() => setShowNotifications(false)}
-        footer={
-          notifications.some(n => !n.read) ? (
-            <Button 
-              type="primary"
-              onClick={() => {
-                markAllNotificationsAsRead();
-              }}
-              style={{ width: '100%' }}
-            >
-              Tümünü Okundu Olarak İşaretle
-            </Button>
-          ) : null
-        }
+        footer={null}
         width={600}
         style={{
           top: 20
