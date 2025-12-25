@@ -1188,11 +1188,13 @@ function ChatScreen({ userId, profile: currentProfile, matchId: initialMatchId, 
         padding: '8px 12px',
         display: 'flex',
         flexDirection: 'column',
-        gap: '3px',
-        background: isDarkMode ? '#16213e' : '#f0f2f5',
+        gap: '2px',
+        background: isDarkMode ? '#0b141a' : '#efeae2',
+        backgroundImage: isDarkMode 
+          ? 'url("data:image/svg+xml,%3Csvg width=\'60\' height=\'60\' viewBox=\'0 0 60 60\' xmlns=\'http://www.w3.org/2000/svg\'%3E%3Cg fill=\'none\' fill-rule=\'evenodd\'%3E%3Cg fill=\'%23ffffff\' fill-opacity=\'0.03\'%3E%3Cpath d=\'M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z\'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")'
+          : 'url("data:image/svg+xml,%3Csvg width=\'60\' height=\'60\' viewBox=\'0 0 60 60\' xmlns=\'http://www.w3.org/2000/svg\'%3E%3Cg fill=\'none\' fill-rule=\'evenodd\'%3E%3Cg fill=\'%23000000\' fill-opacity=\'0.02\'%3E%3Cpath d=\'M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z\'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")',
         transition: 'background 0.3s ease'
       }}>
-        {/* Duplicate mesajları filtrele */}
         {messages.filter((message, index, self) => 
           index === self.findIndex(m => m.id === message.id)
         ).map((message) => {
@@ -1204,27 +1206,32 @@ function ChatScreen({ userId, profile: currentProfile, matchId: initialMatchId, 
           <div
             key={message.id}
             style={{
-              alignSelf: isOwn ? 'flex-end' : 'flex-start',
-              maxWidth: '80%'
+              display: 'flex',
+              justifyContent: isOwn ? 'flex-end' : 'flex-start',
+              marginBottom: '1px'
             }}
           >
             <div
               style={{
-                padding: '4px 8px',
+                maxWidth: '85%',
+                padding: '6px 8px 4px 8px',
                 backgroundColor: isOwn 
-                  ? (isDarkMode ? '#5E72E4' : '#1890ff')
-                  : (isDarkMode ? '#2d3748' : '#fff'),
-                borderRadius: isOwn ? '10px 10px 2px 10px' : '10px 10px 10px 2px',
-                boxShadow: '0 1px 1px rgba(0,0,0,0.08)'
+                  ? (isDarkMode ? '#005c4b' : '#d9fdd3')
+                  : (isDarkMode ? '#202c33' : '#fff'),
+                borderRadius: isOwn ? '8px 8px 0 8px' : '8px 8px 8px 0',
+                boxShadow: '0 1px 0.5px rgba(11,20,26,.13)',
+                position: 'relative'
               }}
             >
-              {/* Kullanıcı adı - sol üst */}
+              {/* Kullanıcı adı */}
               {!message.isSystem && (
                 <div style={{ 
-                  color: isOwn ? 'rgba(255,255,255,0.8)' : '#53bdeb',
-                  fontSize: '11px',
-                  fontWeight: 600,
-                  lineHeight: 1.2
+                  color: isOwn 
+                    ? (isDarkMode ? '#53bdeb' : '#075e54') 
+                    : (isDarkMode ? '#53bdeb' : '#1f7aec'),
+                  fontSize: '12.5px',
+                  fontWeight: 500,
+                  marginBottom: '1px'
                 }}>
                   {isCompletedMatch && messageSenderProfile
                     ? `${formatDisplayName(messageSenderProfile)} (@${messageSenderProfile.username})`
@@ -1234,21 +1241,22 @@ function ChatScreen({ userId, profile: currentProfile, matchId: initialMatchId, 
               )}
               {/* Mesaj içeriği */}
               <div style={{ 
-                color: isOwn ? '#fff' : (isDarkMode ? '#e2e8f0' : '#1a202c'),
-                fontSize: '14px',
-                lineHeight: 1.3,
-                wordBreak: 'break-word'
+                color: isDarkMode ? '#e9edef' : '#111b21',
+                fontSize: '14.2px',
+                lineHeight: '19px',
+                wordBreak: 'break-word',
+                whiteSpace: 'pre-wrap'
               }}>
                 {message.deleted ? (
                   <span style={{ fontStyle: 'italic', opacity: 0.6 }}>Bu mesaj silindi</span>
                 ) : (
                   <>
                     {message.mediaUrl && (
-                      <div style={{ marginBottom: message.text ? '2px' : 0 }}>
+                      <div style={{ marginBottom: message.text ? '4px' : 0 }}>
                         <img 
                           src={message.mediaUrl.startsWith('http') ? message.mediaUrl : `${API_URL}${message.mediaUrl}`}
                           alt="Gönderilen medya"
-                          style={{ maxWidth: '100%', maxHeight: '200px', borderRadius: '4px', cursor: 'pointer' }}
+                          style={{ maxWidth: '100%', maxHeight: '200px', borderRadius: '6px', cursor: 'pointer' }}
                           onClick={() => window.open(message.mediaUrl.startsWith('http') ? message.mediaUrl : `${API_URL}${message.mediaUrl}`, '_blank')}
                         />
                       </div>
@@ -1257,14 +1265,31 @@ function ChatScreen({ userId, profile: currentProfile, matchId: initialMatchId, 
                   </>
                 )}
               </div>
-              {/* Alt satır: Sol - Okundu, Sağ - Saat */}
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '1px' }}>
-                <span style={{ color: isOwn ? (isRead ? '#53bdeb' : 'rgba(255,255,255,0.6)') : 'transparent', fontSize: '10px' }}>
-                  {isOwn ? (isRead ? '✓✓' : '✓') : ''}
-                </span>
-                <span style={{ color: isOwn ? 'rgba(255,255,255,0.7)' : '#8c8c8c', fontSize: '10px' }}>
+              {/* Saat ve okundu bilgisi - sağ alt */}
+              <div style={{ 
+                display: 'flex', 
+                justifyContent: 'flex-end', 
+                alignItems: 'center',
+                gap: '3px',
+                marginTop: '2px',
+                marginLeft: '8px',
+                float: 'right'
+              }}>
+                <span style={{ 
+                  color: isDarkMode ? 'rgba(255,255,255,0.6)' : 'rgba(0,0,0,0.45)',
+                  fontSize: '11px'
+                }}>
                   {formatTime(message.timestamp)}
                 </span>
+                {isOwn && (
+                  <span style={{ 
+                    color: isRead ? '#53bdeb' : (isDarkMode ? 'rgba(255,255,255,0.5)' : 'rgba(0,0,0,0.35)'),
+                    fontSize: '14px',
+                    marginLeft: '2px'
+                  }}>
+                    {isRead ? '✓✓' : '✓'}
+                  </span>
+                )}
               </div>
             </div>
           </div>
