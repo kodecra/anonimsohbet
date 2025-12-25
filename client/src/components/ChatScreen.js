@@ -984,7 +984,7 @@ function ChatScreen({ userId, profile: currentProfile, matchId: initialMatchId, 
                     overflow: 'hidden',
                     textOverflow: 'ellipsis'
                   }}>
-                    {formatDisplayName(partnerProfile)}
+                    {`${partnerProfile.firstName || ''} ${partnerProfile.lastName || ''}`.trim() || partnerProfile.username}
                     {partnerProfile.age && ` (${partnerProfile.age})`}
                   </Text>
                   {partnerProfile.verified && (
