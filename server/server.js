@@ -1728,6 +1728,12 @@ app.get('/api/matches/:matchId', authenticateToken, (req, res) => {
   const partner = matchUser1Id === userId ? match.user2 : match.user1;
   
   let partnerInfo = null;
+  let partnerAnonymousId = null;
+  
+  // Partner'ın anonim numarasını al
+  const partnerUserProfile = users.get(partner.userId);
+  partnerAnonymousId = partnerUserProfile?.anonymousNumber || partner.anonymousId || null;
+  
   if (!isActiveMatch) {
     // Completed match - partner bilgisini göster
     const partnerProfile = users.get(partner.userId);
@@ -1766,6 +1772,7 @@ app.get('/api/matches/:matchId', authenticateToken, (req, res) => {
     match: {
       matchId: actualMatchId || match.id || requestedMatchId,
       partner: partnerInfo,  // Aktif eşleşmede null, completed'de partner bilgisi
+      partnerAnonymousId: partnerAnonymousId, // Partner'ın anonim numarası
       messages: match.messages || [],
       startedAt: match.startedAt ? (match.startedAt instanceof Date ? match.startedAt.getTime() : match.startedAt) : null,
       pendingFollowRequest: pendingFollowRequest // Bekleyen istek bilgisi

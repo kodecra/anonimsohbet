@@ -183,6 +183,11 @@ function ChatScreen({ userId, profile: currentProfile, matchId: initialMatchId, 
             console.log('✅ Aktif eşleşme - partner null (anonim)');
             setIsCompletedMatch(false);
             setPartnerProfile(null);
+            
+            // Partner'ın anonim numarasını API'den al
+            if (data.match.partnerAnonymousId) {
+              setPartnerAnonymousId(data.match.partnerAnonymousId);
+            }
           }
           
           // Pending follow request kontrolü
@@ -905,28 +910,38 @@ function ChatScreen({ userId, profile: currentProfile, matchId: initialMatchId, 
       {/* Header */}
       <Header style={{ 
         background: isDarkMode ? '#1a1a2e' : '#fff', 
-        padding: '16px 24px',
+        padding: '8px 12px',
         borderBottom: isDarkMode ? '1px solid #424242' : '1px solid #f0f0f0',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between',
-        transition: 'background 0.3s ease, border-color 0.3s ease'
+        transition: 'background 0.3s ease, border-color 0.3s ease',
+        height: 'auto',
+        lineHeight: 'normal',
+        minHeight: '56px'
       }}>
-        <Space>
+        <Space size="small">
           {onGoBack && (
             <Button
               type="text"
               icon={<ArrowLeftOutlined />}
               onClick={onGoBack}
               style={{ 
-                fontSize: '18px',
-                marginRight: '8px'
+                fontSize: '16px',
+                padding: '4px 8px'
               }}
             />
           )}
-          <Title level={4} style={{ margin: 0, color: isDarkMode ? '#fff' : '#000' }}>
+          <span style={{ 
+            fontSize: '14px', 
+            fontWeight: 600, 
+            color: isDarkMode ? '#fff' : '#000',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '4px'
+          }}>
             💬 Sohbet
-          </Title>
+          </span>
         </Space>
         <Space style={{ alignItems: 'center' }}>
           {partnerProfile ? (
