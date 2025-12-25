@@ -1598,6 +1598,19 @@ app.get('/api/matches', authenticateToken, (req, res) => {
           match.isPendingRequest = true;
           match.requestId = requestId;
           match.requestStatus = request.fromUserId === userId ? 'sent' : 'received';
+          
+          // Partner bilgisini anonim yap (henüz kabul edilmemiş)
+          const partnerId = request.fromUserId === userId ? request.toUserId : request.fromUserId;
+          const partnerProfile = users.get(partnerId);
+          const partnerAnonymousNumber = partnerProfile?.anonymousNumber || '0000000';
+          
+          match.partner = {
+            userId: null,
+            username: `Anonim-${partnerAnonymousNumber}`,
+            photos: [],
+            verified: false,
+            isAnonymous: true
+          };
           break;
         }
       }
