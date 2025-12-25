@@ -151,7 +151,7 @@ function MainScreen({ userId, profile, token, onMatchFound, onMatchContinued, on
           'Authorization': `Bearer ${token}`
         }
       });
-      setUnreadNotificationCount(response.data.count || 0);
+      setUnreadNotificationCount(response.data.unreadCount || 0);
     } catch (error) {
       console.error('Okunmamış bildirim sayısı yüklenemedi:', error);
     }
