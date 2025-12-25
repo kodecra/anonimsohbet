@@ -159,19 +159,19 @@ function ChatScreen({ userId, profile: currentProfile, matchId: initialMatchId, 
           const partnerProfile = data.match.partner;
           
           
+          // Mesaj geçmişini yükle (hem aktif hem completed için)
+          if (data.match.messages && data.match.messages.length > 0) {
+            console.log(`✅ ${data.match.messages.length} mesaj yüklendi`);
+            setMessages(data.match.messages);
+          } else {
+            console.log('⚠️ Mesaj geçmişi boş');
+          }
+          
           if (partnerProfile && (partnerProfile.userId || partnerProfile.username)) {
             // Completed match - partner bilgisi var
             console.log('✅ Completed match bulundu, profil yükleniyor:', partnerProfile);
             setIsCompletedMatch(true);
             setPartnerProfile(partnerProfile);
-            
-            // Mesaj geçmişini yükle
-            if (data.match.messages && data.match.messages.length > 0) {
-              console.log(`✅ ${data.match.messages.length} mesaj yüklendi`);
-              setMessages(data.match.messages);
-            } else {
-              console.log('⚠️ Mesaj geçmişi boş');
-            }
             
             // Mesajları okundu olarak işaretle
             fetch(`${API_URL}/api/matches/${cleanMatchId}/mark-read`, {
