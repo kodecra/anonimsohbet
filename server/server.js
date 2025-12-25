@@ -1510,8 +1510,8 @@ app.get('/api/matches', authenticateToken, (req, res) => {
     const partner = match.user1.userId === userId ? match.user2 : match.user1;
     const currentUser = match.user1.userId === userId ? match.user1 : match.user2;
     
-    // Eğer aktif eşleşme ve partner profile yoksa (anonim), anonim numarası göster
-    if (isActiveMatch && !partner.profile) {
+    // Aktif eşleşmeler HER ZAMAN anonim olmalı (kabul edilene kadar)
+    if (isActiveMatch) {
       // Partner'ın anonim numarasını bul
       const partnerProfile = users.get(partner.userId);
       const partnerAnonymousNumber = partnerProfile?.anonymousNumber || partner.anonymousId || '0000000';
