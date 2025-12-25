@@ -111,8 +111,20 @@ function ChatsList({ token, onSelectChat, API_URL, refreshTrigger }) {
         }
       });
       const matchesData = response.data.matches || [];
-      setMatches(matchesData);
-      setFilteredMatches(matchesData);
+      
+      // Sohbetlerim sadece kabul edilmiş (completed) eşleşmeleri göstermeli
+      // Aktif eşleşmeler ve pending request'ler "Eşleşmeler" tabında gösterilir
+      const completedMatches = matchesData.filter(match => {
+        // Aktif eşleşme veya pending request ise gösterme
+        if (match.isActiveMatch) return false;
+        if (match.isPendingRequest) return false;
+        // Anonim partner varsa gösterme (henüz kabul edilmemiş)
+        if (match.partner?.isAnonymous) return false;
+        return true;
+      });
+      
+      setMatches(completedMatches);
+      setFilteredMatches(completedMatches);
       setError('');
     } catch (err) {
       setError(err.response?.data?.error || 'Sohbetler yüklenemedi');
