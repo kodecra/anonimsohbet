@@ -1,89 +1,71 @@
-# Render.com Hızlı Deployment
+# 🚀 Hızlı Deploy Komutları
 
-## 1. GitHub'a Kod Yükleme
+## Windows (PowerShell/CMD)
 
-Terminal'de proje klasöründe şunları çalıştırın:
-
-```bash
-# Git repository başlat
-git init
-
-# Tüm dosyaları ekle
-git add .
-
-# Commit yap
-git commit -m "Initial commit - Anonim Sohbet App"
-
-# GitHub repository URL'inizi ekleyin (kendi kullanıcı adınızla değiştirin)
-git remote add origin https://github.com/KULLANICI_ADINIZ/anonimsohbet.git
-
-# GitHub'a push et
-git branch -M main
-git push -u origin main
+### Tek Satırlık Komut:
+```powershell
+cd C:\xampp\htdocs\anonimsohbet; git add -A; git commit -m "deploy: $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')"; git push origin main; ssh root@72.62.146.220 "cd /var/www/anonimsohbet && git pull origin main && cd server && npm install && pm2 restart anonimso && cd ../client && npm install && npm run build && rm -rf /var/www/html/* && cp -r build/* /var/www/html/"
 ```
 
-**Not:** GitHub'da repository'yi önce oluşturmayı unutmayın!
+### Batch Script ile:
+```batch
+DEPLOY.bat
+```
 
-## 2. Render'da Backend Deploy
+## Linux/Mac (Bash)
 
-1. Render dashboard'da **"New"** → **"Web Service"** seçin
-2. **"Connect GitHub"** butonuna tıklayın ve repository'nizi seçin
-3. **Ayarlar:**
-   - **Name:** `anonimsohbet-backend`
-   - **Region:** `Frankfurt` (veya size en yakın)
-   - **Branch:** `main`
-   - **Root Directory:** `server` ⚠️ **ÇOK ÖNEMLİ!**
-   - **Runtime:** `Node`
-   - **Build Command:** `npm install`
-   - **Start Command:** `node server.js`
-   - **Instance Type:** `Free`
+### Tek Satırlık Komut:
+```bash
+cd /var/www/anonimsohbet && git add -A && git commit -m "deploy: $(date '+%Y-%m-%d %H:%M:%S')" && git push origin main && ssh root@72.62.146.220 "cd /var/www/anonimsohbet && git pull origin main && cd server && npm install && pm2 restart anonimso && cd ../client && npm install && npm run build && rm -rf /var/www/html/* && cp -r build/* /var/www/html/"
+```
 
-4. **Environment Variables** sekmesine gidin ve ekleyin:
-   ```
-   NODE_ENV = production
-   PORT = 10000
-   JWT_SECRET = anonim-sohbet-secret-key-2024-xyz123
-   SUPERADMIN_EMAIL = admin@admin.com
-   ```
+### Script ile:
+```bash
+chmod +x DEPLOY.sh
+./DEPLOY.sh
+```
 
-5. **"Create Web Service"** butonuna tıklayın
+## Manuel Adımlar
 
-6. Deploy tamamlandığında backend URL'inizi alın (örn: `https://anonimsohbet-backend.onrender.com`)
+### 1. Git Commit & Push
+```bash
+cd C:\xampp\htdocs\anonimsohbet
+git add -A
+git commit -m "deploy: yeni özellikler"
+git push origin main
+```
 
-## 3. Render'da Frontend Deploy
+### 2. Sunucuya Deploy
+```bash
+ssh root@72.62.146.220
+cd /var/www/anonimsohbet
+git pull origin main
+cd server
+npm install
+pm2 restart anonimso
+cd ../client
+npm install
+npm run build
+rm -rf /var/www/html/*
+cp -r build/* /var/www/html/
+```
 
-1. Render dashboard'da **"New"** → **"Static Site"** seçin
-2. Aynı GitHub repository'nizi seçin
-3. **Ayarlar:**
-   - **Name:** `anonimsohbet-frontend`
-   - **Branch:** `main`
-   - **Root Directory:** `client`
-   - **Build Command:** `npm install && npm run build`
-   - **Publish Directory:** `build`
-   - **Node Version:** `18` (veya `20`)
+## Notlar
 
-4. **Environment Variables** sekmesine gidin ve ekleyin:
-   ```
-   REACT_APP_API_URL = https://anonimsohbet-backend.onrender.com
-   ```
-   ⚠️ **Backend URL'inizi yukarıdaki adımdan aldığınız URL ile değiştirin!**
+- **PM2 Process Name**: `anonimso` (sunucuda kontrol edin: `pm2 list`)
+- **Build Klasörü**: `client/build`
+- **Deploy Klasörü**: `/var/www/html/`
+- **SSH Key**: SSH key'iniz yüklü olmalı, yoksa şifre soracaktır
 
-5. **"Create Static Site"** butonuna tıklayın
+## Hızlı Kontrol
 
-6. Deploy tamamlandığında frontend URL'inizi alın (örn: `https://anonimsohbet-frontend.onrender.com`)
+```bash
+# PM2 durumunu kontrol et
+ssh root@72.62.146.220 "pm2 status"
 
-## 4. Test
+# Son commit'leri kontrol et
+git log --oneline -5
 
-Frontend URL'inizi tarayıcıda açın ve test edin!
-
-## Önemli Notlar
-
-- **Free tier'de:** 15 dakika kullanılmazsa uyku moduna geçer, ilk istek 30-60 saniye sürebilir
-- **Socket.io:** Render'da çalışır, ekstra ayar gerekmez
-- **CORS:** Backend'de zaten ayarlı
-- **Port:** Render otomatik olarak PORT environment variable kullanır
-
-## Sorun Olursa
-
-Render dashboard'da **"Logs"** sekmesinden hata mesajlarını kontrol edin.
-
+# Build dosyalarını kontrol et
+ls -la client/build/
+```
