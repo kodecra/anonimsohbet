@@ -115,3 +115,4 @@ Deploy tamamlandıktan sonra, backend loglarında şunu görmelisiniz:
 
 
 
+

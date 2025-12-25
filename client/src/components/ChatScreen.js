@@ -425,10 +425,20 @@ function ChatScreen({ userId, profile: currentProfile, matchId: initialMatchId, 
       ));
     });
 
-    // Mesaj okundu işaretlendi
+    // Mesaj okundu işaretlendi (tek mesaj)
     newSocket.on('message-read', (data) => {
       setMessages((prev) => prev.map(m => 
         m.id === data.messageId ? { 
+          ...m, 
+          readBy: [...(m.readBy || []), data.readBy] 
+        } : m
+      ));
+    });
+    
+    // Mesajlar okundu işaretlendi (çoklu mesaj)
+    newSocket.on('messages-read', (data) => {
+      setMessages((prev) => prev.map(m => 
+        data.messageIds && data.messageIds.includes(m.id) ? { 
           ...m, 
           readBy: [...(m.readBy || []), data.readBy] 
         } : m
@@ -1187,11 +1197,11 @@ function ChatScreen({ userId, profile: currentProfile, matchId: initialMatchId, 
           >
             <Card
               style={{
-                padding: '4px 8px',
+                padding: '3px 6px',
                 backgroundColor: message.userId === userId 
                   ? '#005c4b'
                   : (isDarkMode ? '#1f2c34' : '#fff'),
-                borderRadius: message.userId === userId ? '8px 8px 2px 8px' : '8px 8px 8px 2px',
+                borderRadius: message.userId === userId ? '6px 6px 2px 6px' : '6px 6px 6px 2px',
                 border: 'none',
                 boxShadow: '0 1px 0.5px rgba(0,0,0,0.13)'
               }}
@@ -1204,10 +1214,11 @@ function ChatScreen({ userId, profile: currentProfile, matchId: initialMatchId, 
                     color: message.userId === userId 
                       ? '#8696a0' 
                       : '#53bdeb',
-                    fontSize: '11px',
+                    fontSize: '10px',
                     fontWeight: 600,
                     display: 'block',
-                    marginBottom: '2px'
+                    marginBottom: '1px',
+                    lineHeight: 1.2
                   }}
                 >
                   {isCompletedMatch && messageSenderProfile
@@ -1222,7 +1233,7 @@ function ChatScreen({ userId, profile: currentProfile, matchId: initialMatchId, 
               <Text style={{ 
                 color: '#e9edef',
                 fontSize: '13px',
-                lineHeight: 1.3,
+                lineHeight: 1.2,
                 wordBreak: 'break-word',
                 display: 'block'
               }}>
@@ -1231,7 +1242,7 @@ function ChatScreen({ userId, profile: currentProfile, matchId: initialMatchId, 
                 ) : (
                   <>
                     {message.mediaUrl && (
-                      <div style={{ marginBottom: message.text ? '4px' : 0 }}>
+                      <div style={{ marginBottom: message.text ? '2px' : 0 }}>
                         <img 
                           src={message.mediaUrl.startsWith('http') ? message.mediaUrl : `${API_URL}${message.mediaUrl}`}
                           alt="Gönderilen medya"
@@ -1258,38 +1269,30 @@ function ChatScreen({ userId, profile: currentProfile, matchId: initialMatchId, 
               {/* Alt satır: Okundu/İletildi (sol) - Saat (sağ) */}
               <div style={{ 
                 display: 'flex', 
-                justifyContent: 'space-between', 
+                justifyContent: 'flex-end', 
                 alignItems: 'center',
-                marginTop: '2px',
-                gap: '8px'
+                marginTop: '1px',
+                gap: '4px'
               }}>
-                {/* Okundu/İletildi bilgisi - sadece kendi mesajlarımızda */}
-                {message.userId === userId ? (
-                  <Text style={{ 
-                    color: 'rgba(255,255,255,0.5)', 
-                    fontSize: '10px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '2px'
-                  }}>
-                    {message.readBy && message.readBy.length > 0 ? (
-                      <>✓✓ Okundu</>
-                    ) : (
-                      <>✓ İletildi</>
-                    )}
-                  </Text>
-                ) : (
-                  <span></span>
-                )}
-                {/* Saat - sağ alt */}
+                {/* Saat */}
                 <Text style={{ 
                   color: message.userId === userId ? 'rgba(255,255,255,0.5)' : '#8c8c8c',
-                  fontSize: '10px',
+                  fontSize: '9px',
                   whiteSpace: 'nowrap'
                 }}>
                   {formatTime(message.timestamp)}
                 </Text>
-              </div>
+                {/* Okundu/İletildi tik - sadece kendi mesajlarımızda */}
+                {message.userId === userId && (
+                  <Text style={{ 
+                    color: message.readBy && message.readBy.filter(id => id !== userId).length > 0 
+                      ? '#53bdeb' 
+                      : 'rgba(255,255,255,0.5)', 
+                    fontSize: '10px'
+                  }}>
+                    {message.readBy && message.readBy.filter(id => id !== userId).length > 0 ? '✓✓' : '✓'}
+                  </Text>
+                )}
               
               {/* Reaksiyonlar */}
               {message.reactions && Object.keys(message.reactions).length > 0 && (

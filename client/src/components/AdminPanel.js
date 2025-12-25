@@ -37,6 +37,15 @@ const { Sider, Content } = Layout;
 
 const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000';
 
+// Poz tanımları - PoseVerification.js ile aynı
+const POSES = {
+  1: { name: 'Tek Parmağı Burna', icon: '👆' },
+  2: { name: 'İki Parmağı Kulağa', icon: '✌️' },
+  3: { name: 'Yumruk Havaya', icon: '✊' },
+  4: { name: 'İki El Yanlara', icon: '🤗' },
+  5: { name: 'Bir El Çeneye', icon: '🤔' }
+};
+
 function AdminPanel({ token, API_URL, onGoToProfile }) {
   const { isDarkMode } = React.useContext(ThemeContext);
   const [verifications, setVerifications] = useState([]);
@@ -313,38 +322,67 @@ function AdminPanel({ token, API_URL, onGoToProfile }) {
                       )}
                       {verification.poseImages && verification.poseImages.length > 0 && (
                         <Row gutter={[8, 8]}>
-                          {verification.poseImages.map((img, index) => (
-                            <Col span={8} key={index}>
-                              <div style={{ position: 'relative' }}>
-                                <Image
-                                  src={`${API_URL}${img.url}`}
-                                  alt={`Poz ${index + 1}`}
-                                  style={{ 
-                                    width: '100%', 
+                          {verification.poseImages.map((img, index) => {
+                            const poseInfo = POSES[img.poseId] || { name: img.poseName || `Poz ${index + 1}`, icon: '📸' };
+                            return (
+                              <Col span={8} key={index}>
+                                <div style={{ 
+                                  textAlign: 'center',
+                                  background: isDarkMode ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.02)',
+                                  borderRadius: '8px',
+                                  padding: '8px'
+                                }}>
+                                  {/* İstenilen Poz */}
+                                  <div style={{ 
+                                    marginBottom: '8px',
+                                    padding: '8px',
+                                    background: isDarkMode ? 'rgba(83,189,235,0.1)' : 'rgba(24,144,255,0.1)',
                                     borderRadius: '8px',
-                                    aspectRatio: '1'
-                                  }}
-                                  onError={(e) => {
-                                    e.target.style.display = 'none';
-                                  }}
-                                />
-                                {img.poseName && (
-                                  <Tag
-                                    style={{
-                                      position: 'absolute',
-                                      bottom: 4,
-                                      left: 4,
-                                      color: isDarkMode ? '#fff' : '#000',
-                                      background: isDarkMode ? 'rgba(0,0,0,0.7)' : 'rgba(255,255,255,0.9)'
-                                    }}
-                                    color="blue"
-                                  >
-                                    {img.poseName}
-                                  </Tag>
-                                )}
-                              </div>
-                            </Col>
-                          ))}
+                                    border: `1px dashed ${isDarkMode ? '#53bdeb' : '#1890ff'}`
+                                  }}>
+                                    <div style={{ fontSize: '32px', marginBottom: '4px' }}>
+                                      {poseInfo.icon}
+                                    </div>
+                                    <Text style={{ 
+                                      fontSize: '11px', 
+                                      color: isDarkMode ? '#53bdeb' : '#1890ff',
+                                      fontWeight: 600
+                                    }}>
+                                      {poseInfo.name}
+                                    </Text>
+                                  </div>
+                                  {/* Kullanıcının Çektiği Resim */}
+                                  <div style={{ position: 'relative' }}>
+                                    <Image
+                                      src={`${API_URL}${img.url}`}
+                                      alt={`Poz ${index + 1}`}
+                                      style={{ 
+                                        width: '100%', 
+                                        borderRadius: '8px',
+                                        aspectRatio: '1',
+                                        objectFit: 'cover'
+                                      }}
+                                      onError={(e) => {
+                                        e.target.style.display = 'none';
+                                      }}
+                                    />
+                                    <Tag
+                                      style={{
+                                        position: 'absolute',
+                                        bottom: 4,
+                                        left: 4,
+                                        fontSize: '10px',
+                                        padding: '0 4px'
+                                      }}
+                                      color="green"
+                                    >
+                                      Kullanıcı Resmi
+                                    </Tag>
+                                  </div>
+                                </div>
+                              </Col>
+                            );
+                          })}
                         </Row>
                       )}
                     </div>

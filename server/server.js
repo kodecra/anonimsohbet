@@ -1860,21 +1860,33 @@ app.post('/api/matches/:matchId/mark-read', authenticateToken, async (req, res) 
   }
   
   // Kullanıcının bu eşleşmede olup olmadığını kontrol et
-  const matchUser1Id = match.user1?.userId || match.user1?.user?.userId;
-  const matchUser2Id = match.user2?.userId || match.user2?.user?.userId;
+  const matchUser1Id = match.user1 && match.user1.userId ? match.user1.userId : (match.user1 && match.user1.user ? match.user1.user.userId : null);
+  const matchUser2Id = match.user2 && match.user2.userId ? match.user2.userId : (match.user2 && match.user2.user ? match.user2.user.userId : null);
   
   if (matchUser1Id !== userId && matchUser2Id !== userId) {
     return res.json({ success: false, message: 'Bu eşleşmeye erişim yetkiniz yok' });
   }
 
+  // Partner'ın userId'sini bul
+  const partnerId = matchUser1Id === userId ? matchUser2Id : matchUser1Id;
+
   // Karşı taraftan gelen tüm mesajları okundu olarak işaretle
   let markedCount = 0;
+  const readMessageIds = [];
   if (match.messages && match.messages.length > 0) {
     for (let i = 0; i < match.messages.length; i++) {
-      if (match.messages[i].userId !== userId && !match.messages[i].read) {
-        match.messages[i].read = true;
-        match.messages[i].readAt = new Date().toISOString();
-        markedCount++;
+      const msg = match.messages[i];
+      // Karşı tarafın mesajlarını işaretle
+      if (msg.userId !== userId) {
+        // readBy dizisine ekle (yoksa oluştur)
+        if (!msg.readBy) msg.readBy = [];
+        if (!msg.readBy.includes(userId)) {
+          msg.readBy.push(userId);
+          msg.read = true;
+          msg.readAt = new Date().toISOString();
+          markedCount++;
+          readMessageIds.push(msg.id);
+        }
       }
     }
   }
@@ -1888,9 +1900,19 @@ app.post('/api/matches/:matchId/mark-read', authenticateToken, async (req, res) 
       completedMatches.set(matchId, match);
       await saveMatches(completedMatches, userMatches);
     }
+    
+    // Partner'a mesajların okunduğunu bildir
+    const partnerSocket = activeUsers.get(partnerId);
+    if (partnerSocket) {
+      io.to(partnerSocket).emit('messages-read', { 
+        matchId, 
+        readBy: userId,
+        messageIds: readMessageIds 
+      });
+    }
   }
   
-  res.json({ success: true, markedCount });
+  res.json({ success: true, markedCount, messageIds: readMessageIds });
 });
 
 // Socket.io bağlantıları
