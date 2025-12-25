@@ -850,6 +850,7 @@ function MainScreen({ userId, profile, token, onMatchFound, onMatchContinued, on
                             // Kırmızı badge gösterilecek mi? (karşı taraf devam etmek istiyorum butonuna basmış ama biz cevaplamamışız)
                             const needsResponse = match.isPendingRequest && match.requestStatus === 'received';
                             const isWaitingForResponse = match.isPendingRequest && match.requestStatus === 'sent';
+                            const isActiveChat = match.isActiveMatch && !match.isPendingRequest;
                             
                             return (
                               <AntList.Item
@@ -876,7 +877,9 @@ function MainScreen({ userId, profile, token, onMatchFound, onMatchContinued, on
                                       <Avatar 
                                         size={50}
                                         style={{
-                                          background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                                          background: isActiveChat 
+                                            ? 'linear-gradient(135deg, #11998e 0%, #38ef7d 100%)' 
+                                            : 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
                                           color: '#fff',
                                           fontWeight: 'bold'
                                         }}
@@ -903,6 +906,11 @@ function MainScreen({ userId, profile, token, onMatchFound, onMatchContinued, on
                                           Cevap Bekleniyor
                                         </Tag>
                                       )}
+                                      {isActiveChat && (
+                                        <Tag color="green" style={{ margin: 0 }}>
+                                          Devam Eden Sohbet
+                                        </Tag>
+                                      )}
                                     </div>
                                   }
                                   description={
@@ -914,6 +922,8 @@ function MainScreen({ userId, profile, token, onMatchFound, onMatchContinued, on
                                         ? 'Devam etmek isteğinize yanıt verin' 
                                         : isWaitingForResponse
                                         ? 'Karşı tarafın cevabını bekliyorsunuz'
+                                        : isActiveChat
+                                        ? 'Sohbete devam etmek için tıklayın'
                                         : 'Devam etmek için tıklayın'
                                       }
                                     </span>
