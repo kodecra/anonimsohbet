@@ -308,6 +308,12 @@ function LoginAntd({ onLogin, onSwitchToRegister, API_URL }) {
               Giriş yap
             </Button>
           </Form.Item>
+
+          <div style={{ textAlign: 'center', marginTop: '16px' }}>
+            <Button type="link" onClick={() => setForgotOpen(true)} style={{ color: '#1d9bf0', padding: 0 }}>
+              Şifremi Unuttum
+            </Button>
+          </div>
         </Form>
 
         <div style={{ marginTop: '8px' }}>

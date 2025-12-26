@@ -1092,4 +1092,5 @@ function ChatScreen({
     </Layout>
   );
 }
+
 export default ChatScreen;
