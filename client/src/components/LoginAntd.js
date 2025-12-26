@@ -337,8 +337,148 @@ function LoginAntd({ onLogin, onSwitchToRegister, API_URL }) {
           </Button>
         </div>
       </div>
-    </div>
+
+      {/* Forgot Password Modal */}
+      <Modal
+      title="Şifremi Unuttum"
+      open={forgotOpen}
+      onCancel={() => {
+        setForgotOpen(false);
+        resetForgotState();
+      }}
+      footer={null}
+      width={400}
+    >
+      {forgotStep === 1 && (
+        <div>
+          <p>Email adresinizi girin, şifre sıfırlama kodu göndereceğiz:</p>
+          <Input
+            placeholder="Email adresi"
+            value={forgotEmail}
+            onChange={(e) => setForgotEmail(e.target.value)}
+            style={{ marginBottom: 16 }}
+          />
+          <Button
+            type="primary"
+            block
+            loading={forgotLoading}
+            onClick={() => {
+              setForgotLoading(true);
+              setForgotError('');
+              setForgotSuccess('');
+              
+              axios.post(`${API_URL}/api/forgot-password`, {
+                email: forgotEmail.trim()
+              })
+              .then(() => {
+                setForgotSuccess('Şifre sıfırlama kodu email adresinize gönderildi.');
+                setForgotStep(2);
+              })
+              .catch(err => {
+                setForgotError(err.response?.data?.error || 'Email gönderilemedi');
+              })
+              .finally(() => {
+                setForgotLoading(false);
+              });
+            }}
+          >
+            Kod Gönder
+          </Button>
+        </div>
+      )}
+      
+      {forgotStep === 2 && (
+        <div>
+          <p>Email adresinize gelen kodu ve yeni şifrenizi girin:</p>
+          <Input
+            placeholder="Sıfırlama kodu"
+            value={resetCode}
+            onChange={(e) => setResetCode(e.target.value)}
+            style={{ marginBottom: 8 }}
+          />
+          <Input.Password
+            placeholder="Yeni şifre"
+            value={newPassword}
+            onChange={(e) => setNewPassword(e.target.value)}
+            style={{ marginBottom: 8 }}
+          />
+          <Input.Password
+            placeholder="Yeni şifre (tekrar)"
+            value={confirmPassword}
+            onChange={(e) => setConfirmPassword(e.target.value)}
+            style={{ marginBottom: 16 }}
+          />
+          <Button
+            type="primary"
+            block
+            loading={forgotLoading}
+            onClick={() => {
+              if (!resetCode || !newPassword || !confirmPassword) {
+                setForgotError('Tüm alanları doldurun');
+                return;
+              }
+              
+              if (newPassword !== confirmPassword) {
+                setForgotError('Şifreler eşleşmiyor');
+                return;
+              }
+              
+              setForgotLoading(true);
+              setForgotError('');
+              setForgotSuccess('');
+              
+              axios.post(`${API_URL}/api/reset-password`, {
+                email: forgotEmail.trim(),
+                resetCode: resetCode.trim(),
+                newPassword: newPassword
+              })
+              .then(() => {
+                setForgotSuccess('Şifreniz başarıyla sıfırlandı.');
+                setForgotStep(3);
+                setTimeout(() => {
+                  setForgotOpen(false);
+                  resetForgotState();
+                }, 2000);
+              })
+              .catch(err => {
+                setForgotError(err.response?.data?.error || 'Şifre sıfırlanamadı');
+              })
+              .finally(() => {
+                setForgotLoading(false);
+              });
+            }}
+          >
+            Şifreyi Sıfırla
+          </Button>
+        </div>
+      )}
+      
+      {forgotStep === 3 && (
+        <div style={{ textAlign: 'center' }}>
+          <p style={{ color: '#52c41a', fontSize: '16px' }}>
+            Şifreniz başarıyla sıfırlandı!
+          </p>
+        </div>
+      )}
+      
+      {forgotError && (
+        <Alert
+          message={forgotError}
+          type="error"
+          style={{ marginTop: 16 }}
+        />
+      )}
+      
+      {forgotSuccess && (
+        <Alert
+          message={forgotSuccess}
+          type="success"
+          style={{ marginTop: 16 }}
+        />
+      )}
+    </Modal>
+  </div>
   );
-}
+};
 
 export default LoginAntd;
