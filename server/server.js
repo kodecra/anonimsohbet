@@ -315,11 +315,12 @@ app.post('/api/login', async (req, res) => {
 
   let userEmail = null;
   let userId = null;
+  let auth = null;
 
   // Email ile login
   if (email) {
     userEmail = email.toLowerCase();
-    const auth = userAuth.get(userEmail);
+    auth = userAuth.get(userEmail);
     if (!auth) {
       return res.status(401).json({ error: 'Email veya şifre hatalı' });
     }
@@ -328,7 +329,8 @@ app.post('/api/login', async (req, res) => {
   // Username veya phoneNumber ile login
   else {
     console.log('🔍 Username/PhoneNumber ile login deneniyor:', { username, phoneNumber });
-    // Users map'inde username veya phoneNumber'a göre ara
+
+    // 1) Users map'inde username veya phoneNumber'a göre profil bul
     let foundProfile = null;
     for (const [uid, profile] of users.entries()) {
       if (username && profile.username && profile.username.toLowerCase() === username.toLowerCase()) {
@@ -345,30 +347,29 @@ app.post('/api/login', async (req, res) => {
       }
     }
 
-    if (!foundProfile) {
-      console.log('❌ Kullanıcı bulunamadı');
+    if (!foundProfile || !userId) {
+      console.log('❌ Kullanıcı bulunamadı (username/phone)');
       return res.status(401).json({ error: 'Kullanıcı adı/telefon veya şifre hatalı' });
     }
 
-    console.log('🔍 userAuth\'da email aranıyor, userId:', userId);
-    // userId'ye göre userAuth'dan email'i bul
-    for (const [emailKey, auth] of userAuth.entries()) {
-      if (auth.userId === userId) {
+    // 2) userId'ye göre auth kaydını bul (email'e dolanmadan)
+    for (const [emailKey, authEntry] of userAuth.entries()) {
+      if (authEntry.userId === userId) {
+        auth = authEntry;
         userEmail = emailKey;
-        console.log('✅ Email bulundu:', userEmail);
+        console.log('✅ Auth kaydı bulundu, email:', userEmail);
         break;
       }
     }
 
-    if (!userEmail) {
-      console.log('❌ userAuth\'da email bulunamadı');
+    if (!auth || !userEmail) {
+      console.log('❌ Auth kaydı bulunamadı, userId:', userId);
       return res.status(401).json({ error: 'Kullanıcı adı/telefon veya şifre hatalı' });
     }
   }
 
   // Şifre kontrolü
   console.log('🔐 Şifre kontrol ediliyor, userEmail:', userEmail);
-  const auth = userAuth.get(userEmail);
   if (!auth) {
     console.log('❌ userAuth bulunamadı');
     return res.status(401).json({ error: 'Email veya şifre hatalı' });
