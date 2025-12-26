@@ -39,7 +39,6 @@ import {
 import { Image } from 'antd';
 import { ThemeContext } from '../App';
 import './ChatScreen.css';
-import { Modal } from 'antd';
 
 const { Header, Content, Footer } = Layout;
 const { Title, Text } = Typography;
