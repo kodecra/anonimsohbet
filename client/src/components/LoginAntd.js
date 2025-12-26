@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import { Form, Input, Button, Card, Typography, Alert, Divider, Space } from 'antd';
+import { Form, Input, Button, Card, Typography, Alert, Divider, Space, Modal, message } from 'antd';
 import { UserOutlined, LockOutlined, GoogleOutlined } from '@ant-design/icons';
 import './Login.css';
 
@@ -11,11 +11,86 @@ function LoginAntd({ onLogin, onSwitchToRegister, API_URL }) {
   const [error, setError] = useState('');
   const [form] = Form.useForm();
   const [windowWidth, setWindowWidth] = useState(window.innerWidth);
+  const [forgotOpen, setForgotOpen] = useState(false);
+  const [forgotStep, setForgotStep] = useState(1); // 1: email, 2: code+password, 3: success
+  const [forgotEmail, setForgotEmail] = useState('');
+  const [resetCode, setResetCode] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [forgotLoading, setForgotLoading] = useState(false);
+  const [forgotError, setForgotError] = useState('');
+  const [forgotSuccess, setForgotSuccess] = useState('');
 
   useEffect(() => {
     const handleResize = () => {
       setWindowWidth(window.innerWidth);
     };
+
+    const resetForgotState = () => {
+      setForgotStep(1);
+      setForgotEmail('');
+      setResetCode('');
+      setNewPassword('');
+      setConfirmPassword('');
+      setForgotError('');
+      setForgotSuccess('');
+    };
+
+    const handleForgotSubmit = async () => {
+      setForgotError('');
+      setForgotSuccess('');
+      if (!forgotEmail.trim()) {
+        setForgotError('Lütfen email adresinizi girin');
+        return;
+      }
+      setForgotLoading(true);
+      try {
+        await axios.post(`${API_URL}/api/forgot-password`, { email: forgotEmail.trim() });
+        setForgotSuccess('Şifre sıfırlama kodu email adresinize gönderildi.');
+        setForgotStep(2);
+      } catch (err) {
+        setForgotError(err.response?.data?.error || 'Email gönderilemedi');
+      } finally {
+        setForgotLoading(false);
+      }
+    };
+
+    const handleResetPassword = async () => {
+      setForgotError('');
+      setForgotSuccess('');
+
+      if (newPassword !== confirmPassword) {
+        setForgotError('Şifreler eşleşmiyor');
+        return;
+      }
+      if (newPassword.length < 6) {
+        setForgotError('Şifre en az 6 karakter olmalıdır');
+        return;
+      }
+      if (resetCode.length !== 6) {
+        setForgotError('Lütfen 6 haneli kodu girin');
+        return;
+      }
+
+      setForgotLoading(true);
+      try {
+        await axios.post(`${API_URL}/api/reset-password`, {
+          code: resetCode,
+          newPassword
+        });
+        setForgotSuccess('Şifreniz başarıyla güncellendi. Yeni şifrenizle giriş yapabilirsiniz.');
+        setForgotStep(3);
+        setTimeout(() => {
+          setForgotOpen(false);
+          resetForgotState();
+        }, 2000);
+      } catch (err) {
+        setForgotError(err.response?.data?.error || 'Şifre güncellenemedi');
+      } finally {
+        setForgotLoading(false);
+      }
+    };
+
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, []);
@@ -199,6 +274,18 @@ function LoginAntd({ onLogin, onSwitchToRegister, API_URL }) {
               }}
             />
           </Form.Item>
+
+          <div style={{ textAlign: 'right', marginTop: -8, marginBottom: 16 }}>
+            <Text
+              type="secondary"
+              style={{ cursor: 'pointer', fontSize: 13 }}
+              onClick={() => {
+                setForgotOpen(true);
+              }}
+            >
+              Şifremi Unuttum
+            </Text>
+          </div>
 
           <Form.Item>
             <Button 
