@@ -1087,10 +1087,9 @@ function ChatScreen({
       {/* Continue Request / Input Footer */}
       {/* (Buraya mevcut input alanın vs. gelecektir; mevcut projenin alt kısmını koru) */}
 
-      {/* Image preview modal */}
+       {/* Image preview modal */}
       {renderImagePreviewModal()}
     </Layout>
   );
 }
-
 export default ChatScreen;
