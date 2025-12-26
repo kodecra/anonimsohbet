@@ -275,19 +275,6 @@ function LoginAntd({ onLogin, onSwitchToRegister, API_URL }) {
             />
           </Form.Item>
 
-          <div style={{ textAlign: 'right', marginTop: -8, marginBottom: 16 }}>
-            <Text
-              type="secondary"
-              style={{ cursor: 'pointer', fontSize: 13 }}
-              onClick={() => {
-                resetForgotState();
-                setForgotOpen(true);
-              }}
-            >
-              Şifremi Unuttum
-            </Text>
-          </div>
-
           <Form.Item>
             <Button 
               type="primary" 
