@@ -311,3 +311,5 @@ function App() {
 }
 
 export default App;
+
+// Bu, Git'in görmesi gereken bir test yorumudur.
