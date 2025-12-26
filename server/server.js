@@ -116,25 +116,36 @@ const upload = multer({
 });
 
 // CORS ayarları - Web ve Mobil için
-const io = socketIo(server, {
-  cors: {
-    origin: "*",
-    methods: ["GET", "POST"],
-    credentials: true
-  }
-});
+const allowedOrigins = [
+  'https://soulbate.com',
+  'https://www.soulbate.com',
+  'http://localhost:3000',
+  'http://localhost:5000'
+];
 
 app.use(cors({
-  origin: [
-    'https://soulbate.com',
-    'https://www.soulbate.com',
-    'http://localhost:3000',
-    'http://localhost:5000'
-  ],
+  origin: function (origin, callback) {
+    // Origin yoksa (mobil app / Postman vb.) veya listede varsa izin ver
+    if (!origin || allowedOrigins.includes(origin)) {
+      return callback(null, true);
+    }
+    return callback(new Error('Not allowed by CORS'));
+  },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization']
 }));
+
+// Preflight istekler için tüm route'larda OPTIONS'a izin ver
+app.options('*', cors());
+
+const io = socketIo(server, {
+  cors: {
+    origin: allowedOrigins,
+    methods: ['GET', 'POST'],
+    credentials: true
+  }
+});
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
@@ -3584,13 +3595,6 @@ const PORT = process.env.PORT || 5000;
 server.listen(PORT, () => {
   console.log(`Server çalışıyor: http://localhost:${PORT}`);
   console.log(`Eşleşme sistemi aktif`);
-      const completedMatch = completedMatches.get(matchId);
-      const completedMessage = completedMatch.messages.find(m => m.id === messageId);
-      if (completedMessage) {
-        completedMessage.reactions = message.reactions;
-        await saveMatches(completedMatches, userMatches);
-      }
-    }
 
     // Partner'e bildir
     const partnerId = match.user1.userId === userInfo.userId ? match.user2.userId : match.user1.userId;
@@ -3723,9 +3727,7 @@ server.listen(PORT, () => {
       }
     }
   });
-});
 
-const PORT = process.env.PORT || 5000;
 server.listen(PORT, () => {
   console.log(`Server çalışıyor: http://localhost:${PORT}`);
   console.log(`Eşleşme sistemi aktif`);
