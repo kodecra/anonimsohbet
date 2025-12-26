@@ -1940,6 +1940,7 @@ const handleContinueRequest = () => {
           <Spin />
         )}
       </Modal>
+      {renderImagePreviewModal()}
     </Layout>
   );
 }
