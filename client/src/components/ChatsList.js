@@ -688,4 +688,5 @@ function ChatsList({ token, onSelectChat, API_URL, refreshTrigger }) {
   );
 }
 
+
 export default ChatsList;

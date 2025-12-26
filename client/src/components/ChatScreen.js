@@ -1915,5 +1915,3 @@ function ChatScreen({ userId, profile: currentProfile, matchId: initialMatchId, 
     </Layout>
   );
 }
-
-export default ChatScreen;
