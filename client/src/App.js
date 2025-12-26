@@ -4,7 +4,7 @@ import { ConfigProvider, theme } from 'antd';
 import LoginAntd from './components/LoginAntd';
 import RegisterAntd from './components/RegisterAntd';
 import MainScreen from './components/MainScreen';
-import ChatScreen from './components/ChatScreen';
+import { ChatScreen } from './components/ChatScreen';
 import AdminPanel from './components/AdminPanel';
 import './App.css';
 import './theme.css';
