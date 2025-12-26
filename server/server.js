@@ -401,12 +401,12 @@ app.post('/api/login', async (req, res) => {
 
 // Email transporter yapılandırması (Hostinger SMTP)
 const emailTransporter = nodemailer.createTransport({
-  host: 'smtp.hostinger.com',
-  port: 465,
+  host: process.env.SMTP_HOST || 'smtp.hostinger.com',
+  port: Number(process.env.SMTP_PORT) || 465,
   secure: true, // SSL
   auth: {
-    user: process.env.SMTP_EMAIL || 'info@soulbate.com',
-    pass: process.env.SMTP_PASSWORD || 'Oguzhan1453.'
+    user: process.env.SMTP_EMAIL,
+    pass: process.env.SMTP_PASSWORD
   }
 });
 
