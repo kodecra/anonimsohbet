@@ -26,74 +26,74 @@ function LoginAntd({ onLogin, onSwitchToRegister, API_URL }) {
       setWindowWidth(window.innerWidth);
     };
 
-    const resetForgotState = () => {
-      setForgotStep(1);
-      setForgotEmail('');
-      setResetCode('');
-      setNewPassword('');
-      setConfirmPassword('');
-      setForgotError('');
-      setForgotSuccess('');
-    };
-
-    const handleForgotSubmit = async () => {
-      setForgotError('');
-      setForgotSuccess('');
-      if (!forgotEmail.trim()) {
-        setForgotError('Lütfen email adresinizi girin');
-        return;
-      }
-      setForgotLoading(true);
-      try {
-        await axios.post(`${API_URL}/api/forgot-password`, { email: forgotEmail.trim() });
-        setForgotSuccess('Şifre sıfırlama kodu email adresinize gönderildi.');
-        setForgotStep(2);
-      } catch (err) {
-        setForgotError(err.response?.data?.error || 'Email gönderilemedi');
-      } finally {
-        setForgotLoading(false);
-      }
-    };
-
-    const handleResetPassword = async () => {
-      setForgotError('');
-      setForgotSuccess('');
-
-      if (newPassword !== confirmPassword) {
-        setForgotError('Şifreler eşleşmiyor');
-        return;
-      }
-      if (newPassword.length < 6) {
-        setForgotError('Şifre en az 6 karakter olmalıdır');
-        return;
-      }
-      if (resetCode.length !== 6) {
-        setForgotError('Lütfen 6 haneli kodu girin');
-        return;
-      }
-
-      setForgotLoading(true);
-      try {
-        await axios.post(`${API_URL}/api/reset-password`, {
-          code: resetCode,
-          newPassword
-        });
-        setForgotSuccess('Şifreniz başarıyla güncellendi. Yeni şifrenizle giriş yapabilirsiniz.');
-        setForgotStep(3);
-        setTimeout(() => {
-          setForgotOpen(false);
-          resetForgotState();
-        }, 2000);
-      } catch (err) {
-        setForgotError(err.response?.data?.error || 'Şifre güncellenemedi');
-      } finally {
-        setForgotLoading(false);
-      }
-    };
-
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, []);
+
+  const resetForgotState = () => {
+    setForgotStep(1);
+    setForgotEmail('');
+    setResetCode('');
+    setNewPassword('');
+    setConfirmPassword('');
+    setForgotError('');
+    setForgotSuccess('');
+  };
+
+  const handleForgotSubmit = async () => {
+    setForgotError('');
+    setForgotSuccess('');
+    if (!forgotEmail.trim()) {
+      setForgotError('Lütfen email adresinizi girin');
+      return;
+    }
+    setForgotLoading(true);
+    try {
+      await axios.post(`${API_URL}/api/forgot-password`, { email: forgotEmail.trim() });
+      setForgotSuccess('Şifre sıfırlama kodu email adresinize gönderildi.');
+      setForgotStep(2);
+    } catch (err) {
+      setForgotError(err.response?.data?.error || 'Email gönderilemedi');
+    } finally {
+      setForgotLoading(false);
+    }
+  };
+
+  const handleResetPassword = async () => {
+    setForgotError('');
+    setForgotSuccess('');
+
+    if (newPassword !== confirmPassword) {
+      setForgotError('Şifreler eşleşmiyor');
+      return;
+    }
+    if (newPassword.length < 6) {
+      setForgotError('Şifre en az 6 karakter olmalıdır');
+      return;
+    }
+    if (resetCode.length !== 6) {
+      setForgotError('Lütfen 6 haneli kodu girin');
+      return;
+    }
+
+    setForgotLoading(true);
+    try {
+      await axios.post(`${API_URL}/api/reset-password`, {
+        code: resetCode,
+        newPassword
+      });
+      setForgotSuccess('Şifreniz başarıyla güncellendi. Yeni şifrenizle giriş yapabilirsiniz.');
+      setForgotStep(3);
+      setTimeout(() => {
+        setForgotOpen(false);
+        resetForgotState();
+      }, 2000);
+    } catch (err) {
+      setForgotError(err.response?.data?.error || 'Şifre güncellenemedi');
+    } finally {
+      setForgotLoading(false);
+    }
+  };
 
   const handleLogin = async (values) => {
     setError('');
@@ -280,6 +280,7 @@ function LoginAntd({ onLogin, onSwitchToRegister, API_URL }) {
               type="secondary"
               style={{ cursor: 'pointer', fontSize: 13 }}
               onClick={() => {
+                resetForgotState();
                 setForgotOpen(true);
               }}
             >

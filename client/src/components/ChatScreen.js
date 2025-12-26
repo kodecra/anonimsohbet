@@ -39,6 +39,7 @@ import {
 import { Image } from 'antd';
 import { ThemeContext } from '../App';
 import './ChatScreen.css';
+import { Modal } from 'antd';
 
 const { Header, Content, Footer } = Layout;
 const { Title, Text } = Typography;
@@ -71,6 +72,8 @@ function ChatScreen({ userId, profile: currentProfile, matchId: initialMatchId, 
     browserEnabled: true,
     messageEnabled: true
   });
+  const [previewImageUrl, setPreviewImageUrl] = useState(null);
+  const [isPreviewVisible, setIsPreviewVisible] = useState(false);
   const [showPartnerProfileModal, setShowPartnerProfileModal] = useState(false);
   const [showViewProfileModal, setShowViewProfileModal] = useState(false);
   const [viewProfileData, setViewProfileData] = useState(null);
@@ -146,6 +149,25 @@ function ChatScreen({ userId, profile: currentProfile, matchId: initialMatchId, 
           throw error;
         }
       };
+
+  const renderImagePreviewModal = () => (
+    <Modal
+      open={isPreviewVisible}
+      footer={null}
+      centered
+      onCancel={() => setIsPreviewVisible(false)}
+      bodyStyle={{ padding: 0, backgroundColor: '#000' }}
+      width="auto"
+    >
+      {previewImageUrl && (
+        <img
+          src={previewImageUrl}
+          alt="Medya Önizleme"
+          style={{ maxWidth: '100%', maxHeight: '80vh', display: 'block', margin: '0 auto' }}
+        />
+      )}
+    </Modal>
+  );
       
       fetchMatchWithRetry()
       .then(response => {
@@ -610,17 +632,17 @@ function ChatScreen({ userId, profile: currentProfile, matchId: initialMatchId, 
       console.log('Mesaj gönderilemedi:', { 
         hasText: !!messageText.trim(), 
         hasSocket: !!socket, 
-        hasMatchId: !!activeMatchId
-      });
     }
-  };
+  }, 1000);
+};
 
-  const handleTyping = (e) => {
-    setMessageText(e.target.value);
-    const activeMatchId = currentMatchId || initialMatchId;
-    if (!isTyping) {
-      setIsTyping(true);
-      if (socket && activeMatchId) {
+// Devam etmek istiyorum isteği gönder
+const handleContinueRequest = () => {
+  // currentMatchId veya initialMatchId kullan
+  const activeMatchId = currentMatchId || initialMatchId;
+  
+  if (socket && activeMatchId) {
+    console.log('Devam isteği gönderiliyor:', { matchId: activeMatchId, socketConnected: socket.connected, currentMatchId, initialMatchId });
         socket.emit('typing', { isTyping: true, matchId: activeMatchId });
       }
     }
@@ -1267,7 +1289,13 @@ function ChatScreen({ userId, profile: currentProfile, matchId: initialMatchId, 
                         cursor: 'pointer',
                         display: 'block'
                       }}
-                      onClick={() => window.open(message.mediaUrl.startsWith('http') ? message.mediaUrl : `${API_URL}${message.mediaUrl}`, '_blank')}
+                      onClick={() => {
+                        const url = message.mediaUrl.startsWith('http')
+                          ? message.mediaUrl
+                          : `${API_URL}${message.mediaUrl}`;
+                        setPreviewImageUrl(url);
+                        setIsPreviewVisible(true);
+                      }}
                     />
                   </div>
                 )}
