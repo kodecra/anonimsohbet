@@ -298,7 +298,7 @@ function LoginAntd({ onLogin, onSwitchToRegister, API_URL }) {
 
           <div style={{ textAlign: 'center', marginTop: '16px' }}>
             <Button type="link" onClick={() => setForgotOpen(true)} style={{ color: '#1d9bf0', padding: 0 }}>
-              Şifremi Unuttum
+              Forgot Password
             </Button>
           </div>
         </Form>
@@ -327,7 +327,7 @@ function LoginAntd({ onLogin, onSwitchToRegister, API_URL }) {
 
       {/* Forgot Password Modal */}
       <Modal
-      title="Şifremi Unuttum"
+      title="Forgot Password"
       open={forgotOpen}
       onCancel={() => {
         setForgotOpen(false);
