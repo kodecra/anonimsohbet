@@ -9,6 +9,7 @@ const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 const nodemailer = require('nodemailer');
+// const sharp = require('sharp'); // Disabled: Sharp modülü server'da yüklü değil
 // Veritabanı veya JSON dosyası kullanımı (DATABASE_URL varsa PostgreSQL, yoksa JSON)
 const useDatabase = !!process.env.DATABASE_URL;
 
@@ -224,12 +225,16 @@ if (useDatabase && initDatabase) {
 
 // Verileri otomatik kaydet (her 30 saniyede bir)
 setInterval(async () => {
-  if (users && userAuth && completedMatches && userMatches && pendingVerifications) {
-    await saveUsers(users);
-    await saveAuth(userAuth);
-    await saveMatches(completedMatches, userMatches);
-    await saveVerifications(pendingVerifications);
-    console.log('Veriler kaydedildi');
+  try {
+    if (users && userAuth && completedMatches && userMatches && pendingVerifications) {
+      await saveUsers(users);
+      await saveAuth(userAuth);
+      await saveMatches(completedMatches, userMatches);
+      await saveVerifications(pendingVerifications);
+      console.log('Veriler kaydedildi');
+    }
+  } catch (error) {
+    console.error('❌ Veri kaydetme hatası (crash önlendi):', error.message);
   }
 }, 30000); // 30 saniye
 
@@ -281,6 +286,8 @@ app.post('/api/register', async (req, res) => {
     interests: [],
     photos: [],
     verified: false,
+    lastSeen: new Date(), // Kayıt anında da lastSeen ekle
+    isOnline: true,
     createdAt: new Date(),
     updatedAt: new Date()
   };
@@ -386,6 +393,12 @@ app.post('/api/login', async (req, res) => {
     return res.status(404).json({ error: 'Profil bulunamadı' });
   }
 
+  // Last seen timestamp güncelle (kullanıcı giriş yaptı)
+  profile.lastSeen = new Date();
+  profile.isOnline = true;
+  users.set(userId, profile);
+  await saveUsers(users);
+
   const token = jwt.sign({ userId, email: userEmail }, JWT_SECRET, { expiresIn: '7d' });
 
   res.json({ 
@@ -413,6 +426,9 @@ const emailTransporter = nodemailer.createTransport({
 
 // Şifre sıfırlama token'larını sakla (memory, production'da Redis kullanılmalı)
 const passwordResetTokens = new Map(); // token -> { email, expiresAt }
+
+// Email doğrulama kodlarını sakla (memory, production'da Redis kullanılmalı)
+const emailVerificationCodes = new Map(); // email -> { code, expiresAt, userId }
 
 // Şifremi Unuttum - Email gönder
 app.post('/api/forgot-password', async (req, res) => {
@@ -537,6 +553,163 @@ app.post('/api/reset-password', async (req, res) => {
   }
 });
 
+// Email doğrulama kodu gönder
+app.post('/api/send-verification-email', authenticateToken, async (req, res) => {
+  try {
+    const { email } = req.body;
+    const userId = req.user.userId;
+    
+    if (!email) {
+      return res.status(400).json({ error: 'Email adresi gereklidir' });
+    }
+    
+    const normalizedEmail = email.toLowerCase().trim();
+    
+    // Email başka bir kullanıcı tarafından kullanılıyor mu kontrol et
+    for (const [existingUserId, authEntry] of userAuth.entries()) {
+      if (authEntry.userId !== userId && existingUserId === normalizedEmail) {
+        return res.status(400).json({ error: 'Bu email başka bir kullanıcı tarafından kullanılıyor' });
+      }
+    }
+    
+    // 6 haneli kod oluştur
+    const verificationCode = Math.floor(100000 + Math.random() * 900000).toString();
+    const expiresAt = new Date(Date.now() + 15 * 60 * 1000); // 15 dakika geçerli
+    
+    // Kodu sakla
+    emailVerificationCodes.set(normalizedEmail, {
+      code: verificationCode,
+      expiresAt: expiresAt,
+      userId: userId
+    });
+    
+    // Kullanıcı adını al
+    const profile = users.get(userId);
+    const username = profile?.username || profile?.firstName || 'Kullanıcı';
+    
+    // Email gönder
+    const mailOptions = {
+      from: '"Soulbate" <info@soulbate.com>',
+      to: normalizedEmail,
+      subject: 'Soulbate - Email Doğrulama Kodu',
+      html: `
+        <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+          <div style="text-align: center; margin-bottom: 30px;">
+            <h1 style="color: #667eea; margin: 0;">Soulbate</h1>
+            <p style="color: #666; margin-top: 5px;">Ruh Eşinizi Bulun</p>
+          </div>
+          
+          <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 10px; padding: 30px; color: white; text-align: center;">
+            <h2 style="margin-top: 0;">Merhaba ${username}!</h2>
+            <p>Email adresinizi doğrulamak için aşağıdaki kodu kullanın:</p>
+            <div style="background: rgba(255,255,255,0.2); border-radius: 8px; padding: 20px; margin: 20px 0;">
+              <span style="font-size: 32px; font-weight: bold; letter-spacing: 5px;">${verificationCode}</span>
+            </div>
+            <p style="font-size: 14px; opacity: 0.9;">Bu kod 15 dakika geçerlidir.</p>
+          </div>
+          
+          <div style="margin-top: 30px; padding: 20px; background: #f8f9fa; border-radius: 10px;">
+            <p style="color: #666; font-size: 14px; margin: 0;">
+              Eğer bu işlemi siz yapmadıysanız, bu emaili görmezden gelebilirsiniz. 
+              Hesabınız güvende.
+            </p>
+          </div>
+          
+          <div style="text-align: center; margin-top: 30px; color: #999; font-size: 12px;">
+            <p>© 2024 Soulbate. Tüm hakları saklıdır.</p>
+          </div>
+        </div>
+      `
+    };
+    
+    await emailTransporter.sendMail(mailOptions);
+    console.log('✅ Email doğrulama kodu gönderildi:', normalizedEmail);
+    
+    res.json({ 
+      message: 'Doğrulama kodu email adresinize gönderildi.',
+      email: normalizedEmail
+    });
+  } catch (error) {
+    console.error('❌ Email doğrulama gönderme hatası:', error);
+    res.status(500).json({ error: 'Email gönderilemedi. Lütfen daha sonra tekrar deneyin.' });
+  }
+});
+
+// Email doğrulama kodunu doğrula
+app.post('/api/verify-email-code', authenticateToken, async (req, res) => {
+  try {
+    const { email, code } = req.body;
+    const userId = req.user.userId;
+    
+    if (!email || !code) {
+      return res.status(400).json({ error: 'Email ve kod gereklidir' });
+    }
+    
+    const normalizedEmail = email.toLowerCase().trim();
+    
+    // Kodu kontrol et
+    const verificationData = emailVerificationCodes.get(normalizedEmail);
+    if (!verificationData) {
+      return res.status(400).json({ error: 'Geçersiz veya kullanılmış kod' });
+    }
+    
+    // Kullanıcı ID kontrolü
+    if (verificationData.userId !== userId) {
+      return res.status(403).json({ error: 'Bu kod size ait değil' });
+    }
+    
+    // Süre kontrolü
+    if (new Date() > verificationData.expiresAt) {
+      emailVerificationCodes.delete(normalizedEmail);
+      return res.status(400).json({ error: 'Kodun süresi dolmuş. Lütfen yeni bir kod isteyin.' });
+    }
+    
+    // Kod doğru mu?
+    if (verificationData.code !== code) {
+      return res.status(400).json({ error: 'Doğrulama kodu hatalı' });
+    }
+    
+    // Profil güncelle
+    const profile = users.get(userId);
+    if (!profile) {
+      return res.status(404).json({ error: 'Profil bulunamadı' });
+    }
+    
+    // Eski email varsa auth'dan sil
+    if (profile.email && profile.email !== normalizedEmail) {
+      userAuth.delete(profile.email);
+    }
+    
+    // Profil güncelle
+    profile.email = normalizedEmail;
+    profile.verified = true;
+    profile.updatedAt = new Date();
+    users.set(userId, profile);
+    await saveUsers(users);
+    
+    // Auth güncelle
+    userAuth.set(normalizedEmail, {
+      userId: userId,
+      passwordHash: userAuth.get(profile.email)?.passwordHash || userAuth.get(normalizedEmail)?.passwordHash
+    });
+    await saveAuth(userAuth);
+    
+    // Kodu sil (tek kullanımlık)
+    emailVerificationCodes.delete(normalizedEmail);
+    
+    console.log('✅ Email doğrulandı:', normalizedEmail);
+    
+    res.json({ 
+      message: 'Email adresiniz başarıyla doğrulandı!',
+      verified: true,
+      email: normalizedEmail
+    });
+  } catch (error) {
+    console.error('❌ Email doğrulama hatası:', error);
+    res.status(500).json({ error: 'Doğrulama başarısız. Lütfen tekrar deneyin.' });
+  }
+});
+
 // Token doğrulama middleware
 const authenticateToken = (req, res, next) => {
   // DELETE route'ları için özel log
@@ -585,12 +758,11 @@ app.post('/api/profile/photos', authenticateToken, upload.array('photos', 5), as
       // FTP ile yükle
       const fileUrl = await uploadToFTP(localFilePath, remoteFilePath);
       
-      // Local dosyayı sil (artık hosting'de var)
-      fs.unlinkSync(localFilePath);
+      // NOT: Local dosya silinmiyor - artık local olarak sunuluyor
       
       return {
         id: uuidv4(),
-        url: fileUrl, // Hosting URL'i
+        url: fileUrl, // Local URL
         filename: file.filename,
         uploadedAt: new Date()
       };
@@ -662,11 +834,10 @@ app.post('/api/profile/verify-poses', authenticateToken, upload.fields([
       try {
         // FTP ile yükle
         const fileUrl = await uploadToFTP(localFilePath, remoteFilePath);
-        // Local dosyayı sil
-        fs.unlinkSync(localFilePath);
+        // NOT: Local dosya silinmiyor - artık local olarak sunuluyor
         
         poseImages.push({
-          url: fileUrl, // Hosting URL'i
+          url: fileUrl, // Local URL
           filename: file.filename,
           poseId: poseId
         });
@@ -732,8 +903,7 @@ app.post('/api/profile/verify-selfie', authenticateToken, upload.single('selfie'
   try {
     // FTP ile yükle
     selfieUrl = await uploadToFTP(localFilePath, remoteFilePath);
-    // Local dosyayı sil
-    fs.unlinkSync(localFilePath);
+    // NOT: Local dosya silinmiyor - artık local olarak sunuluyor
   } catch (error) {
     console.error('FTP upload error:', error);
     // FTP hatası olursa local URL kullan (fallback)
@@ -1264,6 +1434,59 @@ app.post('/api/admin/cleanup-matches', authenticateToken, async (req, res) => {
   }
 });
 
+// OpenGraph logo yükleme (Sharp olmadan)
+app.post('/api/admin/upload-opengraph-logo', authenticateToken, upload.single('logo'), async (req, res) => {
+  const userId = req.user.userId;
+  const profile = users.get(userId);
+  
+  if (!profile) {
+    return res.status(404).json({ error: 'Profil bulunamadı' });
+  }
+  
+  if (!isAdmin(profile)) {
+    return res.status(403).json({ error: 'Bu işlem için yetkiniz yok' });
+  }
+
+  if (!req.file) {
+    return res.status(400).json({ error: 'Logo seçilmedi' });
+  }
+
+  try {
+    // Sharp olmadan, orijinal dosyayı kullan
+    const filename = `og-${req.file.filename}`;
+    const filePath = path.join(uploadsDir, filename);
+    
+    // Orijinal dosyayı kopyala
+    fs.copyFileSync(path.join(uploadsDir, req.file.filename), filePath);
+    
+    console.log('✅ OpenGraph logo yüklendi (resize olmadan):', filename);
+    
+    // FTP ile hosting'e yükle
+    const remoteFilePath = `/opengraph/${filename}`;
+    
+    let logoUrl;
+    try {
+      // FTP ile yükle
+      logoUrl = await uploadToFTP(filePath, remoteFilePath);
+    } catch (error) {
+      console.error('FTP upload error:', error);
+      // FTP hatası olursa local URL kullan (fallback)
+      logoUrl = `/opengraph/${filename}`;
+    }
+    
+    // Orijinal yüklenen dosyayı sil
+    fs.unlinkSync(path.join(uploadsDir, req.file.filename));
+    
+    res.json({ 
+      logoUrl: logoUrl,
+      message: 'OpenGraph logo güncellendi (Note: Sharp modülü yüklü değil, resize yapılmadı)'
+    });
+  } catch (error) {
+    console.error('OpenGraph logo yükleme hatası:', error);
+    res.status(500).json({ error: 'Logo yüklenemedi: ' + error.message });
+  }
+});
+
 // Mesaj için resim yükleme
 app.post('/api/messages/upload-media', authenticateToken, upload.single('media'), async (req, res) => {
   if (!req.file) {
@@ -1278,8 +1501,7 @@ app.post('/api/messages/upload-media', authenticateToken, upload.single('media')
   try {
     // FTP ile yükle
     mediaUrl = await uploadToFTP(localFilePath, remoteFilePath);
-    // Local dosyayı sil
-    fs.unlinkSync(localFilePath);
+    // NOT: Local dosya silinmiyor - artık local olarak sunuluyor
   } catch (error) {
     console.error('FTP upload error:', error);
     // FTP hatası olursa local URL kullan (fallback)
@@ -1710,39 +1932,56 @@ app.get('/api/matches', authenticateToken, (req, res) => {
       };
     }
     
-    // Completed match veya partner profile var
-    // Partner bilgisi eksikse users Map'inden al
-    let partnerInfo = partner.profile || partner;
+    // Partner bilgisini HER ZAMAN users Map'inden al (en güncel profil)
+    const partnerProfile = users.get(partner.userId);
+    let partnerInfo;
+    
+    if (partnerProfile) {
+      // Users Map'inden güncel profil al
+      partnerInfo = {
+        userId: partner.userId,
+        username: partnerProfile.username,
+        firstName: partnerProfile.firstName,
+        lastName: partnerProfile.lastName,
+        age: partnerProfile.age,
+        photos: partnerProfile.photos || [],
+        verified: partnerProfile.verified || false
+      };
+      
+      console.log('📋 /api/matches - partner bilgisi (users Map\'inden):', {
+        userId: partnerInfo.userId,
+        username: partnerInfo.username,
+        firstName: partnerInfo.firstName,
+        lastName: partnerInfo.lastName,
+        age: partnerInfo.age
+      });
+    } else {
+      // Fallback: Eski match'teki partner bilgisi
+      partnerInfo = partner.profile || partner;
+      console.log('⚠️ /api/matches - partner profile bulunamadı, fallback kullanılıyor:', {
+        userId: partner.userId,
+        username: partnerInfo?.username
+      });
+    }
+    
+    // Partner bulunamadı, anonim numarası göster
     if (!partnerInfo || !partnerInfo.username) {
-      const partnerProfile = users.get(partner.userId);
-      if (partnerProfile) {
-        partnerInfo = {
-          userId: partnerProfile.userId,
-          username: partnerProfile.username,
-          firstName: partnerProfile.firstName,
-          lastName: partnerProfile.lastName,
-          photos: partnerProfile.photos || [],
-          verified: partnerProfile.verified || false
-        };
-      } else {
-        // Partner bulunamadı, anonim numarası göster
-        const partnerAnonymousNumber = partner.anonymousId || '0000000';
-        return {
-          matchId: match.id,
-          partner: {
-            userId: null,
-            username: `Anonim-${partnerAnonymousNumber}`,
-            photos: [],
-            verified: false,
-            isAnonymous: true
-          },
-          lastMessage: match.messages.length > 0 ? match.messages[match.messages.length - 1] : null,
-          lastMessageAt: match.lastMessageAt,
-          messageCount: match.messages.length,
-          startedAt: match.startedAt,
-          isActiveMatch: false
-        };
-      }
+      const partnerAnonymousNumber = partner.anonymousId || '0000000';
+      return {
+        matchId: match.id,
+        partner: {
+          userId: null,
+          username: `Anonim-${partnerAnonymousNumber}`,
+          photos: [],
+          verified: false,
+          isAnonymous: true
+        },
+        lastMessage: match.messages.length > 0 ? match.messages[match.messages.length - 1] : null,
+        lastMessageAt: match.lastMessageAt,
+        messageCount: match.messages.length,
+        startedAt: match.startedAt,
+        isActiveMatch: false
+      };
     }
     
     return {
@@ -2247,11 +2486,55 @@ io.on('connection', (socket) => {
       }
     }
     
-    console.log('start-matching: Kullanici bulundu:', userInfo.profile.username);
+    // ✅ KONTROL: Kullanıcı zaten aktif bir eşleşmede mi?
+    if (userInfo.inMatch && userInfo.matchId) {
+      console.log('⚠️ Kullanıcı zaten aktif eşleşmede, eşleşme iptal ediliyor:', userInfo.profile.username);
+      socket.emit('error', { message: 'Zaten aktif bir eşleşmeniz bulunuyorsunuz. Lütfen önce mevcut eşleşmenizi bitirin.' });
+      return;
+    }
+    
+    console.log('start-matching: Kullanıcı bulundu:', userInfo.profile.username);
     
     // Kullanıcının filtreleri
     const genderFilter = data.filterGender || data.genderFilter || null; // 'male', 'female', veya null (hepsi)
     console.log('   Cinsiyet filtresi: ' + (genderFilter || 'hepsi'));
+
+    // Kullanıcının daha önce eşleştiği tüm KULLANICILARI bul (userId'ler)
+    const previousMatchedUserIds = [];
+    const userMatchIds = userMatches.get(userInfo.userId) || [];
+    
+    console.log('   Kullanıcının eşleşmeleri:', userMatchIds);
+    
+    // userMatchIds'deki her match için partner'ı bul
+    // userMatches = Şu an aktif eşleşme içinde olanlar (DELETE edilmemiş!)
+    for (const mid of userMatchIds) {
+      const match = completedMatches.get(mid);
+      if (match) {
+        const u1Id = match.user1?.userId || match.user1?.user?.userId;
+        const u2Id = match.user2?.userId || match.user2?.user?.userId;
+        
+        // Partner'ın userId'sini ekle (kullanıcının kendisi hariç)
+        if (u1Id === userInfo.userId && u2Id) {
+          previousMatchedUserIds.push(u2Id);
+        } else if (u2Id === userInfo.userId && u1Id) {
+          previousMatchedUserIds.push(u1Id);
+        }
+      }
+    }
+    
+    // Active matches'teki partner'ları da ekle (anonim eşleşmedekiler)
+    for (const [matchId, match] of activeMatches.entries()) {
+      const u1Id = match.user1?.userId;
+      const u2Id = match.user2?.userId;
+      
+      if (u1Id === userInfo.userId && u2Id) {
+        previousMatchedUserIds.push(u2Id);
+      } else if (u2Id === userInfo.userId && u1Id) {
+        previousMatchedUserIds.push(u1Id);
+      }
+    }
+    
+    console.log('   Önceki eşleştiği kullanıcılar (aktif eşleşmeler):', previousMatchedUserIds);
 
     // Kullanıcı mevcut eşleşmede olsa bile yeni eşleşme başlatabilir
     // Kuyruğa ekle (filtreleriyle birlikte)
@@ -2277,6 +2560,12 @@ io.on('connection', (socket) => {
       
       // Kendisiyle eşleşme yapma
       if (candidate.socketId === socket.id) continue;
+      
+      // Önceki eşleşme kontrolü - BU KULLANICI DAHA ÖNCE BU KULLANICI İLE EŞLEŞMİŞ OLSA YENİDEN EŞLEŞMESİN
+      if (previousMatchedUserIds.includes(candidate.userId)) {
+        console.log('   ❌ ' + (candidate.profile && candidate.profile.username) + ' ile daha önce eşleşilmiş, atlanıyor');
+        continue;
+      }
       
       // Cinsiyet filtresi kontrolü (ZORUNLU)
       const candidateGender = candidate.profile && candidate.profile.gender;
@@ -3016,18 +3305,19 @@ io.on('connection', (socket) => {
         });
       }
 
-      // Eşleşmeyi temizle
-      const user1Info = activeUsers.get(match.user1.socketId);
-      const user2Info = activeUsers.get(match.user2.socketId);
-      if (user1Info) {
-        user1Info.inMatch = false;
-        user1Info.matchId = null;
+      // Eşleşmeyi temizle - HER İKİ kullanıcının TÜM socket'lerini temizle
+    const user1Id = match.user1.userId || match.user1.user?.userId;
+    const user2Id = match.user2.userId || match.user2.user?.userId;
+    
+    for (const [socketId, info] of activeUsers.entries()) {
+      if ((info.userId === user1Id || info.userId === user2Id) && info.matchId === matchId) {
+        info.inMatch = false;
+        info.matchId = null;
+        activeUsers.set(socketId, info);
       }
-      if (user2Info) {
-        user2Info.inMatch = false;
-        user2Info.matchId = null;
-      }
-      await deleteActiveMatch(matchId);
+    }
+    
+    await deleteActiveMatch(matchId);
     }
 
     // İsteği yapan kullanıcıya da bildir (matches-updated)
